@@ -143,6 +143,143 @@ Ocekivano:
 2. Izracunato stanje blagajne je nepromenjeno.
 3. Zahtev je samo zahtev, nije nalog i nije isplata.
 
+## Task 04 - Payment Order workflow
+
+Pre testiranja dodati aktivnog korisnika u `USERS`. Za kreiranje naloga iz zahteva korisnik mora imati rolu `ADMIN`, `DIRECTOR`, `FINANCE`, `CASHIER_SUPERVISOR` ili `APPROVER`. Za direktan nalog korisnik mora imati rolu `ADMIN`, `DIRECTOR`, `FINANCE` ili `CASHIER_SUPERVISOR`. Za odbijanje naloga od strane blagajnika korisnik mora imati rolu `CASHIER`, `CASHIER_SUPERVISOR` ili `ADMIN`.
+
+Takodje dodati aktivnu blagajnu u `CASHBOXES`, na primer `cashbox_id = CB-001`.
+
+### Test 1: Create order from approved request
+
+Koraci:
+
+1. Kreirati zahtev za isplatu.
+2. Podneti zahtev.
+3. Odobriti zahtev.
+4. Pokrenuti `createPaymentOrderFromRequest(request_id, { cashbox_id: 'CB-001' })`.
+5. Proveriti `PAYMENT_ORDERS`.
+6. Proveriti izvorni red u `PAYMENT_REQUESTS`.
+7. Proveriti `AUDIT_LOG` i `CASH_EVENTS`.
+
+Ocekivano:
+
+1. Odobren zahtev postoji.
+2. Nalog je kreiran.
+3. Nalog ima `order_type = FROM_REQUEST`.
+4. `source_request_id` pokazuje na zahtev.
+5. Status zahteva postaje `CONVERTED_TO_ORDER`.
+6. `linked_order_id` u zahtevu je popunjen.
+7. Audit log sadrzi `CREATE` za nalog.
+8. Audit log sadrzi `UPDATE` za zahtev.
+9. Nije kreiran cash event.
+10. Stanje blagajne je nepromenjeno.
+
+### Test 2: Prevent order from unapproved request
+
+Koraci:
+
+1. Kreirati zahtev koji je `DRAFT` ili `SUBMITTED`.
+2. Pokrenuti `createPaymentOrderFromRequest(request_id, { cashbox_id: 'CB-001' })`.
+3. Proveriti `PAYMENT_ORDERS`.
+
+Ocekivano:
+
+1. Sistem odbija kreiranje naloga.
+2. Novi red naloga nije kreiran.
+
+### Test 3: Prevent duplicate order from same request
+
+Koraci:
+
+1. Kreirati nalog iz odobrenog zahteva.
+2. Ponovo pokrenuti `createPaymentOrderFromRequest(request_id, { cashbox_id: 'CB-001' })`.
+
+Ocekivano:
+
+1. Zahtev vec ima `linked_order_id`.
+2. Sistem odbija drugi nalog.
+
+### Test 4: Create direct order
+
+Koraci:
+
+1. Pokrenuti `createDirectPaymentOrder({ cashbox_id: 'CB-001', pay_to_name: 'Petar Petrovic', amount_ordered: 15000, currency: 'RSD', purpose: 'Direktan nalog za trosak puta' })`.
+2. Proveriti `PAYMENT_ORDERS`.
+3. Proveriti `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Ovlasceni korisnik kreira direktan nalog.
+2. Nalog ima `order_type = DIRECT_ORDER`.
+3. `source_request_id` je prazan.
+4. Status je `DRAFT`.
+5. Audit log sadrzi `CREATE`.
+6. Stanje blagajne je nepromenjeno.
+
+### Test 5: Issue payment order
+
+Koraci:
+
+1. Kreirati direktan nalog ili nalog iz zahteva.
+2. Pokrenuti `issuePaymentOrder(order_id)`.
+3. Proveriti `PAYMENT_ORDERS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Status se menja iz `DRAFT` u `WAITING_PAYMENT`.
+2. `issued_by` je popunjen.
+3. `issued_at` je popunjen.
+4. Audit log sadrzi `SUBMIT`.
+5. Stanje blagajne je nepromenjeno.
+
+### Test 6: Cancel payment order
+
+Koraci:
+
+1. Kreirati nalog u statusu `DRAFT` ili `WAITING_PAYMENT`.
+2. Pokusati `cancelPaymentOrder(order_id, '')`.
+3. Pokrenuti `cancelPaymentOrder(order_id, 'Test otkazivanja naloga.')`.
+4. Proveriti `PAYMENT_ORDERS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Razlog otkazivanja je obavezan.
+2. Status se menja u `CANCELLED`.
+3. Audit log sadrzi `CANCEL`.
+4. Nalog ostaje u tabeli.
+
+### Test 7: Cashier rejects order
+
+Koraci:
+
+1. Kreirati i izdati nalog tako da bude `WAITING_PAYMENT`.
+2. Pokusati `rejectPaymentOrderByCashier(order_id, '')`.
+3. Pokrenuti `rejectPaymentOrderByCashier(order_id, 'Primalac nije prisutan.')`.
+4. Proveriti `PAYMENT_ORDERS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. `WAITING_PAYMENT` nalog moze da odbije blagajnik sa obaveznim razlogom.
+2. Status se menja u `REJECTED_BY_CASHIER`.
+3. `cashier_rejection_reason` je popunjen.
+4. Audit log sadrzi `REJECT`.
+5. Stanje blagajne je nepromenjeno.
+
+### Test 8: Payment Order does not affect balance
+
+Koraci:
+
+1. Zabeleziti broj redova u `CASH_EVENTS`.
+2. Kreirati direktan nalog.
+3. Izdati nalog.
+4. Ponovo proveriti `CASH_EVENTS`.
+
+Ocekivano:
+
+1. Nema novog reda u `CASH_EVENTS`.
+2. Nije kreiran `CASH_OUTFLOW`.
+3. Izracunato stanje blagajne je nepromenjeno.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

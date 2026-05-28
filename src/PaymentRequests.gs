@@ -232,12 +232,12 @@ function listRequestsForApproval() {
     });
 }
 
-function convertApprovedRequestToOrderPlaceholder(requestId) {
+function convertApprovedRequestToOrderPlaceholder(requestId, orderData) {
   assertNonEmptyString(requestId, 'requestId');
   const match = getPaymentRequestMatchOrThrow_(requestId);
   assertRequestStatus_(match.record, [REQUEST_STATUSES.APPROVED]);
 
-  throw new Error('Full Payment Order creation belongs to Task 04. This placeholder does not modify data.');
+  return createPaymentOrderFromRequest(requestId, orderData || {});
 }
 
 function getPaymentRequestMatchOrThrow_(requestId) {

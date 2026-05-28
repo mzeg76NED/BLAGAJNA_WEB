@@ -87,6 +87,11 @@ const REQUEST_PRIORITIES = Object.freeze({
   URGENT: 'URGENT'
 });
 
+const ORDER_TYPES = Object.freeze({
+  FROM_REQUEST: 'FROM_REQUEST',
+  DIRECT_ORDER: 'DIRECT_ORDER'
+});
+
 const SHIFT_STATUSES = Object.freeze({
   OPEN: 'OPEN',
   HANDED_OVER: 'HANDED_OVER',

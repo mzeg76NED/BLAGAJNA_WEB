@@ -56,6 +56,13 @@ function assertActiveCashbox(cashboxId) {
   }
 }
 
+function assertEntityStatus(record, allowedStatuses, entityName) {
+  if (!record) {
+    throw new Error(entityName + ' record is required.');
+  }
+  assertAllowedValue(record.status, allowedStatuses, entityName + ' status');
+}
+
 function getCurrentTimestamp_() {
   return new Date();
 }
