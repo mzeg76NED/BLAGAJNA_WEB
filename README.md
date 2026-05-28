@@ -49,3 +49,15 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 9. Potvrdi da `findRecordById()` pronalazi test korisnika.
 10. Potvrdi da `updateRecordById()` menja `full_name` u `Smoke Test User Updated`.
 11. Potvrdi da `writeAuditLog()` dodaje red u AUDIT_LOG.
+
+## Manualni test za Task 03
+
+1. U `USERS` dodaj aktivnog korisnika sa email adresom koja pokrece Apps Script.
+2. Za kreiranje zahteva dodeli rolu `REQUESTER` ili visu dozvoljenu rolu.
+3. Za odobravanje/odbijanje dodeli rolu `APPROVER`, `FINANCE`, `DIRECTOR`, `CASHIER_SUPERVISOR` ili `ADMIN`.
+4. Pokreni `createPaymentRequest()` sa primaocem, pozitivnim iznosom, aktivnom valutom i svrhom.
+5. Potvrdi da je status `DRAFT` i da `AUDIT_LOG` ima `CREATE`.
+6. Pokreni `submitPaymentRequest(request_id)` i potvrdi status `SUBMITTED`.
+7. Pokreni `approvePaymentRequest(request_id)` ili `rejectPaymentRequest(request_id, reason)`.
+8. Potvrdi da nema novog reda u `PAYMENT_ORDERS` i `CASH_EVENTS`.
+9. Potvrdi da zahtev ne menja stanje blagajne.

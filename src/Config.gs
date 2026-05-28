@@ -82,6 +82,11 @@ const DOCUMENT_STATUSES = Object.freeze({
   CANCELLED: 'CANCELLED'
 });
 
+const REQUEST_PRIORITIES = Object.freeze({
+  NORMAL: 'NORMAL',
+  URGENT: 'URGENT'
+});
+
 const SHIFT_STATUSES = Object.freeze({
   OPEN: 'OPEN',
   HANDED_OVER: 'HANDED_OVER',

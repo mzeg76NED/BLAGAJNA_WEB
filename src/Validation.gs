@@ -24,10 +24,19 @@ function assertAllowedValue(value, allowedValues, fieldName) {
   }
 }
 
+function assertNonEmptyString(value, fieldName) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(fieldName + ' must be a non-empty string.');
+  }
+}
+
 function assertActiveCurrency(currency) {
   assertAllowedValue(currency, SUPPORTED_CURRENCIES, 'currency');
 
   const existing = findRecordById(SHEET_NAMES.CURRENCIES, 'currency_code', currency);
+  if (!existing) {
+    throw new Error('Currency not found: ' + currency);
+  }
   if (existing && existing.record.active !== true && existing.record.active !== 'TRUE') {
     throw new Error('Currency is not active: ' + currency);
   }
@@ -45,4 +54,8 @@ function assertActiveCashbox(cashboxId) {
   if (existing.record.active !== true && existing.record.active !== 'TRUE') {
     throw new Error('Cashbox is not active: ' + cashboxId);
   }
+}
+
+function getCurrentTimestamp_() {
+  return new Date();
 }
