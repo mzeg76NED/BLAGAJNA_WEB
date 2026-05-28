@@ -675,6 +675,130 @@ Ocekivano:
 3. Status postaje `CANCELLED`.
 4. Audit log sadrzi `CANCEL`.
 
+## Task 08 - Daily closing workflow
+
+Pre testiranja mora postojati aktivan korisnik u `USERS`. Za `prepareDailyClosing()` korisnik mora imati rolu `CASHIER_SUPERVISOR`, `FINANCE`, `DIRECTOR`, `ADMIN` ili `CASHIER`. Za `closeDailyCashbox()` korisnik mora imati rolu `CASHIER_SUPERVISOR`, `FINANCE`, `DIRECTOR` ili `ADMIN`.
+
+Pre prvog testiranja posle ovog update-a pokrenuti `initializeDatabase()` da se `DAILY_CLOSING` header dopuni kolonama `locked_by`, `locked_at` i `updated_at`.
+
+### Test 1: Prepare daily closing
+
+Koraci:
+
+1. Obezbediti aktivnu blagajnu `CB-001` i valutu `RSD`.
+2. Kreirati posted cash events za dan zakljucka.
+3. Pokrenuti `prepareDailyClosing('CB-001', 'RSD', '2026-05-28')`.
+4. Proveriti `DAILY_CLOSING`.
+
+Ocekivano:
+
+1. Preview je vracen.
+2. `opening_balance` je izracunat.
+3. `total_in` je izracunat.
+4. `total_out` je izracunat.
+5. `calculated_balance` je tacan.
+6. Nije kreiran red u `DAILY_CLOSING`.
+
+### Test 2: Close day without difference
+
+Koraci:
+
+1. Pokrenuti `prepareDailyClosing()` i procitati `calculated_balance`.
+2. Zatvoriti sve otvorene smene za blagajnu.
+3. Pokrenuti `closeDailyCashbox('CB-001', 'RSD', '2026-05-28', calculated_balance, 'Zakljucak bez razlike')`.
+4. Proveriti `DAILY_CLOSING`, `CASH_EVENTS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Fizicko stanje je jednako izracunatom.
+2. Red je kreiran u `DAILY_CLOSING`.
+3. Status je `CLOSED`.
+4. `difference` je 0.
+5. Ukljuceni cash events postaju `LOCKED`.
+6. Audit log sadrzi `CREATE` i `LOCK`.
+
+### Test 3: Close day with difference
+
+Koraci:
+
+1. Pripremiti posted cash events za drugi datum.
+2. Pokrenuti `closeDailyCashbox()` sa fizickim stanjem koje se razlikuje od izracunatog.
+3. Proveriti `DAILY_CLOSING`, `CASH_EVENTS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Fizicko stanje se razlikuje od izracunatog.
+2. Status je `CLOSED_WITH_DIFFERENCE`.
+3. Razlika je evidentirana.
+4. Ukljuceni cash events postaju `LOCKED`.
+5. Audit log belezi zakljucak.
+
+### Test 4: Prevent duplicate closing
+
+Koraci:
+
+1. Kreirati dnevni zakljucak za blagajnu, valutu i datum.
+2. Ponovo pokrenuti `closeDailyCashbox()` za istu kombinaciju.
+
+Ocekivano:
+
+1. Zakljucak vec postoji za istu blagajnu, valutu i datum.
+2. Drugi pokusaj zakljucka je odbijen.
+
+### Test 5: Prevent closing with open shift
+
+Koraci:
+
+1. Otvoriti smenu za blagajnu.
+2. Pokrenuti `closeDailyCashbox()` za istu blagajnu.
+3. Proveriti `DAILY_CLOSING`.
+
+Ocekivano:
+
+1. Postoji otvorena smena za blagajnu.
+2. Pokusaj dnevnog zakljucka je odbijen.
+3. Nije kreiran red u `DAILY_CLOSING`.
+
+### Test 6: Locked events remain unchanged in amount
+
+Koraci:
+
+1. Zabeleziti `amount` posted cash eventa pre zakljucka.
+2. Pokrenuti `closeDailyCashbox()`.
+3. Proveriti isti cash event.
+
+Ocekivano:
+
+1. Iznos cash eventa pre zakljucka je zabelezen.
+2. Status eventa postaje `LOCKED`.
+3. `amount` ostaje nepromenjen.
+
+### Test 7: Payment Request and Payment Order do not appear in daily totals
+
+Koraci:
+
+1. Kreirati Payment Request.
+2. Kreirati Payment Order, ali ne izvrsiti isplatu.
+3. Pokrenuti `prepareDailyClosing()`.
+
+Ocekivano:
+
+1. Zahtev i nalog nisu cash events.
+2. Totali ih ne ukljucuju.
+3. Stanje je nepromenjeno dok se nalog ne izvrsi.
+
+### Test 8: Executed payment appears in daily totals
+
+Koraci:
+
+1. Izvrsiti payment order kroz `executePaymentOrder()`.
+2. Pokrenuti `prepareDailyClosing()` za isti datum, blagajnu i valutu.
+
+Ocekivano:
+
+1. `CASH_OUTFLOW` je posted.
+2. `total_out` ukljucuje iznos izvrsene isplate.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

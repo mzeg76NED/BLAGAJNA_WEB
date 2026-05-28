@@ -18,6 +18,13 @@ function assertPositiveAmount(amount) {
   }
 }
 
+function assertNonNegativeAmount(amount, fieldName) {
+  const numericAmount = Number(amount);
+  if (!isFinite(numericAmount) || numericAmount < 0) {
+    throw new Error((fieldName || 'amount') + ' must be a non-negative number.');
+  }
+}
+
 function assertAllowedValue(value, allowedValues, fieldName) {
   if (allowedValues.indexOf(value) === -1) {
     throw new Error('Invalid value for ' + fieldName + ': ' + value);
@@ -81,6 +88,13 @@ function assertSufficientBalance(balance, amount, cashboxId, currency) {
       'Insufficient balance for cashbox ' + cashboxId + ' and currency ' + currency +
       '. Available: ' + balance + ', required: ' + amount + '.'
     );
+  }
+}
+
+function assertNoOpenShiftForCashbox(cashboxId) {
+  const openShift = getActiveShiftForCashbox(cashboxId);
+  if (openShift) {
+    throw new Error('Cannot perform this action while cashbox has an open shift: ' + openShift.shift_id);
   }
 }
 

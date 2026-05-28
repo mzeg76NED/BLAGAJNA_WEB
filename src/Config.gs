@@ -138,7 +138,8 @@ const DAILY_CLOSING_STATUSES = Object.freeze({
   DRAFT: 'DRAFT',
   CLOSED: 'CLOSED',
   CLOSED_WITH_DIFFERENCE: 'CLOSED_WITH_DIFFERENCE',
-  LOCKED: 'LOCKED'
+  LOCKED: 'LOCKED',
+  CANCELLED: 'CANCELLED'
 });
 
 const AUDIT_ACTIONS = Object.freeze({
@@ -296,7 +297,10 @@ const TABLE_HEADERS = Object.freeze({
     'status',
     'closed_by',
     'closed_at',
-    'note'
+    'locked_by',
+    'locked_at',
+    'note',
+    'updated_at'
   ]),
   AUDIT_LOG: Object.freeze([
     'log_id',

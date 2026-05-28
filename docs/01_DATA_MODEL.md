@@ -223,6 +223,8 @@ Relationship: `cashbox_id` references `CASHBOXES.cashbox_id`.
 
 Svrha: dnevni zakljucak po blagajni i valuti.
 
+Dnevni zakljucak ne pravi promet i ne menja iznose na blagajnickim dogadjajima. On evidentira obracunsko stanje, fizicko stanje, razliku i zakljucava dogadjaje koji su usli u zakljucak.
+
 | Column | Type | Required | Description |
 |---|---|---:|---|
 | closing_id | string | yes | Unique closing ID |
@@ -235,10 +237,13 @@ Svrha: dnevni zakljucak po blagajni i valuti.
 | calculated_balance | number | yes | System calculated balance |
 | physical_balance | number | yes | Counted cash |
 | difference | number | yes | Physical minus calculated |
-| status | string | yes | DRAFT, CLOSED, CLOSED_WITH_DIFFERENCE, LOCKED |
+| status | string | yes | DRAFT, CLOSED, CLOSED_WITH_DIFFERENCE, LOCKED, CANCELLED |
 | closed_by | string | no | User |
 | closed_at | datetime | no | Closing time |
+| locked_by | string | no | User who administratively locked closing |
+| locked_at | datetime | no | Lock time |
 | note | text | no | Note |
+| updated_at | datetime | no | Last update timestamp |
 
 Relationships: `cashbox_id` references `CASHBOXES.cashbox_id`; `currency` references `CURRENCIES.currency_code`.
 

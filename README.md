@@ -109,3 +109,15 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 7. Pokusaj drugi `openShift('CB-001', 'Duplikat')` i potvrdi da sistem odbija duplu otvorenu smenu.
 8. Zatvori smenu kroz `closeShift(shift_id, balanceByCurrency, 'Zatvaranje')` ili je predaj kroz `handoverShift(shift_id, receiverEmail, balanceByCurrency, 'Primopredaja')`.
 9. Potvrdi da audit log belezi `CREATE`, `UPDATE`, `LOCK` ili `CANCEL` prema akciji.
+
+## Manualni test za Task 08
+
+1. Pokreni `initializeDatabase()` da se `DAILY_CLOSING` header dopuni kolonama za administrativno zakljucavanje.
+2. U `USERS` dodaj aktivnog korisnika sa rolom `CASHIER_SUPERVISOR`, `FINANCE`, `DIRECTOR` ili `ADMIN`.
+3. U `CASHBOXES` dodaj aktivnu blagajnu, na primer `CB-001`.
+4. Kreiraj posted cash events za datum zakljucka kroz `createCashInflow()` i/ili `executePaymentOrder()`.
+5. Pokreni `prepareDailyClosing('CB-001', 'RSD', '2026-05-28')` i potvrdi da nema novog reda u `DAILY_CLOSING`.
+6. Zatvori sve otvorene smene za blagajnu.
+7. Pokreni `closeDailyCashbox('CB-001', 'RSD', '2026-05-28', physicalBalance, 'Dnevni zakljucak')`.
+8. Potvrdi da je kreiran red u `DAILY_CLOSING`, da su ukljuceni `CASH_EVENTS` prebaceni iz `POSTED` u `LOCKED`, i da iznosi na dogadjajima nisu promenjeni.
+9. Ponovi zakljucak za isti cashbox, valutu i datum i potvrdi da sistem odbija duplikat.
