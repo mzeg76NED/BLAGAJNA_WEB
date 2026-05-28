@@ -547,6 +547,134 @@ Ocekivano:
 2. Drive fajl nije kreiran.
 3. Red dokumenta nije kreiran.
 
+## Task 07 - Shift opening and handover workflow
+
+Pre testiranja mora postojati aktivan korisnik u `USERS`. Za otvaranje smene korisnik mora imati rolu `CASHIER`, `CASHIER_SUPERVISOR` ili `ADMIN`. Za zatvaranje i primopredaju korisnik mora biti korisnik koji je otvorio smenu ili imati rolu `CASHIER_SUPERVISOR`, `ADMIN` ili `FINANCE`.
+
+Pre prvog testiranja posle ovog update-a pokrenuti `initializeDatabase()` da se `SHIFTS` header dopuni kolonama za balans, primopredaju i razliku.
+
+### Test 1: Open shift
+
+Koraci:
+
+1. Proveriti da postoji aktivna blagajna `CB-001`.
+2. Pokrenuti `openShift('CB-001', 'Test otvaranja smene')`.
+3. Proveriti `SHIFTS`.
+4. Proveriti `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Kreirana je otvorena smena.
+2. Status je `OPEN`.
+3. `opening_balance_json` je popunjen.
+4. Audit log sadrzi `CREATE`.
+
+### Test 2: Prevent two open shifts for same cashbox
+
+Koraci:
+
+1. Ostaviti prvu smenu otvorenom.
+2. Ponovo pokrenuti `openShift('CB-001', 'Dupla smena')`.
+3. Proveriti `SHIFTS`.
+
+Ocekivano:
+
+1. Prva smena je otvorena.
+2. Drugi pokusaj za istu blagajnu ne uspeva.
+3. Nije kreirana dupla otvorena smena.
+
+### Test 3: Get active shift
+
+Koraci:
+
+1. Pokrenuti `getActiveShiftForCashbox('CB-001')` dok postoji otvorena smena.
+2. Zatvoriti ili otkazati smenu.
+3. Ponovo pokrenuti `getActiveShiftForCashbox('CB-001')`.
+
+Ocekivano:
+
+1. Aktivna smena za blagajnu se vraca.
+2. Kada nema otvorene smene, funkcija vraca `null`.
+
+### Test 4: Shift balance
+
+Koraci:
+
+1. Otvoriti smenu.
+2. Kreirati cash inflow ili izvrsiti cash outflow kroz postojece funkcije.
+3. Pokrenuti `getShiftBalance(shift_id)`.
+
+Ocekivano:
+
+1. Postoji cash inflow/outflow.
+2. Presek smene odrazava izracunato stanje blagajne.
+3. Stanje nije rucno uneto, vec izracunato iz `CASH_EVENTS`.
+
+### Test 5: Close shift without difference
+
+Koraci:
+
+1. Dobiti trenutno stanje kroz `getShiftBalance(shift_id)`.
+2. Pokrenuti `closeShift(shift_id, balanceByCurrency, 'Zatvaranje bez razlike')`.
+3. Proveriti `SHIFTS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Fizicko stanje je jednako izracunatom.
+2. Status postaje `CLOSED`.
+3. `closing_balance_json` je popunjen.
+4. `physical_balance_json` je popunjen.
+5. `difference_json` je nula po valutama.
+6. Audit log sadrzi `LOCK`.
+
+### Test 6: Close shift with difference
+
+Koraci:
+
+1. Otvoriti novu smenu.
+2. Pokrenuti `closeShift(shift_id, { RSD: 1, EUR: 0 }, 'Test razlike')` uz vrednosti koje se razlikuju od izracunatog stanja.
+3. Proveriti `SHIFTS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Fizicko stanje se razlikuje od izracunatog.
+2. Status postaje `CLOSED_WITH_DIFFERENCE`.
+3. `difference_json` prikazuje razliku.
+4. Audit log belezi akciju.
+
+### Test 7: Handover shift
+
+Koraci:
+
+1. Otvoriti smenu.
+2. Obezbediti aktivnog korisnika primaoca sa rolom `CASHIER`, `CASHIER_SUPERVISOR` ili `ADMIN`.
+3. Pokrenuti `handoverShift(shift_id, 'primalac@example.com', balanceByCurrency, 'Primopredaja')`.
+4. Proveriti `SHIFTS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Otvorena smena je predata.
+2. `handover_to` je popunjen.
+3. `handover_at` je popunjen.
+4. Status postaje `HANDED_OVER` ako nema razlike, odnosno `CLOSED_WITH_DIFFERENCE` ako postoji razlika.
+5. Audit log belezi primopredaju.
+
+### Test 8: Cancel shift
+
+Koraci:
+
+1. Otvoriti smenu.
+2. Pokusati `cancelShift(shift_id, '')`.
+3. Pokrenuti `cancelShift(shift_id, 'Administrativno otkazivanje')`.
+4. Proveriti `SHIFTS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Ovlasceni korisnik otkazuje nezatvorenu smenu.
+2. Razlog je obavezan.
+3. Status postaje `CANCELLED`.
+4. Audit log sadrzi `CANCEL`.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

@@ -196,6 +196,8 @@ Relationship: `entity_type` and `entity_id` identify the business entity that ow
 
 Svrha: pracenje smene blagajnika i primopredaje.
 
+Smena ne menja stanje blagajne. Smena odredjuje odgovornost nad blagajnom, dok se stanje blagajne racuna iz knjizenih blagajnickih dogadjaja.
+
 | Column | Type | Required | Description |
 |---|---|---:|---|
 | shift_id | string | yes | Unique shift ID |
@@ -203,11 +205,17 @@ Svrha: pracenje smene blagajnika i primopredaje.
 | opened_by | string | yes | User |
 | opened_at | datetime | yes | Opening time |
 | opening_note | text | no | Opening note |
+| opening_balance_json | text/json | no | Calculated balance by currency at opening |
 | closed_by | string | no | User |
 | closed_at | datetime | no | Closing time |
 | handover_to | string | no | Receiving user |
-| status | string | yes | OPEN, HANDED_OVER, CLOSED, CLOSED_WITH_DIFFERENCE |
+| handover_at | datetime | no | Handover time |
+| closing_balance_json | text/json | no | Calculated balance by currency at close/handover |
+| physical_balance_json | text/json | no | Physically counted balance by currency |
+| difference_json | text/json | no | Physical balance minus calculated balance by currency |
+| status | string | yes | OPEN, HANDED_OVER, CLOSED, CLOSED_WITH_DIFFERENCE, CANCELLED |
 | note | text | no | Note |
+| updated_at | datetime | no | Last update timestamp |
 
 Relationship: `cashbox_id` references `CASHBOXES.cashbox_id`.
 

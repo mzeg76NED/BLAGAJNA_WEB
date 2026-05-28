@@ -97,3 +97,15 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 6. Potvrdi da povezani entitet ima `document_status = ATTACHED` ako podrzava tu kolonu.
 7. Pokreni `listDocumentsForEntity(entityType, entityId)`.
 8. Pokreni `cancelDocument(document_id, reason)` i potvrdi da Drive fajl nije obrisan.
+
+## Manualni test za Task 07
+
+1. Pokreni `initializeDatabase()` da se `SHIFTS` header dopuni novim kolonama.
+2. U `USERS` dodaj aktivnog korisnika sa rolom `CASHIER`, `CASHIER_SUPERVISOR` ili `ADMIN`.
+3. U `CASHBOXES` dodaj aktivnu blagajnu, na primer `CB-001`.
+4. Pokreni `openShift('CB-001', 'Pocetak smene')`.
+5. Potvrdi da je u `SHIFTS` kreiran red sa statusom `OPEN` i popunjenim `opening_balance_json`.
+6. Pokreni `getActiveShiftForCashbox('CB-001')` i `getShiftBalance(shift_id)`.
+7. Pokusaj drugi `openShift('CB-001', 'Duplikat')` i potvrdi da sistem odbija duplu otvorenu smenu.
+8. Zatvori smenu kroz `closeShift(shift_id, balanceByCurrency, 'Zatvaranje')` ili je predaj kroz `handoverShift(shift_id, receiverEmail, balanceByCurrency, 'Primopredaja')`.
+9. Potvrdi da audit log belezi `CREATE`, `UPDATE`, `LOCK` ili `CANCEL` prema akciji.

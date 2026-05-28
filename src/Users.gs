@@ -47,6 +47,33 @@ function isUserActive(email) {
   return Boolean(match && isTruthy_(match.record.active));
 }
 
+function getUserByEmail(email) {
+  assertNonEmptyString(email, 'email');
+  const match = findRecordById(SHEET_NAMES.USERS, 'email', String(email).trim());
+  return match ? match.record : null;
+}
+
+function assertUserExistsAndActive(email) {
+  const user = getUserByEmail(email);
+  if (!user) {
+    throw new Error('User not found: ' + email);
+  }
+  if (!isTruthy_(user.active)) {
+    throw new Error('User is not active: ' + email);
+  }
+  return user;
+}
+
+function assertUserCanReceiveShift(email) {
+  const user = assertUserExistsAndActive(email);
+  assertAllowedValue(user.role, [
+    USER_ROLES.CASHIER,
+    USER_ROLES.CASHIER_SUPERVISOR,
+    USER_ROLES.ADMIN
+  ], 'receiving user role');
+  return user;
+}
+
 function assertCurrentUserActive() {
   const user = getCurrentUser();
   if (!user.email) {

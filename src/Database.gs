@@ -26,6 +26,8 @@ function initializeDatabase() {
 
     if (sheet.getLastRow() === 0) {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    } else {
+      syncConfiguredHeaders_(sheet, headers);
     }
 
     sheet.setFrozenRows(1);
@@ -183,6 +185,20 @@ function getConfiguredHeaders_(sheetName) {
     throw new Error('Headers are not configured for sheet: ' + sheetName);
   }
   return headers;
+}
+
+function syncConfiguredHeaders_(sheet, configuredHeaders) {
+  const existingHeaders = getHeaders_(sheet);
+  const headersToAdd = configuredHeaders.filter(function(header) {
+    return existingHeaders.indexOf(header) === -1;
+  });
+
+  if (headersToAdd.length === 0) {
+    return;
+  }
+
+  const startColumn = existingHeaders.length + 1;
+  sheet.getRange(1, startColumn, 1, headersToAdd.length).setValues([headersToAdd]);
 }
 
 function rowToRecord_(headers, row) {

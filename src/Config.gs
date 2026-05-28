@@ -130,7 +130,8 @@ const SHIFT_STATUSES = Object.freeze({
   OPEN: 'OPEN',
   HANDED_OVER: 'HANDED_OVER',
   CLOSED: 'CLOSED',
-  CLOSED_WITH_DIFFERENCE: 'CLOSED_WITH_DIFFERENCE'
+  CLOSED_WITH_DIFFERENCE: 'CLOSED_WITH_DIFFERENCE',
+  CANCELLED: 'CANCELLED'
 });
 
 const DAILY_CLOSING_STATUSES = Object.freeze({
@@ -269,11 +270,17 @@ const TABLE_HEADERS = Object.freeze({
     'opened_by',
     'opened_at',
     'opening_note',
+    'opening_balance_json',
     'closed_by',
     'closed_at',
     'handover_to',
+    'handover_at',
+    'closing_balance_json',
+    'physical_balance_json',
+    'difference_json',
     'status',
-    'note'
+    'note',
+    'updated_at'
   ]),
   DAILY_CLOSING: Object.freeze([
     'closing_id',
