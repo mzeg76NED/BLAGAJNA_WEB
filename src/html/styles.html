@@ -1,0 +1,63 @@
+<style>
+  :root {
+    color-scheme: light;
+    font-family: Arial, sans-serif;
+    background: #f6f7f9;
+    color: #172033;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  .app-shell,
+  .mobile-home,
+  .desktop-shell {
+    box-sizing: border-box;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  h1 {
+    margin: 0 0 16px;
+    font-size: 28px;
+  }
+
+  .nav-actions,
+  .desktop-grid {
+    display: grid;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .mobile-home {
+    display: grid;
+    align-content: start;
+    gap: 14px;
+  }
+
+  button,
+  a {
+    border: 1px solid #c9d1dc;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #172033;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 16px;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  button:hover,
+  a:hover {
+    background: #eef3f8;
+  }
+
+  @media (min-width: 760px) {
+    .desktop-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>

@@ -1,0 +1,9 @@
+desktop.ini
+.DS_Store
+
+# Local clasp credentials should never be committed.
+.clasprc.json
+
+# Temporary files.
+*.tmp
+*.log
