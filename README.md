@@ -86,3 +86,14 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 7. Potvrdi da je kreiran `CASH_OUTFLOW` sa statusom `POSTED`.
 8. Potvrdi da je nalog `PAID` ili `PARTIALLY_PAID`.
 9. Potvrdi da se stanje smanjilo samo kroz `CASH_EVENTS`.
+
+## Manualni test za Task 06
+
+1. U `USERS` dodaj aktivnog korisnika sa rolom koja sme da dodaje dokumente.
+2. Kreiraj Payment Request, Payment Order ili Cash Event.
+3. Pokreni `attachDocumentToEntity(entityType, entityId, filePayload, note)`.
+4. Potvrdi da je fajl kreiran u Google Drive folderu `BLAGAJNA_WEB_DOCUMENTS`.
+5. Potvrdi da je red dodat u `DOCUMENTS`.
+6. Potvrdi da povezani entitet ima `document_status = ATTACHED` ako podrzava tu kolonu.
+7. Pokreni `listDocumentsForEntity(entityType, entityId)`.
+8. Pokreni `cancelDocument(document_id, reason)` i potvrdi da Drive fajl nije obrisan.

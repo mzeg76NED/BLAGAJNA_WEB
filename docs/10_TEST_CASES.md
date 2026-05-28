@@ -426,6 +426,127 @@ Ocekivano:
 4. Izdavanje naloga ne menja stanje.
 5. Stanje se menja tek posle `executePaymentOrder()`.
 
+## Task 06 - Document metadata and upload workflow
+
+Pre testiranja mora postojati aktivan korisnik u `USERS`. Za dodavanje dokumenata korisnik mora imati jednu od rola: `ADMIN`, `DIRECTOR`, `FINANCE`, `CASHIER_SUPERVISOR`, `CASHIER`, `APPROVER`, `REQUESTER`. Za otkazivanje ili zamenu dokumenata potrebna je rola `ADMIN`, `DIRECTOR`, `FINANCE` ili `CASHIER_SUPERVISOR`.
+
+Za test `filePayload.base64Data` moze biti kratak tekst enkodovan u base64.
+
+### Test 1: Attach document to Payment Request
+
+Koraci:
+
+1. Kreirati Payment Request.
+2. Pokrenuti `attachDocumentToEntity('PAYMENT_REQUEST', request_id, { fileName: 'zahtev.txt', mimeType: 'text/plain', base64Data: 'VGVzdA==' }, 'Test dokument')`.
+3. Proveriti Google Drive folder.
+4. Proveriti `DOCUMENTS`.
+5. Proveriti red zahteva u `PAYMENT_REQUESTS`.
+6. Proveriti `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Fajl je kreiran u Google Drive-u.
+2. Red je kreiran u `DOCUMENTS`.
+3. `entity_type` je `PAYMENT_REQUEST`.
+4. `entity_id` je ID zahteva.
+5. Status dokumenta je `ACTIVE`.
+6. Payment request `document_status` postaje `ATTACHED`.
+7. Audit log sadrzi `CREATE`.
+
+### Test 2: Attach document to Payment Order
+
+Koraci:
+
+1. Kreirati Payment Order.
+2. Pokrenuti `attachDocumentToEntity('PAYMENT_ORDER', order_id, filePayload, 'Dokument naloga')`.
+3. Proveriti `DOCUMENTS` i `PAYMENT_ORDERS`.
+
+Ocekivano:
+
+1. Red dokumenta je kreiran.
+2. Payment order `document_status` postaje `ATTACHED`.
+3. Audit log sadrzi `CREATE`.
+
+### Test 3: Attach document to Cash Event
+
+Koraci:
+
+1. Kreirati Cash Event kroz `createCashInflow()` ili `executePaymentOrder()`.
+2. Pokrenuti `attachDocumentToEntity('CASH_EVENT', event_id, filePayload, 'Dokaz dogadjaja')`.
+3. Proveriti `DOCUMENTS` i `CASH_EVENTS`.
+
+Ocekivano:
+
+1. Red dokumenta je kreiran.
+2. Cash event `document_status` postaje `ATTACHED`.
+3. Audit log sadrzi `CREATE`.
+
+### Test 4: List documents for entity
+
+Koraci:
+
+1. Dodati najmanje jedan dokument na entitet.
+2. Otkazati ili zameniti jedan dokument ako je potrebno.
+3. Pokrenuti `listDocumentsForEntity(entityType, entityId)`.
+
+Ocekivano:
+
+1. Vraca sve povezane dokumente.
+2. Aktivni i neaktivni dokumenti su vidljivi.
+
+### Test 5: List active documents only
+
+Koraci:
+
+1. Dodati najmanje jedan dokument.
+2. Otkazati jedan dokument.
+3. Pokrenuti `listActiveDocumentsForEntity(entityType, entityId)`.
+
+Ocekivano:
+
+1. Vraca samo dokumente sa `status = ACTIVE`.
+
+### Test 6: Cancel document
+
+Koraci:
+
+1. Dodati dokument.
+2. Pokrenuti `cancelDocument(document_id, 'Test otkazivanja dokumenta')`.
+3. Proveriti `DOCUMENTS`, Google Drive i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Status dokumenta postaje `CANCELLED`.
+2. Red ostaje u `DOCUMENTS`.
+3. Drive fajl nije obrisan.
+4. Audit log sadrzi `CANCEL`.
+
+### Test 7: Invalid entity type
+
+Koraci:
+
+1. Pokrenuti `attachDocumentToEntity('INVALID', '123', filePayload, 'Test')`.
+2. Proveriti Google Drive i `DOCUMENTS`.
+
+Ocekivano:
+
+1. Sistem odbija nepodrzan entity type.
+2. Drive fajl nije kreiran.
+3. Red dokumenta nije kreiran.
+
+### Test 8: Invalid file payload
+
+Koraci:
+
+1. Pokrenuti `attachDocumentToEntity('PAYMENT_REQUEST', request_id, { fileName: 'x.txt' }, 'Test')`.
+2. Proveriti Google Drive i `DOCUMENTS`.
+
+Ocekivano:
+
+1. Sistem odbija payload bez `base64Data`.
+2. Drive fajl nije kreiran.
+3. Red dokumenta nije kreiran.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

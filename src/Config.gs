@@ -82,6 +82,40 @@ const DOCUMENT_STATUSES = Object.freeze({
   CANCELLED: 'CANCELLED'
 });
 
+const ENTITY_TYPES = Object.freeze({
+  PAYMENT_REQUEST: 'PAYMENT_REQUEST',
+  PAYMENT_ORDER: 'PAYMENT_ORDER',
+  CASH_EVENT: 'CASH_EVENT',
+  SHIFT: 'SHIFT',
+  DAILY_CLOSING: 'DAILY_CLOSING'
+});
+
+const ENTITY_TABLE_MAP = Object.freeze({
+  PAYMENT_REQUEST: Object.freeze({
+    sheetName: SHEET_NAMES.PAYMENT_REQUESTS,
+    idField: 'request_id'
+  }),
+  PAYMENT_ORDER: Object.freeze({
+    sheetName: SHEET_NAMES.PAYMENT_ORDERS,
+    idField: 'order_id'
+  }),
+  CASH_EVENT: Object.freeze({
+    sheetName: SHEET_NAMES.CASH_EVENTS,
+    idField: 'event_id'
+  }),
+  SHIFT: Object.freeze({
+    sheetName: SHEET_NAMES.SHIFTS,
+    idField: 'shift_id'
+  }),
+  DAILY_CLOSING: Object.freeze({
+    sheetName: SHEET_NAMES.DAILY_CLOSING,
+    idField: 'closing_id'
+  })
+});
+
+const DOCUMENT_ROOT_FOLDER_ID = '';
+const DOCUMENT_ROOT_FOLDER_NAME = 'BLAGAJNA_WEB_DOCUMENTS';
+
 const REQUEST_PRIORITIES = Object.freeze({
   NORMAL: 'NORMAL',
   URGENT: 'URGENT'

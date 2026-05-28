@@ -24,6 +24,18 @@ function assertAllowedValue(value, allowedValues, fieldName) {
   }
 }
 
+function assertEntityType(entityType) {
+  assertAllowedValue(entityType, objectValues_(ENTITY_TYPES), 'entityType');
+}
+
+function assertValidFilePayload(filePayload) {
+  if (!filePayload) {
+    throw new Error('File payload is required.');
+  }
+  assertNonEmptyString(filePayload.fileName, 'fileName');
+  assertNonEmptyString(filePayload.base64Data, 'base64Data');
+}
+
 function assertNonEmptyString(value, fieldName) {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(fieldName + ' must be a non-empty string.');
