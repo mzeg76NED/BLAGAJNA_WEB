@@ -287,6 +287,36 @@ function getPaymentOrderById(orderId) {
   return match ? match.record : null;
 }
 
+function updatePaymentOrderAfterExecution(orderId, executionData) {
+  assertNonEmptyString(orderId, 'orderId');
+  const data = executionData || {};
+  const updates = {};
+
+  [
+    'amount_paid',
+    'executed_by',
+    'executed_at',
+    'linked_cash_event_id',
+    'status',
+    'updated_at'
+  ].forEach(function(field) {
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      updates[field] = data[field];
+    }
+  });
+
+  if (Object.keys(updates).length === 0) {
+    throw new Error('No payment order execution updates provided.');
+  }
+
+  return updateRecordById(
+    SHEET_NAMES.PAYMENT_ORDERS,
+    'order_id',
+    orderId,
+    updates
+  );
+}
+
 function listOrdersWaitingForPayment() {
   requireActiveUserWithRole_(PAYMENT_ORDER_WAITING_LIST_ROLES_);
 

@@ -74,3 +74,15 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 8. Pokreni `issuePaymentOrder(order_id)` i potvrdi status `WAITING_PAYMENT`.
 9. Pokreni `cancelPaymentOrder(order_id, reason)` ili `rejectPaymentOrderByCashier(order_id, reason)` nad odgovarajucim statusom.
 10. Potvrdi da nema novog reda u `CASH_EVENTS` i da nalog ne menja stanje blagajne.
+
+## Manualni test za Task 05
+
+1. U `USERS` dodaj aktivnog korisnika sa rolom `CASHIER`, `CASHIER_SUPERVISOR` ili `ADMIN`.
+2. U `CASHBOXES` dodaj aktivnu blagajnu, na primer `CB-001`.
+3. Pokreni `createCashInflow({ cashbox_id: 'CB-001', currency: 'RSD', amount: 50000, description: 'Test priliv' })`.
+4. Potvrdi da `calculateCashboxBalance('CB-001', 'RSD')` pokazuje uvecano stanje.
+5. Kreiraj i izdaj Payment Order u status `WAITING_PAYMENT`.
+6. Pokreni `executePaymentOrder(order_id, {})`.
+7. Potvrdi da je kreiran `CASH_OUTFLOW` sa statusom `POSTED`.
+8. Potvrdi da je nalog `PAID` ili `PARTIALLY_PAID`.
+9. Potvrdi da se stanje smanjilo samo kroz `CASH_EVENTS`.

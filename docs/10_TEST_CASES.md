@@ -280,6 +280,152 @@ Ocekivano:
 2. Nije kreiran `CASH_OUTFLOW`.
 3. Izracunato stanje blagajne je nepromenjeno.
 
+## Task 05 - Cash payment execution
+
+Pre testiranja mora postojati aktivan korisnik u `USERS`. Za `executePaymentOrder()` korisnik mora imati rolu `CASHIER`, `CASHIER_SUPERVISOR` ili `ADMIN`. Za `createCashInflow()` korisnik mora imati rolu `CASHIER`, `CASHIER_SUPERVISOR`, `FINANCE` ili `ADMIN`.
+
+### Test 1: Create cash inflow for test balance
+
+Koraci:
+
+1. Proveriti da postoji aktivna blagajna `CB-001`.
+2. Pokrenuti `createCashInflow({ cashbox_id: 'CB-001', currency: 'RSD', amount: 50000, description: 'Test priliv' })`.
+3. Pokrenuti `calculateCashboxBalance('CB-001', 'RSD')`.
+4. Proveriti `AUDIT_LOG`.
+
+Ocekivano:
+
+1. `createCashInflow()` kreira `CASH_INFLOW`.
+2. Status je `POSTED`.
+3. Direction je `IN`.
+4. Audit log sadrzi `POST`.
+5. Izracunato stanje se povecava.
+
+### Test 2: Execute payment order fully
+
+Priprema:
+
+1. Kreirati odobren zahtev.
+2. Kreirati nalog iz zahteva.
+3. Izdati nalog.
+4. Kreirati dovoljan cash inflow.
+
+Koraci:
+
+1. Pokrenuti `executePaymentOrder(order_id, {})`.
+2. Proveriti `CASH_EVENTS`.
+3. Proveriti `PAYMENT_ORDERS`.
+4. Proveriti `AUDIT_LOG`.
+5. Pokrenuti `calculateCashboxBalance(cashbox_id, currency)`.
+
+Ocekivano:
+
+1. `executePaymentOrder()` kreira `CASH_OUTFLOW`.
+2. Cash event status je `POSTED`.
+3. Cash event direction je `OUT`.
+4. Payment order status postaje `PAID`.
+5. `amount_paid` je jednak `amount_ordered`.
+6. Audit log sadrzi cash event `POST`.
+7. Audit log sadrzi order `UPDATE`.
+8. Izracunato stanje se smanjuje za iznos isplate.
+
+### Test 3: Prevent payment if balance is insufficient
+
+Koraci:
+
+1. Kreirati i izdati nalog ciji je iznos veci od trenutnog stanja.
+2. Pokrenuti `executePaymentOrder(order_id, {})`.
+3. Proveriti `CASH_EVENTS`.
+4. Proveriti `PAYMENT_ORDERS`.
+
+Ocekivano:
+
+1. Nalog postoji i ceka isplatu.
+2. Stanje blagajne je manje od iznosa naloga.
+3. Sistem baca jasnu gresku.
+4. Ne kreira se `CASH_OUTFLOW`.
+5. `amount_paid` ostaje nepromenjen.
+6. Status naloga ostaje nepromenjen.
+
+### Test 4: Prevent payment from cancelled order
+
+Koraci:
+
+1. Kreirati i otkazati nalog.
+2. Pokrenuti `executePaymentOrder(order_id, {})`.
+3. Proveriti `CASH_EVENTS`.
+
+Ocekivano:
+
+1. Otkazan nalog postoji.
+2. Izvrsenje je odbijeno.
+3. Nije kreiran cash event.
+
+### Test 5: Prevent payment from draft order
+
+Koraci:
+
+1. Kreirati nalog u statusu `DRAFT`.
+2. Pokrenuti `executePaymentOrder(order_id, {})`.
+3. Proveriti `CASH_EVENTS`.
+
+Ocekivano:
+
+1. Draft nalog postoji.
+2. Izvrsenje je odbijeno.
+3. Nije kreiran cash event.
+
+### Test 6: Partial payment
+
+Koraci:
+
+1. Kreirati i izdati nalog.
+2. Obezbediti dovoljno stanje.
+3. Pokrenuti `executePaymentOrder(order_id, { amount: 5000 })` gde je 5000 manje od preostalog iznosa.
+4. Proveriti `CASH_EVENTS`, `PAYMENT_ORDERS` i stanje.
+
+Ocekivano:
+
+1. Iznos isplate je manji od preostalog iznosa naloga.
+2. `CASH_OUTFLOW` je kreiran.
+3. Status naloga postaje `PARTIALLY_PAID`.
+4. `amount_paid` je azuriran.
+5. Stanje se smanjuje samo za placeni iznos.
+
+### Test 7: Prevent overpayment
+
+Koraci:
+
+1. Kreirati i izdati nalog.
+2. Pokrenuti `executePaymentOrder(order_id, { amount: amount_ordered + 1 })`.
+3. Proveriti `CASH_EVENTS`.
+
+Ocekivano:
+
+1. Iznos isplate je veci od preostalog iznosa naloga.
+2. Sistem odbija izvrsenje.
+3. Nije kreiran cash event.
+
+### Test 8: Payment Request and Payment Order do not affect balance
+
+Koraci:
+
+1. Izmeriti stanje blagajne.
+2. Kreirati payment request.
+3. Odobriti request.
+4. Kreirati payment order.
+5. Izdati payment order.
+6. Ponovo izmeriti stanje.
+7. Tek onda pokrenuti `executePaymentOrder(order_id, {})`.
+
+Ocekivano:
+
+1. Zahtev ne menja stanje.
+2. Odobrenje zahteva ne menja stanje.
+3. Kreiranje naloga ne menja stanje.
+4. Izdavanje naloga ne menja stanje.
+5. Stanje se menja tek posle `executePaymentOrder()`.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

@@ -63,6 +63,15 @@ function assertEntityStatus(record, allowedStatuses, entityName) {
   assertAllowedValue(record.status, allowedStatuses, entityName + ' status');
 }
 
+function assertSufficientBalance(balance, amount, cashboxId, currency) {
+  if (Number(balance) < Number(amount)) {
+    throw new Error(
+      'Insufficient balance for cashbox ' + cashboxId + ' and currency ' + currency +
+      '. Available: ' + balance + ', required: ' + amount + '.'
+    );
+  }
+}
+
 function getCurrentTimestamp_() {
   return new Date();
 }
