@@ -1,40 +1,212 @@
 /**
  * Database helpers for Google Sheets.
  */
-function initializeDatabase() {
+function getDatabaseSpreadsheet_() {
+  if (APP_CONFIG.SPREADSHEET_ID) {
+    return SpreadsheetApp.openById(APP_CONFIG.SPREADSHEET_ID);
+  }
+
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (!spreadsheet) {
+    throw new Error('No active spreadsheet. Set SPREADSHEET_ID in Config.gs.');
+  }
+  return spreadsheet;
+}
+
+function initializeDatabase() {
+  const spreadsheet = getDatabaseSpreadsheet_();
   Object.keys(SHEET_NAMES).forEach(function(key) {
     const sheetName = SHEET_NAMES[key];
-    if (!spreadsheet.getSheetByName(sheetName)) {
-      spreadsheet.insertSheet(sheetName);
+    const headers = TABLE_HEADERS[sheetName];
+    let sheet = spreadsheet.getSheetByName(sheetName);
+
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet(sheetName);
     }
+
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
   });
 
-  // TODO: Add headers, validation rules, protected ranges, and initial seed data.
+  seedInitialCurrencies_();
 }
 
 function getSheetByNameOrThrow(sheetName) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const sheet = getDatabaseSpreadsheet_().getSheetByName(sheetName);
   if (!sheet) {
     throw new Error('Sheet not found: ' + sheetName);
   }
   return sheet;
 }
 
+function getHeaders_(sheet) {
+  const lastColumn = sheet.getLastColumn();
+  if (lastColumn === 0) {
+    return [];
+  }
+  return sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+}
+
 function appendRecord(sheetName, record) {
   const sheet = getSheetByNameOrThrow(sheetName);
-  // TODO: Map object fields to configured sheet headers before appending.
-  sheet.appendRow(Object.keys(record).map(function(key) {
-    return record[key];
-  }));
+  const headers = getConfiguredHeaders_(sheetName);
+  const row = headers.map(function(header) {
+    return Object.prototype.hasOwnProperty.call(record, header) ? record[header] : '';
+  });
+
+  sheet.appendRow(row);
+  return record;
 }
 
 function findRecordById(sheetName, idField, idValue) {
-  // TODO: Read sheet data, map rows to objects, and return the matching record.
-  throw new Error('TODO: findRecordById is not implemented yet.');
+  const sheet = getSheetByNameOrThrow(sheetName);
+  const headers = getHeaders_(sheet);
+  const idIndex = headers.indexOf(idField);
+
+  if (idIndex === -1) {
+    throw new Error('ID field not found in ' + sheetName + ': ' + idField);
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return null;
+  }
+
+  const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][idIndex]) === String(idValue)) {
+      return {
+        rowNumber: i + 2,
+        record: rowToRecord_(headers, values[i])
+      };
+    }
+  }
+
+  return null;
 }
 
 function updateRecordById(sheetName, idField, idValue, updates) {
-  // TODO: Locate record by id and update only allowed fields.
-  throw new Error('TODO: updateRecordById is not implemented yet.');
+  const match = findRecordById(sheetName, idField, idValue);
+  if (!match) {
+    throw new Error('Record not found in ' + sheetName + ': ' + idField + '=' + idValue);
+  }
+
+  const sheet = getSheetByNameOrThrow(sheetName);
+  const headers = getHeaders_(sheet);
+  const updatedRecord = {};
+
+  headers.forEach(function(header) {
+    updatedRecord[header] = Object.prototype.hasOwnProperty.call(updates, header)
+      ? updates[header]
+      : match.record[header];
+  });
+
+  const row = headers.map(function(header) {
+    return updatedRecord[header];
+  });
+
+  sheet.getRange(match.rowNumber, 1, 1, headers.length).setValues([row]);
+  return updatedRecord;
+}
+
+function listRecords(sheetName, filters) {
+  const sheet = getSheetByNameOrThrow(sheetName);
+  const headers = getHeaders_(sheet);
+  const lastRow = sheet.getLastRow();
+  const activeFilters = filters || {};
+
+  if (lastRow < 2) {
+    return [];
+  }
+
+  return sheet.getRange(2, 1, lastRow - 1, headers.length)
+    .getValues()
+    .map(function(row) {
+      return rowToRecord_(headers, row);
+    })
+    .filter(function(record) {
+      return Object.keys(activeFilters).every(function(field) {
+        return String(record[field]) === String(activeFilters[field]);
+      });
+    });
+}
+
+function runDatabaseSmokeTest() {
+  initializeDatabase();
+
+  const now = new Date();
+  const sampleUserId = 'USR-SMOKE-TEST';
+  const sampleUser = {
+    user_id: sampleUserId,
+    email: 'smoke.test@example.com',
+    full_name: 'Smoke Test User',
+    role: USER_ROLES.VIEWER,
+    active: true,
+    default_cashbox_id: '',
+    created_at: now,
+    updated_at: ''
+  };
+
+  const existing = findRecordById(SHEET_NAMES.USERS, 'user_id', sampleUserId);
+  if (!existing) {
+    appendRecord(SHEET_NAMES.USERS, sampleUser);
+  }
+
+  const found = findRecordById(SHEET_NAMES.USERS, 'user_id', sampleUserId);
+  const updated = updateRecordById(SHEET_NAMES.USERS, 'user_id', sampleUserId, {
+    full_name: 'Smoke Test User Updated',
+    updated_at: new Date()
+  });
+
+  writeAuditLog(
+    AUDIT_ACTIONS.UPDATE,
+    SHEET_NAMES.USERS,
+    sampleUserId,
+    found ? found.record : null,
+    updated,
+    'Database smoke test'
+  );
+
+  return {
+    userFound: Boolean(found),
+    updatedName: updated.full_name
+  };
+}
+
+function getConfiguredHeaders_(sheetName) {
+  const headers = TABLE_HEADERS[sheetName];
+  if (!headers) {
+    throw new Error('Headers are not configured for sheet: ' + sheetName);
+  }
+  return headers;
+}
+
+function rowToRecord_(headers, row) {
+  const record = {};
+  headers.forEach(function(header, index) {
+    record[header] = row[index];
+  });
+  return record;
+}
+
+function seedInitialCurrencies_() {
+  const initialCurrencies = [
+    { currency_code: 'RSD', name: 'Srpski dinar', active: true, is_default: true },
+    { currency_code: 'EUR', name: 'Evro', active: true, is_default: false }
+  ];
+
+  initialCurrencies.forEach(function(currency) {
+    const existing = findRecordById(
+      SHEET_NAMES.CURRENCIES,
+      'currency_code',
+      currency.currency_code
+    );
+    if (!existing) {
+      appendRecord(SHEET_NAMES.CURRENCIES, currency);
+    }
+  });
 }

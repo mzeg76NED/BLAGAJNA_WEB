@@ -1,0 +1,48 @@
+/**
+ * Basic validation helpers shared by business modules.
+ */
+function assertRequiredFields(data, requiredFields) {
+  const missingFields = requiredFields.filter(function(field) {
+    return data[field] === undefined || data[field] === null || data[field] === '';
+  });
+
+  if (missingFields.length > 0) {
+    throw new Error('Missing required fields: ' + missingFields.join(', '));
+  }
+}
+
+function assertPositiveAmount(amount) {
+  const numericAmount = Number(amount);
+  if (!isFinite(numericAmount) || numericAmount <= 0) {
+    throw new Error('Amount must be a positive number.');
+  }
+}
+
+function assertAllowedValue(value, allowedValues, fieldName) {
+  if (allowedValues.indexOf(value) === -1) {
+    throw new Error('Invalid value for ' + fieldName + ': ' + value);
+  }
+}
+
+function assertActiveCurrency(currency) {
+  assertAllowedValue(currency, SUPPORTED_CURRENCIES, 'currency');
+
+  const existing = findRecordById(SHEET_NAMES.CURRENCIES, 'currency_code', currency);
+  if (existing && existing.record.active !== true && existing.record.active !== 'TRUE') {
+    throw new Error('Currency is not active: ' + currency);
+  }
+}
+
+function assertActiveCashbox(cashboxId) {
+  if (!cashboxId) {
+    throw new Error('Cashbox is required.');
+  }
+
+  const existing = findRecordById(SHEET_NAMES.CASHBOXES, 'cashbox_id', cashboxId);
+  if (!existing) {
+    throw new Error('Cashbox not found: ' + cashboxId);
+  }
+  if (existing.record.active !== true && existing.record.active !== 'TRUE') {
+    throw new Error('Cashbox is not active: ' + cashboxId);
+  }
+}
