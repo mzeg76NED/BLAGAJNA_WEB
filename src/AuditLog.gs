@@ -36,8 +36,7 @@ function stringifyAuditValue_(value) {
 }
 
 function getActiveUserEmail_() {
-  const activeUser = Session.getActiveUser();
-  return activeUser && activeUser.getEmail() ? activeUser.getEmail() : 'UNKNOWN_USER';
+  return getCurrentUserEmail();
 }
 
 function objectValues_(source) {

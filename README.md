@@ -25,6 +25,38 @@ Payment Request nije isplata.
 Payment Order nije isplata.
 Samo izvršen i knjižen Cash Payment Event menja stanje blagajne.
 
+## Current project status
+
+Zavrseni su osnovni moduli za:
+
+1. data model,
+2. payment requests,
+3. payment orders,
+4. cash execution,
+5. documents,
+6. shifts,
+7. daily closing,
+8. basic UI,
+9. hardening/testing.
+
+Trenutni fokus je stabilizacija pre sireg testiranja: server-side permisije, validacije, konzistentni API odgovori, smoke testovi i E2E test plan.
+
+## How to test
+
+1. Pokreni `initializeDatabase()`.
+2. Pokreni `createMinimalTestSetup()` u odvojenom test spreadsheet-u ili rucno unesi realne test korisnike.
+3. Zameni placeholder email adrese realnim Google Workspace nalozima.
+4. Deploy Apps Script kao Web App.
+5. Pokreni smoke testove iz Apps Script editora:
+   - `smokeTestDatabaseInitialization()`
+   - `smokeTestPaymentRequestFlow()`
+   - `smokeTestPaymentOrderFlow()`
+   - `smokeTestCashPaymentFlow()`
+   - `smokeTestDailyClosingPreview()`
+6. Izvrsi rucni E2E test iz `docs/12_E2E_TEST_PLAN.md`.
+7. Proveri deployment checklist u `docs/13_DEPLOYMENT_CHECKLIST.md`.
+8. Pregledaj poznata ogranicenja u `docs/14_KNOWN_LIMITATIONS.md`.
+
 ## Struktura
 
 - `docs/` - poslovna i tehnička dokumentacija

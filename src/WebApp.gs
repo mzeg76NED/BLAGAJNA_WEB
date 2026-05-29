@@ -188,12 +188,16 @@ function apiSuccess_(data) {
 }
 
 function apiError_(error) {
-  return {
+  const response = {
     ok: false,
     error: {
       message: error && error.message ? error.message : 'Neočekivana greška.'
     }
   };
+  if (APP_CONFIG && APP_CONFIG.DEBUG_MODE === true && error && error.stack) {
+    response.error.debug = error.stack;
+  }
+  return response;
 }
 
 function apiWrap_(callback) {

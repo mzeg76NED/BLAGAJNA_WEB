@@ -883,6 +883,112 @@ Ocekivano:
 1. Desktop prikaz se otvara sa `?view=desktop`.
 2. Dashboard sekcije su vidljive.
 
+## Hardening and permission tests
+
+Pre testiranja pokrenuti `initializeDatabase()` i obezbediti realne korisnike u `USERS` za svaku rolu. Testirati kroz Web App ili Apps Script funkcije, ali bez direktnog menjanja poslovnih sheetova.
+
+### Test 1: Unauthorized user cannot approve request
+
+Koraci:
+
+1. Korisnik sa rolom `REQUESTER` pokusava da pokrene `approvePaymentRequest(request_id)`.
+2. Proveriti status zahteva.
+3. Proveriti `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Server odbija akciju.
+2. Status zahteva ostaje nepromenjen.
+3. Audit log ne belezi lazno odobrenje.
+
+### Test 2: Cashier cannot create direct order
+
+Koraci:
+
+1. Korisnik sa rolom `CASHIER` pokusava `createDirectPaymentOrder(orderData)`.
+2. Proveriti `PAYMENT_ORDERS`.
+
+Ocekivano:
+
+1. Server odbija akciju.
+2. Novi direktan nalog nije kreiran.
+
+### Test 3: Cashier can execute waiting order
+
+Koraci:
+
+1. Pripremiti nalog u statusu `WAITING_PAYMENT`.
+2. Obezbediti dovoljno stanje kroz `CASH_INFLOW`.
+3. Korisnik sa rolom `CASHIER` pokrece `executePaymentOrder(order_id, {})`.
+
+Ocekivano:
+
+1. `CASH_OUTFLOW` je kreiran.
+2. Nalog je `PAID` ili `PARTIALLY_PAID`.
+3. Stanje blagajne se menja samo kroz cash event.
+
+### Test 4: Viewer cannot modify data
+
+Koraci:
+
+1. Korisnik sa rolom `VIEWER` pokusava da kreira zahtev ili nalog.
+2. Proveriti relevantne tabele.
+
+Ocekivano:
+
+1. Server odbija akciju.
+2. Nema novog poslovnog zapisa.
+
+### Test 5: Frontend hidden button is not enough
+
+Koraci:
+
+1. Sakriti ili prikazati dugme u UI po potrebi.
+2. Pokusati direktan API poziv bez odgovarajuce role.
+
+Ocekivano:
+
+1. Server ponovo proverava rolu.
+2. Poziv bez dozvole ne uspeva.
+
+### Test 6: Inactive user is blocked
+
+Koraci:
+
+1. Postaviti `active = FALSE` za test korisnika.
+2. Pokusati bilo koju poslovnu akciju.
+
+Ocekivano:
+
+1. Server odbija akciju.
+2. Poruka jasno navodi da korisnik nije aktivan.
+
+### Test 7: API response format is consistent
+
+Koraci:
+
+1. Pozvati jedan uspesan API wrapper.
+2. Pozvati jedan API wrapper koji proizvodi poslovnu gresku.
+
+Ocekivano:
+
+1. Uspesan odgovor koristi `{ ok: true, data }`.
+2. Greska koristi `{ ok: false, error: { message } }`.
+3. Stack trace se ne prikazuje ako `DEBUG_MODE` nije ukljucen.
+
+### Test 8: Audit log is append-only
+
+Koraci:
+
+1. Izvrsiti nekoliko poslovnih akcija.
+2. Proveriti broj redova u `AUDIT_LOG`.
+3. Proveriti stare audit redove.
+
+Ocekivano:
+
+1. Poslovne akcije dodaju nove audit redove.
+2. Stari audit redovi se ne menjaju kroz normalne poslovne funkcije.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

@@ -7,7 +7,9 @@ const SPREADSHEET_ID = '';
 const APP_CONFIG = Object.freeze({
   APP_NAME: APP_NAME,
   VERSION: '0.2.0',
-  SPREADSHEET_ID: SPREADSHEET_ID
+  SPREADSHEET_ID: SPREADSHEET_ID,
+  DEVELOPMENT_MODE: false,
+  DEBUG_MODE: false
 });
 
 const SHEET_NAMES = Object.freeze({

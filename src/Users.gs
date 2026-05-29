@@ -1,30 +1,46 @@
 /**
  * User and role helpers.
  */
+function getCurrentUserEmail() {
+  const activeUser = Session.getActiveUser();
+  const email = activeUser && activeUser.getEmail() ? String(activeUser.getEmail()).trim() : '';
+  if (email) {
+    return email;
+  }
+  if (isDevelopmentMode_()) {
+    return 'admin@example.com';
+  }
+  throw new Error('Current user email is not available. Check Apps Script deployment access settings.');
+}
+
 function getCurrentUser() {
   const email = getCurrentUserEmail();
-  let userRecord = null;
-
-  try {
-    const match = findRecordById(SHEET_NAMES.USERS, 'email', email);
-    userRecord = match ? match.record : null;
-  } catch (error) {
-    userRecord = null;
+  const user = getUserByEmail(email);
+  if (!user) {
+    if (isDevelopmentMode_()) {
+      return {
+        user_id: 'USR-DEV-ADMIN',
+        email: email,
+        full_name: 'Development Admin',
+        role: USER_ROLES.ADMIN,
+        active: true,
+        default_cashbox_id: ''
+      };
+    }
+    throw new Error('Current user is not registered in USERS: ' + email);
+  }
+  if (!isTruthy_(user.active)) {
+    throw new Error('Current user is not active: ' + email);
   }
 
   return {
-    user_id: userRecord ? userRecord.user_id : '',
-    email: email,
-    full_name: userRecord ? userRecord.full_name : '',
-    role: userRecord && userRecord.role ? userRecord.role : USER_ROLES.VIEWER,
-    active: userRecord ? isTruthy_(userRecord.active) : false,
-    default_cashbox_id: userRecord ? userRecord.default_cashbox_id : ''
+    user_id: user.user_id || '',
+    email: user.email || email,
+    full_name: user.full_name || '',
+    role: user.role || USER_ROLES.VIEWER,
+    active: isTruthy_(user.active),
+    default_cashbox_id: user.default_cashbox_id || ''
   };
-}
-
-function getCurrentUserEmail() {
-  const activeUser = Session.getActiveUser();
-  return activeUser && activeUser.getEmail() ? activeUser.getEmail() : '';
 }
 
 function getCurrentUserRole() {
@@ -32,10 +48,13 @@ function getCurrentUserRole() {
 }
 
 function assertUserHasRole(allowedRoles) {
-  const role = getCurrentUserRole();
-  if (allowedRoles.indexOf(role) === -1) {
+  const user = assertCurrentUserActive();
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+  const role = user.role;
+  if (roles.indexOf(role) === -1) {
     throw new Error('User role is not allowed for this action: ' + role);
   }
+  return user;
 }
 
 function isUserActive(email) {
@@ -76,14 +95,25 @@ function assertUserCanReceiveShift(email) {
 
 function assertCurrentUserActive() {
   const user = getCurrentUser();
-  if (!user.email) {
-    throw new Error('Current user email is not available. Check Apps Script deployment access settings.');
-  }
   if (!user.active) {
     throw new Error('Current user is not active: ' + user.email);
   }
+  return user;
+}
+
+function assertUserCanActOnOwnOrRole(ownerFieldValue, elevatedRoles) {
+  const user = assertCurrentUserActive();
+  const owner = String(ownerFieldValue || '').trim();
+  if (owner && (owner === user.email || owner === user.user_id)) {
+    return user;
+  }
+  return assertUserHasRole(elevatedRoles || []);
 }
 
 function isTruthy_(value) {
   return value === true || value === 'TRUE' || value === 'true' || value === 1 || value === '1';
+}
+
+function isDevelopmentMode_() {
+  return Boolean(APP_CONFIG && APP_CONFIG.DEVELOPMENT_MODE === true);
 }
