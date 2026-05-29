@@ -262,7 +262,7 @@ function apiGetAppConfigForUi() {
 function apiSuccess_(data) {
   return {
     ok: true,
-    data: data
+    data: sanitizeApiValue_(data)
   };
 }
 
@@ -285,6 +285,27 @@ function apiWrap_(callback) {
   } catch (error) {
     return apiError_(error);
   }
+}
+
+function sanitizeApiValue_(value) {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone() || 'Europe/Belgrade', 'yyyy-MM-dd HH:mm:ss');
+  }
+  if (Array.isArray(value)) {
+    return value.map(function(item) {
+      return sanitizeApiValue_(item);
+    });
+  }
+  if (typeof value === 'object') {
+    return Object.keys(value).reduce(function(result, key) {
+      result[key] = sanitizeApiValue_(value[key]);
+      return result;
+    }, {});
+  }
+  return value;
 }
 
 function parseJsonInput_(value) {
