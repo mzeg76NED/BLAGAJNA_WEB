@@ -799,6 +799,90 @@ Ocekivano:
 1. `CASH_OUTFLOW` je posted.
 2. `total_out` ukljucuje iznos izvrsene isplate.
 
+## Task 09 - Basic mobile and desktop UI
+
+Pre testiranja deploy-ovati Apps Script kao Web App i pokrenuti `initializeDatabase()`.
+
+### Test 1: Open mobile UI
+
+Ocekivano:
+
+1. Web App se otvara bez query parametra.
+2. Mobilni layout je citljiv.
+3. Glavni tasteri su vidljivi.
+
+### Test 2: Create payment request from mobile UI
+
+Ocekivano:
+
+1. Korisnik popunjava formu za novi zahtev.
+2. Zahtev je kreiran.
+3. Prikazuje se poruka o uspehu.
+4. Red postoji u `PAYMENT_REQUESTS`.
+
+### Test 3: List my requests
+
+Ocekivano:
+
+1. Korisnik otvara `Moji zahtevi`.
+2. Lista zahteva se prikazuje.
+
+### Test 4: Approve request from UI
+
+Ocekivano:
+
+1. Odobravalac otvara `Zahtevi za odobrenje`.
+2. Odobrava zahtev.
+3. Status zahteva se menja u `APPROVED`.
+
+### Test 5: List orders waiting for payment
+
+Ocekivano:
+
+1. Blagajnik otvara sekciju naloga.
+2. Nalozi koji cekaju isplatu su prikazani.
+
+### Test 6: Execute payment from UI
+
+Ocekivano:
+
+1. Blagajnik izvrsava nalog.
+2. Kreira se `CASH_OUTFLOW`.
+3. Status naloga se azurira.
+4. Stanje blagajne se smanjuje kroz cash event.
+
+### Test 7: Attach document from UI
+
+Ocekivano:
+
+1. Korisnik bira entitet i fajl.
+2. Fajl se uploaduje u Drive.
+3. Kreira se red u `DOCUMENTS`.
+4. Povezani entitet dobija `document_status = ATTACHED` ako podrzava tu kolonu.
+
+### Test 8: Open and close shift from UI
+
+Ocekivano:
+
+1. Blagajnik otvara smenu.
+2. Aktivna smena se prikazuje.
+3. Zatvaranje smene sa fizickim stanjem radi.
+
+### Test 9: Prepare daily closing from UI
+
+Ocekivano:
+
+1. Preview dnevnog zakljucka se prikazuje.
+2. Izracunato stanje je vidljivo.
+3. Zakljucivanje dana kreira red u `DAILY_CLOSING`.
+
+### Test 10: Desktop UI opens
+
+Ocekivano:
+
+1. Desktop prikaz se otvara sa `?view=desktop`.
+2. Dashboard sekcije su vidljive.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

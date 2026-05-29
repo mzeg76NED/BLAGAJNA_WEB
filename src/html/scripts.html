@@ -1,5 +1,495 @@
 <script>
-  window.BLAGAJNA_WEB = {
-    initialized: true
+  var uiState = {
+    config: {},
+    currentUser: null,
+    loading: false
   };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    bindUi();
+    var activeSection = document.querySelector('[data-section].active');
+    showSection(activeSection ? activeSection.id : 'home');
+    callApi('apiGetAppConfigForUi', [], function(config) {
+      uiState.config = config || {};
+      fillConfigOptions();
+      setTodayDefaults();
+    }, { quiet: true });
+    callApi('apiGetCurrentUserContext', [], function(user) {
+      uiState.currentUser = user;
+      renderCurrentUser(user);
+    }, { quiet: true });
+  });
+
+  function bindUi() {
+    document.querySelectorAll('[data-target]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        showSection(button.getAttribute('data-target'));
+      });
+    });
+
+    bindForm('payment-request-form', function(data) {
+      callApi('apiCreatePaymentRequest', [data], function(result) {
+        showMessage('Uspešno sačuvano.', 'success');
+        renderJson('payment-request-result', result);
+      });
+    });
+
+    bindClick('payment-request-submit-btn', function() {
+      var data = serializeForm('payment-request-form');
+      callApi('apiCreatePaymentRequest', [data], function(result) {
+        callApi('apiSubmitPaymentRequest', [result.request_id], function(submitted) {
+          showMessage('Zahtev je poslat na odobrenje.', 'success');
+          renderJson('payment-request-result', submitted);
+        });
+      });
+    });
+
+    bindClick('load-my-requests-btn', loadMyRequests);
+    bindClick('load-approval-requests-btn', loadApprovalRequests);
+    bindClick('load-waiting-orders-btn', loadWaitingOrders);
+    bindClick('load-my-shifts-home-btn', loadMyShifts);
+
+    bindForm('execute-payment-form', function(data) {
+      callApi('apiExecutePaymentOrder', [data.order_id, cleanObject({
+        amount: data.amount,
+        note: data.note
+      })], function(result) {
+        showMessage('Isplata je uspešno izvršena.', 'success');
+        renderJson('execute-payment-result', result);
+      });
+    });
+
+    bindForm('cash-inflow-form', function(data) {
+      callApi('apiCreateCashInflow', [data], function(result) {
+        showMessage('Uplata je uspešno knjižena.', 'success');
+        renderJson('cash-inflow-result', result);
+      });
+    });
+
+    bindForm('balance-form', function(data) {
+      callApi('apiCalculateCashboxBalance', [data.cashbox_id, data.currency], function(result) {
+        renderHtml('balance-result', '<div class="record"><div class="record-title">Stanje: ' + escapeHtml(result) + ' ' + escapeHtml(data.currency) + '</div></div>');
+      });
+    });
+
+    bindForm('document-form', function(data, form) {
+      fileToBase64Payload(form.querySelector('[name="file"]')).then(function(filePayload) {
+        callApi('apiAttachDocumentToEntity', [data.entity_type, data.entity_id, filePayload, data.note], function(result) {
+          showMessage('Dokument je dodat.', 'success');
+          renderJson('document-result', result);
+        });
+      }).catch(function(error) {
+        showMessage('Greška: dokument nije učitan. ' + error.message, 'error');
+      });
+    });
+
+    bindClick('list-documents-btn', function() {
+      var data = serializeForm('document-form');
+      callApi('apiListDocumentsForEntity', [data.entity_type, data.entity_id], function(result) {
+        renderRecords('document-result', result, ['document_id', 'file_name', 'status', 'file_url']);
+      });
+    });
+
+    bindForm('open-shift-form', function(data) {
+      callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
+        showMessage('Smena je otvorena.', 'success');
+        renderJson('shift-result', result);
+      });
+    });
+
+    bindClick('load-my-shifts-btn', loadMyShifts);
+
+    bindForm('shift-balance-form', function(data) {
+      callApi('apiGetShiftBalance', [data.shift_id], function(result) {
+        renderJson('shift-result', result);
+      });
+    });
+
+    bindForm('handover-shift-form', function(data) {
+      callApi('apiHandoverShift', [data.shift_id, data.handover_to, data.physical_balance_json, data.note], function(result) {
+        showMessage('Primopredaja je evidentirana.', 'success');
+        renderJson('shift-result', result);
+      });
+    });
+
+    bindForm('close-shift-form', function(data) {
+      callApi('apiCloseShift', [data.shift_id, data.physical_balance_json, data.note], function(result) {
+        showMessage('Smena je zatvorena.', 'success');
+        renderJson('shift-result', result);
+      });
+    });
+
+    bindForm('daily-preview-form', function(data) {
+      callApi('apiPrepareDailyClosing', [data.cashbox_id, data.currency, data.closing_date], function(result) {
+        renderJson('daily-closing-result', result);
+      });
+    });
+
+    bindForm('daily-close-form', function(data) {
+      callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+        showMessage('Dnevni zaključak je kreiran.', 'success');
+        renderJson('daily-closing-result', result);
+      });
+    });
+
+    bindClick('load-daily-closings-btn', function() {
+      callApi('apiListDailyClosings', [{}], function(result) {
+        renderRecords('daily-closing-result', result, ['closing_id', 'closing_date', 'cashbox_id', 'currency', 'status', 'difference']);
+      });
+    });
+
+    bindDesktop();
+  }
+
+  function bindDesktop() {
+    bindClick('desktop-refresh-btn', function() {
+      loadDesktopDashboard();
+    });
+    bindClick('desktop-load-requests-btn', function() {
+      callApi('apiListRequestsForApproval', [], function(result) {
+        renderTable('desktop-table-result', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status']);
+      });
+    });
+    bindClick('desktop-load-orders-btn', function() {
+      callApi('apiListOrdersWaitingForPayment', [], function(result) {
+        renderTable('desktop-table-result-orders', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'cashbox_id', 'status']);
+      });
+    });
+    bindClick('desktop-load-shifts-btn', function() {
+      callApi('apiGetMyActiveShifts', [], function(result) {
+        renderTable('shift-result', result, ['shift_id', 'cashbox_id', 'opened_by', 'opened_at', 'status']);
+      });
+    });
+    bindClick('desktop-load-closings-btn', function() {
+      callApi('apiListDailyClosings', [{}], function(result) {
+        renderTable('daily-closing-result', result, ['closing_id', 'closing_date', 'cashbox_id', 'currency', 'status', 'difference']);
+      });
+    });
+    bindForm('desktop-balance-form', function(data) {
+      callApi('apiCalculateCashboxBalance', [data.cashbox_id, data.currency], function(result) {
+        renderHtml('balance-result', '<div class="record"><div class="record-title">Stanje: ' + escapeHtml(result) + ' ' + escapeHtml(data.currency) + '</div></div>');
+      });
+    });
+  }
+
+  function callApi(functionName, args, onSuccess, options) {
+    options = options || {};
+    if (!window.google || !google.script || !google.script.run) {
+      showMessage('Greška: Apps Script okruženje nije dostupno.', 'error');
+      return;
+    }
+    setLoading(true);
+    var runner = google.script.run
+      .withSuccessHandler(function(response) {
+        setLoading(false);
+        if (!response || response.ok !== true) {
+          showMessage('Greška: ' + (response && response.error ? response.error.message : 'poziv nije uspeo.'), 'error');
+          return;
+        }
+        if (!options.quiet) {
+          showMessage('Uspešno izvršeno.', 'success');
+        }
+        if (onSuccess) {
+          onSuccess(response.data);
+        }
+      })
+      .withFailureHandler(function(error) {
+        setLoading(false);
+        showMessage('Greška: ' + (error && error.message ? error.message : 'tehnički problem.'), 'error');
+      });
+    runner[functionName].apply(runner, args || []);
+  }
+
+  function showSection(sectionId) {
+    document.querySelectorAll('[data-section]').forEach(function(section) {
+      section.classList.toggle('active', section.id === sectionId);
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showMessage(message, type) {
+    var box = document.getElementById('message');
+    if (!box) {
+      return;
+    }
+    box.textContent = message;
+    box.className = 'message show ' + (type || 'info');
+  }
+
+  function setLoading(isLoading) {
+    uiState.loading = isLoading;
+    document.body.classList.toggle('loading', isLoading);
+  }
+
+  function serializeForm(formId) {
+    var form = document.getElementById(formId);
+    var data = {};
+    if (!form) {
+      return data;
+    }
+    Array.prototype.forEach.call(form.elements, function(element) {
+      if (!element.name || element.type === 'file') {
+        return;
+      }
+      data[element.name] = element.value;
+    });
+    return cleanObject(data);
+  }
+
+  function fileToBase64Payload(fileInput) {
+    return new Promise(function(resolve, reject) {
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        reject(new Error('Izaberite fajl.'));
+        return;
+      }
+      var file = fileInput.files[0];
+      var reader = new FileReader();
+      reader.onload = function() {
+        var result = String(reader.result || '');
+        resolve({
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          base64Data: result.indexOf(',') === -1 ? result : result.split(',').pop()
+        });
+      };
+      reader.onerror = function() {
+        reject(new Error('Fajl nije moguće pročitati.'));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function bindForm(formId, handler) {
+    var form = document.getElementById(formId);
+    if (!form) {
+      return;
+    }
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+      handler(serializeForm(formId), form);
+    });
+  }
+
+  function bindClick(id, handler) {
+    var element = document.getElementById(id);
+    if (element) {
+      element.addEventListener('click', handler);
+    }
+  }
+
+  function loadMyRequests() {
+    callApi('apiListMyPaymentRequests', [], function(result) {
+      renderRecords('my-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status']);
+    });
+  }
+
+  function loadApprovalRequests() {
+    callApi('apiListRequestsForApproval', [], function(result) {
+      renderActionRecords('approval-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], function(record) {
+        return [
+          actionButton('Odobri', function() {
+            callApi('apiApprovePaymentRequest', [record.request_id], loadApprovalRequests);
+          }),
+          actionButton('Odbij', function() {
+            var reason = prompt('Razlog odbijanja');
+            if (reason) {
+              callApi('apiRejectPaymentRequest', [record.request_id, reason], loadApprovalRequests);
+            }
+          }, 'danger')
+        ];
+      });
+    });
+  }
+
+  function loadWaitingOrders() {
+    callApi('apiListOrdersWaitingForPayment', [], function(result) {
+      renderActionRecords('waiting-orders-list', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'purpose', 'cashbox_id'], function(record) {
+        return [
+          actionButton('Izvrši isplatu', function() {
+            showSection('execute-payment');
+            setInputValue('execute-payment-form', 'order_id', record.order_id);
+          }),
+          actionButton('Odbij izvršenje', function() {
+            var reason = prompt('Razlog odbijanja izvršenja');
+            if (reason) {
+              callApi('apiRejectPaymentOrderByCashier', [record.order_id, reason], loadWaitingOrders);
+            }
+          }, 'danger')
+        ];
+      });
+    });
+  }
+
+  function loadMyShifts() {
+    callApi('apiGetMyActiveShifts', [], function(result) {
+      renderActionRecords('shift-result', result, ['shift_id', 'cashbox_id', 'opened_at', 'status'], function(record) {
+        return [
+          actionButton('Presek', function() {
+            callApi('apiGetShiftBalance', [record.shift_id], function(balance) {
+              renderJson('shift-result', balance);
+            });
+          })
+        ];
+      });
+    });
+  }
+
+  function loadDesktopDashboard() {
+    callApi('apiGetCurrentUserContext', [], function(user) {
+      setText('desktop-user-card', (user.full_name || user.email || 'Nepoznat korisnik') + ' · ' + (user.role || ''));
+    }, { quiet: true });
+    callApi('apiListRequestsForApproval', [], function(result) {
+      setText('desktop-requests-card', String((result || []).length));
+    }, { quiet: true });
+    callApi('apiListOrdersWaitingForPayment', [], function(result) {
+      setText('desktop-orders-card', String((result || []).length));
+    }, { quiet: true });
+    callApi('apiGetMyActiveShifts', [], function(result) {
+      setText('desktop-shifts-card', String((result || []).length));
+    }, { quiet: true });
+    callApi('apiListDailyClosings', [{}], function(result) {
+      setText('desktop-closings-card', String((result || []).length));
+    }, { quiet: true });
+  }
+
+  function fillConfigOptions() {
+    fillSelects('[data-currency-options]', uiState.config.currencies || ['RSD', 'EUR']);
+    fillSelects('[data-priority-options]', uiState.config.requestPriorities || ['NORMAL', 'URGENT']);
+    fillSelects('[data-entity-options]', uiState.config.entityTypes || ['PAYMENT_REQUEST', 'PAYMENT_ORDER', 'CASH_EVENT', 'SHIFT', 'DAILY_CLOSING']);
+  }
+
+  function fillSelects(selector, values) {
+    document.querySelectorAll(selector).forEach(function(select) {
+      select.innerHTML = values.map(function(value) {
+        return '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + '</option>';
+      }).join('');
+    });
+  }
+
+  function setTodayDefaults() {
+    document.querySelectorAll('[data-today]').forEach(function(input) {
+      input.value = uiState.config.today || '';
+    });
+  }
+
+  function renderCurrentUser(user) {
+    document.querySelectorAll('[data-current-user]').forEach(function(element) {
+      element.textContent = user && user.email ? user.email + ' · ' + user.role : 'Korisnik nije učitan';
+    });
+  }
+
+  function renderRecords(targetId, records, fields) {
+    records = records || [];
+    if (records.length === 0) {
+      renderHtml(targetId, '<div class="record">Nema podataka.</div>');
+      return;
+    }
+    renderHtml(targetId, records.map(function(record) {
+      return recordHtml(record, fields, []);
+    }).join(''));
+  }
+
+  function renderActionRecords(targetId, records, fields, actionsFactory) {
+    records = records || [];
+    if (records.length === 0) {
+      renderHtml(targetId, '<div class="record">Nema podataka.</div>');
+      return;
+    }
+    var html = records.map(function(record, index) {
+      window.__recordActions = window.__recordActions || {};
+      var actions = actionsFactory ? actionsFactory(record) : [];
+      var actionHtml = actions.map(function(action, actionIndex) {
+        var key = targetId + '-' + index + '-' + actionIndex + '-' + Date.now();
+        window.__recordActions[key] = action.handler;
+        return '<button class="small ' + escapeHtml(action.kind || '') + '" onclick="window.__recordActions[\'' + key + '\']()">' + escapeHtml(action.label) + '</button>';
+      }).join('');
+      return recordHtml(record, fields, actionHtml ? ['<div class="actions">' + actionHtml + '</div>'] : []);
+    }).join('');
+    renderHtml(targetId, html);
+  }
+
+  function renderTable(targetId, records, fields) {
+    records = records || [];
+    if (records.length === 0) {
+      renderHtml(targetId, '<div class="record">Nema podataka.</div>');
+      return;
+    }
+    var head = fields.map(function(field) { return '<th>' + escapeHtml(field) + '</th>'; }).join('');
+    var rows = records.map(function(record) {
+      return '<tr>' + fields.map(function(field) {
+        return '<td>' + escapeHtml(formatValue(record[field])) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    renderHtml(targetId, '<div class="table-wrap"><table><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>');
+  }
+
+  function recordHtml(record, fields, extraHtml) {
+    var title = fields.length ? formatValue(record[fields[0]]) : 'Zapis';
+    var body = fields.slice(1).map(function(field) {
+      return '<div><span class="badge">' + escapeHtml(field) + '</span> ' + escapeHtml(formatValue(record[field])) + '</div>';
+    }).join('');
+    return '<div class="record"><div class="record-title">' + escapeHtml(title) + '</div>' + body + (extraHtml || []).join('') + '</div>';
+  }
+
+  function actionButton(label, handler, kind) {
+    return {
+      label: label,
+      handler: handler,
+      kind: kind || ''
+    };
+  }
+
+  function renderJson(targetId, value) {
+    renderHtml(targetId, '<pre>' + escapeHtml(JSON.stringify(value, null, 2)) + '</pre>');
+  }
+
+  function renderHtml(targetId, html) {
+    var target = document.getElementById(targetId);
+    if (target) {
+      target.innerHTML = html;
+    }
+  }
+
+  function cleanObject(source) {
+    var result = {};
+    Object.keys(source || {}).forEach(function(key) {
+      if (source[key] !== '') {
+        result[key] = source[key];
+      }
+    });
+    return result;
+  }
+
+  function setInputValue(formId, name, value) {
+    var input = document.querySelector('#' + formId + ' [name="' + name + '"]');
+    if (input) {
+      input.value = value || '';
+    }
+  }
+
+  function setText(id, value) {
+    var element = document.getElementById(id);
+    if (element) {
+      element.textContent = value;
+    }
+  }
+
+  function formatValue(value) {
+    if (value === undefined || value === null || value === '') {
+      return '';
+    }
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    return String(value);
+  }
+
+  function escapeHtml(value) {
+    return formatValue(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 </script>

@@ -2,17 +2,224 @@
 <html>
   <head>
     <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <?!= include('html/styles'); ?>
   </head>
   <body>
-    <main class="mobile-home">
-      <h1>BLAGAJNA</h1>
-      <button>Novi zahtev za isplatu</button>
-      <button>Nalozi za isplatu</button>
-      <button>Nova uplata</button>
-      <button>Presek blagajne</button>
-      <button>Primopredaja smene</button>
-      <button>Dnevni zaključak</button>
+    <main class="mobile-shell">
+      <header>
+        <div class="top-bar">
+          <div>
+            <h1>BLAGAJNA</h1>
+            <p class="muted" data-current-user>Korisnik se učitava...</p>
+          </div>
+          <button class="small" data-target="home" type="button">Početna</button>
+        </div>
+        <div id="message" class="message"></div>
+      </header>
+
+      <section id="home" class="section active" data-section>
+        <div class="card">
+          <h2>Zahtevi</h2>
+          <div class="button-grid">
+            <button data-target="new-payment-request" type="button">NOVI ZAHTEV ZA ISPLATU</button>
+            <button data-target="my-payment-requests" type="button">MOJI ZAHTEVI</button>
+            <button data-target="approval-requests" type="button">ZAHTEVI ZA ODOBRENJE</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Nalozi</h2>
+          <div class="button-grid">
+            <button data-target="orders-waiting" type="button">NALOZI ZA ISPLATU</button>
+            <button data-target="execute-payment" type="button">IZVRŠI NALOG</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Blagajna</h2>
+          <div class="button-grid">
+            <button data-target="cash-inflow" type="button">NOVA UPLATA</button>
+            <button data-target="attach-document" type="button">DODAJ DOKUMENT</button>
+            <button data-target="cashbox-balance" type="button">PRESEK BLAGAJNE</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Smena</h2>
+          <div class="button-grid">
+            <button data-target="shift" type="button">OTVORI SMENU</button>
+            <button data-target="shift" id="load-my-shifts-home-btn" type="button">MOJE SMENE</button>
+            <button data-target="shift" type="button">PRIMOPREDAJA SMENE</button>
+            <button data-target="shift" type="button">ZATVORI SMENU</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Zaključak</h2>
+          <button data-target="daily-closing" type="button">DNEVNI ZAKLJUČAK</button>
+        </div>
+      </section>
+
+      <section id="new-payment-request" class="section" data-section>
+        <div class="card">
+          <h2>Novi zahtev za isplatu</h2>
+          <form id="payment-request-form" class="form-grid">
+            <label>Primalac novca <input name="requested_for_name" required></label>
+            <label>Iznos <input name="amount" type="number" step="0.01" required></label>
+            <label>Valuta <select name="currency" data-currency-options></select></label>
+            <label>Svrha <input name="purpose" required></label>
+            <label>Opis <textarea name="description"></textarea></label>
+            <label>Prioritet <select name="priority" data-priority-options></select></label>
+            <div class="actions">
+              <button class="primary" type="submit">Sačuvaj zahtev</button>
+              <button id="payment-request-submit-btn" type="button">Pošalji zahtev na odobrenje</button>
+            </div>
+          </form>
+          <div id="payment-request-result" class="result-box"></div>
+        </div>
+      </section>
+
+      <section id="my-payment-requests" class="section" data-section>
+        <div class="card">
+          <h2>Moji zahtevi</h2>
+          <button id="load-my-requests-btn" type="button">Učitaj moje zahteve</button>
+          <div id="my-requests-list" class="list"></div>
+        </div>
+      </section>
+
+      <section id="approval-requests" class="section" data-section>
+        <div class="card">
+          <h2>Zahtevi za odobrenje</h2>
+          <button id="load-approval-requests-btn" type="button">Učitaj zahteve</button>
+          <div id="approval-requests-list" class="list"></div>
+        </div>
+      </section>
+
+      <section id="orders-waiting" class="section" data-section>
+        <div class="card">
+          <h2>Nalozi za isplatu</h2>
+          <button id="load-waiting-orders-btn" type="button">Učitaj naloge</button>
+          <div id="waiting-orders-list" class="list"></div>
+        </div>
+      </section>
+
+      <section id="execute-payment" class="section" data-section>
+        <div class="card">
+          <h2>Izvrši nalog</h2>
+          <form id="execute-payment-form" class="form-grid">
+            <label>ID naloga <input name="order_id" required></label>
+            <label>Iznos <input name="amount" type="number" step="0.01"></label>
+            <label>Napomena <textarea name="note"></textarea></label>
+            <button class="primary" type="submit">Izvrši isplatu</button>
+          </form>
+          <div id="execute-payment-result" class="result-box"></div>
+        </div>
+      </section>
+
+      <section id="cash-inflow" class="section" data-section>
+        <div class="card">
+          <h2>Nova uplata</h2>
+          <form id="cash-inflow-form" class="form-grid">
+            <label>ID blagajne <input name="cashbox_id" required></label>
+            <label>Iznos <input name="amount" type="number" step="0.01" required></label>
+            <label>Valuta <select name="currency" data-currency-options></select></label>
+            <label>Opis <textarea name="description" required></textarea></label>
+            <button class="primary" type="submit">Knjiži uplatu</button>
+          </form>
+          <div id="cash-inflow-result" class="result-box"></div>
+        </div>
+      </section>
+
+      <section id="attach-document" class="section" data-section>
+        <div class="card">
+          <h2>Dodaj dokument</h2>
+          <form id="document-form" class="form-grid">
+            <label>Tip entiteta <select name="entity_type" data-entity-options></select></label>
+            <label>ID entiteta <input name="entity_id" required></label>
+            <label>Fajl <input name="file" type="file" required></label>
+            <label>Napomena <textarea name="note"></textarea></label>
+            <div class="actions">
+              <button class="primary" type="submit">Dodaj dokument</button>
+              <button id="list-documents-btn" type="button">Prikaži dokumente</button>
+            </div>
+          </form>
+          <div id="document-result" class="result-box"></div>
+        </div>
+      </section>
+
+      <section id="cashbox-balance" class="section" data-section>
+        <div class="card">
+          <h2>Presek blagajne</h2>
+          <form id="balance-form" class="form-grid">
+            <label>ID blagajne <input name="cashbox_id" required></label>
+            <label>Valuta <select name="currency" data-currency-options></select></label>
+            <button class="primary" type="submit">Prikaži stanje</button>
+          </form>
+          <div id="balance-result" class="result-box"></div>
+        </div>
+      </section>
+
+      <section id="shift" class="section" data-section>
+        <div class="card">
+          <h2>Smena</h2>
+          <form id="open-shift-form" class="form-grid">
+            <label>ID blagajne <input name="cashbox_id" required></label>
+            <label>Napomena pri otvaranju <textarea name="opening_note"></textarea></label>
+            <button class="primary" type="submit">Otvori smenu</button>
+          </form>
+        </div>
+        <div class="card">
+          <h3>Moje smene i presek</h3>
+          <button id="load-my-shifts-btn" type="button">Učitaj moje aktivne smene</button>
+          <form id="shift-balance-form" class="form-grid">
+            <label>ID smene <input name="shift_id"></label>
+            <button type="submit">Prikaži presek smene</button>
+          </form>
+        </div>
+        <div class="card">
+          <h3>Primopredaja smene</h3>
+          <form id="handover-shift-form" class="form-grid">
+            <label>ID smene <input name="shift_id" required></label>
+            <label>Email primaoca <input name="handover_to" type="email" required></label>
+            <label>Fizičko stanje JSON <textarea name="physical_balance_json" placeholder='{"RSD":100000,"EUR":500}'></textarea></label>
+            <label>Napomena <textarea name="note"></textarea></label>
+            <button type="submit">Predaj smenu</button>
+          </form>
+        </div>
+        <div class="card">
+          <h3>Zatvori smenu</h3>
+          <form id="close-shift-form" class="form-grid">
+            <label>ID smene <input name="shift_id" required></label>
+            <label>Fizičko stanje JSON <textarea name="physical_balance_json" placeholder='{"RSD":100000,"EUR":500}' required></textarea></label>
+            <label>Napomena <textarea name="note"></textarea></label>
+            <button class="primary" type="submit">Zatvori smenu</button>
+          </form>
+        </div>
+        <div id="shift-result" class="result-box"></div>
+      </section>
+
+      <section id="daily-closing" class="section" data-section>
+        <div class="card">
+          <h2>Dnevni zaključak</h2>
+          <form id="daily-preview-form" class="form-grid">
+            <label>ID blagajne <input name="cashbox_id" required></label>
+            <label>Valuta <select name="currency" data-currency-options></select></label>
+            <label>Datum <input name="closing_date" type="date" data-today required></label>
+            <button type="submit">Pripremi zaključak</button>
+          </form>
+        </div>
+        <div class="card">
+          <form id="daily-close-form" class="form-grid">
+            <label>ID blagajne <input name="cashbox_id" required></label>
+            <label>Valuta <select name="currency" data-currency-options></select></label>
+            <label>Datum <input name="closing_date" type="date" data-today required></label>
+            <label>Fizičko stanje <input name="physical_balance" type="number" step="0.01" required></label>
+            <label>Napomena <textarea name="note"></textarea></label>
+            <div class="actions">
+              <button class="primary" type="submit">Zaključi dan</button>
+              <button id="load-daily-closings-btn" type="button">Pregled zaključaka</button>
+            </div>
+          </form>
+        </div>
+        <div id="daily-closing-result" class="result-box"></div>
+      </section>
     </main>
     <?!= include('html/scripts'); ?>
   </body>

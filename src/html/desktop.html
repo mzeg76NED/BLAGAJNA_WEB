@@ -2,22 +2,145 @@
 <html>
   <head>
     <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <?!= include('html/styles'); ?>
   </head>
   <body>
     <main class="desktop-shell">
-      <header>
-        <h1>BLAGAJNA WEB</h1>
-        <p>Dashboard, zahtevi, nalozi, događaji, dokumenti i audit log.</p>
-      </header>
-      <section class="desktop-grid">
-        <button>Zahtevi za isplatu</button>
-        <button>Nalozi za isplatu</button>
-        <button>Novčani događaji</button>
-        <button>Dokumenti</button>
-        <button>Presek blagajne</button>
-        <button>Audit log</button>
-      </section>
+      <nav class="desktop-nav">
+        <h2>BLAGAJNA WEB</h2>
+        <p class="muted" data-current-user>Korisnik se učitava...</p>
+        <button data-target="desktop-dashboard" type="button">Dashboard</button>
+        <button data-target="desktop-requests" type="button">Payment Requests</button>
+        <button data-target="desktop-orders" type="button">Payment Orders</button>
+        <button data-target="desktop-balance" type="button">Cashbox Balance</button>
+        <button data-target="desktop-documents" type="button">Documents</button>
+        <button data-target="desktop-shifts" type="button">Shifts</button>
+        <button data-target="desktop-closings" type="button">Daily Closings</button>
+        <button data-target="desktop-audit" type="button">Audit</button>
+        <a class="button-link" href="?view=mobile">Mobilni prikaz</a>
+      </nav>
+
+      <div class="desktop-main">
+        <header>
+          <div class="top-bar">
+            <div>
+              <h1>Operativni pregled</h1>
+              <p class="muted">Jednostavan desktop prikaz za rad sa postojećim backend funkcijama.</p>
+            </div>
+            <button id="desktop-refresh-btn" type="button">Osveži dashboard</button>
+          </div>
+          <div id="message" class="message"></div>
+        </header>
+
+        <section id="desktop-dashboard" class="section active" data-section>
+          <div class="dashboard-grid">
+            <div class="card">
+              <h3>Trenutni korisnik</h3>
+              <p id="desktop-user-card" class="record-title">-</p>
+            </div>
+            <div class="card">
+              <h3>Zahtevi za odobrenje</h3>
+              <p id="desktop-requests-card" class="record-title">-</p>
+            </div>
+            <div class="card">
+              <h3>Nalozi za isplatu</h3>
+              <p id="desktop-orders-card" class="record-title">-</p>
+            </div>
+            <div class="card">
+              <h3>Moje otvorene smene</h3>
+              <p id="desktop-shifts-card" class="record-title">-</p>
+            </div>
+            <div class="card">
+              <h3>Dnevni zaključci</h3>
+              <p id="desktop-closings-card" class="record-title">-</p>
+            </div>
+            <div class="card">
+              <h3>Presek blagajne</h3>
+              <form id="balance-form" class="form-grid">
+                <label>ID blagajne <input name="cashbox_id"></label>
+                <label>Valuta <select name="currency" data-currency-options></select></label>
+                <button type="submit">Prikaži stanje</button>
+              </form>
+            </div>
+          </div>
+          <div id="balance-result" class="result-box"></div>
+        </section>
+
+        <section id="desktop-requests" class="section" data-section>
+          <div class="card">
+            <h2>Payment Requests</h2>
+            <div class="actions">
+              <button id="desktop-load-requests-btn" type="button">Zahtevi za odobrenje</button>
+              <button id="load-my-requests-btn" type="button">Moji zahtevi</button>
+            </div>
+            <div id="desktop-table-result" class="result-box"></div>
+            <div id="my-requests-list" class="list"></div>
+          </div>
+        </section>
+
+        <section id="desktop-orders" class="section" data-section>
+          <div class="card">
+            <h2>Payment Orders</h2>
+            <button id="desktop-load-orders-btn" type="button">Nalozi koji čekaju isplatu</button>
+            <div id="waiting-orders-list" class="list"></div>
+            <div id="desktop-table-result-orders" class="result-box"></div>
+          </div>
+        </section>
+
+        <section id="desktop-balance" class="section" data-section>
+          <div class="card">
+            <h2>Cashbox Balance</h2>
+            <form id="desktop-balance-form" class="form-grid two">
+              <label>ID blagajne <input name="cashbox_id"></label>
+              <label>Valuta <select name="currency" data-currency-options></select></label>
+              <button type="submit">Prikaži stanje</button>
+            </form>
+          </div>
+        </section>
+
+        <section id="desktop-documents" class="section" data-section>
+          <div class="card">
+            <h2>Documents</h2>
+            <form id="document-form" class="form-grid two">
+              <label>Tip entiteta <select name="entity_type" data-entity-options></select></label>
+              <label>ID entiteta <input name="entity_id"></label>
+              <label>Fajl <input name="file" type="file"></label>
+              <label>Napomena <textarea name="note"></textarea></label>
+              <div class="actions">
+                <button class="primary" type="submit">Dodaj dokument</button>
+                <button id="list-documents-btn" type="button">Prikaži dokumente</button>
+              </div>
+            </form>
+            <div id="document-result" class="result-box"></div>
+          </div>
+        </section>
+
+        <section id="desktop-shifts" class="section" data-section>
+          <div class="card">
+            <h2>Shifts</h2>
+            <button id="desktop-load-shifts-btn" type="button">Moje aktivne smene</button>
+            <button id="load-my-shifts-btn" type="button">Učitaj smene kao kartice</button>
+            <div id="shift-result" class="result-box"></div>
+          </div>
+        </section>
+
+        <section id="desktop-closings" class="section" data-section>
+          <div class="card">
+            <h2>Daily Closings</h2>
+            <button id="desktop-load-closings-btn" type="button">Pregled dnevnih zaključaka</button>
+            <button id="load-daily-closings-btn" type="button">Pregled kao kartice</button>
+            <div id="daily-closing-result" class="result-box"></div>
+          </div>
+        </section>
+
+        <section id="desktop-audit" class="section" data-section>
+          <div class="card">
+            <h2>Audit</h2>
+            <p class="muted">Audit log se ne uređuje iz interfejsa. Pregled audit log-a ostaje za kasniji hardening i reporting task.</p>
+          </div>
+        </section>
+      </div>
     </main>
     <?!= include('html/scripts'); ?>
   </body>

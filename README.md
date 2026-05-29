@@ -121,3 +121,15 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 7. Pokreni `closeDailyCashbox('CB-001', 'RSD', '2026-05-28', physicalBalance, 'Dnevni zakljucak')`.
 8. Potvrdi da je kreiran red u `DAILY_CLOSING`, da su ukljuceni `CASH_EVENTS` prebaceni iz `POSTED` u `LOCKED`, i da iznosi na dogadjajima nisu promenjeni.
 9. Ponovi zakljucak za isti cashbox, valutu i datum i potvrdi da sistem odbija duplikat.
+
+## Manualni test za Task 09
+
+1. Deploy Apps Script kao Web App.
+2. Otvori osnovni Web App URL i potvrdi da se prikazuje mobilni UI.
+3. Otvori `?view=desktop` i potvrdi da se prikazuje desktop dashboard.
+4. Na mobilnom prikazu kreiraj Payment Request i proveri `PAYMENT_REQUESTS`.
+5. Ucitaj `Moji zahtevi`, `Zahtevi za odobrenje` i `Nalozi za isplatu`.
+6. Izvrsi nalog kroz UI i proveri da je nastao `CASH_OUTFLOW`.
+7. Dodaj dokument kroz file input i proveri `DOCUMENTS`.
+8. Otvori i zatvori smenu kroz UI.
+9. Pripremi i kreiraj dnevni zakljucak kroz UI.

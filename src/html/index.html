@@ -2,16 +2,23 @@
 <html>
   <head>
     <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <?!= include('html/styles'); ?>
   </head>
   <body>
     <main class="app-shell">
-      <h1>BLAGAJNA WEB</h1>
-      <p>Interna aplikacija za upravljanje blagajnom.</p>
-      <nav class="nav-actions">
-        <a href="?page=mobile">Mobilni prikaz</a>
-        <a href="?page=desktop">Desktop prikaz</a>
-      </nav>
+      <header>
+        <h1>BLAGAJNA WEB</h1>
+        <p class="muted">Interna aplikacija za operativni rad blagajne.</p>
+      </header>
+      <div id="message" class="message"></div>
+      <section class="card">
+        <h2>Izaberite prikaz</h2>
+        <div class="nav-actions">
+          <a class="button-link" href="?view=mobile">Mobilni prikaz</a>
+          <a class="button-link" href="?view=desktop">Desktop prikaz</a>
+        </div>
+      </section>
     </main>
     <?!= include('html/scripts'); ?>
   </body>
