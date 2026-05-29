@@ -247,6 +247,27 @@
     padding: 4px 8px;
   }
 
+  .summary-card {
+    border-left: 4px solid #165dff;
+  }
+
+  .summary-row {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .summary-label {
+    background: #edf2f7;
+    border-radius: 999px;
+    color: #344054;
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 4px 8px;
+  }
+
   .table-wrap {
     overflow-x: auto;
   }
@@ -287,8 +308,13 @@
     white-space: pre-wrap;
   }
 
-  .loading {
-    opacity: 0.58;
+  body.loading button,
+  body.loading a.button-link {
+    cursor: wait;
+    opacity: 0.72;
+  }
+
+  body.loading button {
     pointer-events: none;
   }
 

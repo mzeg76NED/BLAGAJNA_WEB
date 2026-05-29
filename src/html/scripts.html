@@ -32,19 +32,18 @@
 
     bindForm('payment-request-form', function(data) {
       callApi('apiCreatePaymentRequest', [data], function(result) {
-        showMessage('Uspešno sačuvano.', 'success');
-        renderJson('payment-request-result', result);
-      });
+        renderPaymentRequestSummary('payment-request-result', result, 'Zahtev je sačuvan');
+      }, { successMessage: 'Zahtev je sačuvan.' });
     });
 
     bindClick('payment-request-submit-btn', function() {
       var data = serializeForm('payment-request-form');
       callApi('apiCreatePaymentRequest', [data], function(result) {
         callApi('apiSubmitPaymentRequest', [result.request_id], function(submitted) {
-          showMessage('Zahtev je poslat na odobrenje.', 'success');
-          renderJson('payment-request-result', submitted);
-        });
-      });
+          renderPaymentRequestSummary('payment-request-result', submitted, 'Zahtev je poslat na odobrenje');
+          loadMyRequests();
+        }, { successMessage: 'Zahtev je poslat na odobrenje.' });
+      }, { quiet: true });
     });
 
     bindClick('load-my-requests-btn', loadMyRequests);
@@ -57,16 +56,17 @@
         amount: data.amount,
         note: data.note
       })], function(result) {
-        showMessage('Isplata je uspešno izvršena.', 'success');
-        renderJson('execute-payment-result', result);
-      });
+        renderPaymentExecutionSummary('execute-payment-result', result);
+        loadWaitingOrders();
+        loadDesktopDashboard();
+      }, { successMessage: 'Isplata je uspešno izvršena.' });
     });
 
     bindForm('cash-inflow-form', function(data) {
       callApi('apiCreateCashInflow', [data], function(result) {
-        showMessage('Uplata je uspešno knjižena.', 'success');
-        renderJson('cash-inflow-result', result);
-      });
+        renderCashInflowSummary('cash-inflow-result', result);
+        loadDesktopDashboard();
+      }, { successMessage: 'Uplata je uspešno knjižena.' });
     });
 
     bindForm('balance-form', function(data) {
@@ -78,9 +78,8 @@
     bindForm('document-form', function(data, form) {
       fileToBase64Payload(form.querySelector('[name="file"]')).then(function(filePayload) {
         callApi('apiAttachDocumentToEntity', [data.entity_type, data.entity_id, filePayload, data.note], function(result) {
-          showMessage('Dokument je dodat.', 'success');
-          renderJson('document-result', result);
-        });
+          renderDocumentSummary('document-result', result, 'Dokument je dodat');
+        }, { successMessage: 'Dokument je dodat.' });
       }).catch(function(error) {
         showMessage('Greška: dokument nije učitan. ' + error.message, 'error');
       });
@@ -95,44 +94,43 @@
 
     bindForm('open-shift-form', function(data) {
       callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
-        showMessage('Smena je otvorena.', 'success');
-        renderJson('shift-result', result);
-      });
+        renderShiftSummary('shift-result', result, 'Smena je otvorena');
+        loadDesktopDashboard();
+      }, { successMessage: 'Smena je otvorena.' });
     });
 
     bindClick('load-my-shifts-btn', loadMyShifts);
 
     bindForm('shift-balance-form', function(data) {
       callApi('apiGetShiftBalance', [data.shift_id], function(result) {
-        renderJson('shift-result', result);
+        renderShiftBalanceSummary('shift-result', result);
       });
     });
 
     bindForm('handover-shift-form', function(data) {
       callApi('apiHandoverShift', [data.shift_id, data.handover_to, data.physical_balance_json, data.note], function(result) {
-        showMessage('Primopredaja je evidentirana.', 'success');
-        renderJson('shift-result', result);
-      });
+        renderShiftSummary('shift-result', result, 'Primopredaja je evidentirana');
+      }, { successMessage: 'Primopredaja je evidentirana.' });
     });
 
     bindForm('close-shift-form', function(data) {
       callApi('apiCloseShift', [data.shift_id, data.physical_balance_json, data.note], function(result) {
-        showMessage('Smena je zatvorena.', 'success');
-        renderJson('shift-result', result);
-      });
+        renderShiftSummary('shift-result', result, 'Smena je zatvorena');
+        loadDesktopDashboard();
+      }, { successMessage: 'Smena je zatvorena.' });
     });
 
     bindForm('daily-preview-form', function(data) {
       callApi('apiPrepareDailyClosing', [data.cashbox_id, data.currency, data.closing_date], function(result) {
-        renderJson('daily-closing-result', result);
+        renderDailyClosingSummary('daily-closing-result', result, 'Pregled dnevnog zaključka');
       });
     });
 
     bindForm('daily-close-form', function(data) {
       callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
-        showMessage('Dnevni zaključak je kreiran.', 'success');
-        renderJson('daily-closing-result', result);
-      });
+        renderDailyClosingSummary('daily-closing-result', result, 'Dnevni zaključak je kreiran');
+        loadDesktopDashboard();
+      }, { successMessage: 'Dnevni zaključak je kreiran.' });
     });
 
     bindClick('load-daily-closings-btn', function() {
@@ -244,6 +242,9 @@
       return;
     }
     setLoading(true);
+    if (!options.quiet) {
+      showMessage(options.loadingMessage || 'Obrađujem zahtev...', 'info');
+    }
     var runner = google.script.run
       .withSuccessHandler(function(response) {
         setLoading(false);
@@ -252,7 +253,7 @@
           return;
         }
         if (!options.quiet) {
-          showMessage('Uspešno izvršeno.', 'success');
+          showMessage(options.successMessage || 'Uspešno izvršeno.', 'success');
         }
         if (onSuccess) {
           onSuccess(response.data);
@@ -400,13 +401,14 @@
     }
     callApi('apiCreatePaymentOrderFromRequest', [record.request_id, { cashbox_id: cashboxId }], function(order) {
       callApi('apiIssuePaymentOrder', [order.order_id], function(issued) {
-        showMessage('Nalog je kreiran i izdat: ' + issued.order_id, 'success');
-        renderJson('desktop-table-result-orders', issued);
+        renderOrderSummary('desktop-table-result-orders', issued, 'Nalog je kreiran i izdat');
         if (reload) {
           reload();
         }
-      });
-    });
+        loadWaitingOrders();
+        loadDesktopDashboard();
+      }, { successMessage: 'Nalog je kreiran i izdat.' });
+    }, { quiet: true });
   }
 
   function waitingOrderActions_(record) {
@@ -416,11 +418,10 @@
           return;
         }
         callApi('apiExecutePaymentOrder', [record.order_id, {}], function(result) {
-          showMessage('Isplata je izvršena za nalog ' + record.order_id + '.', 'success');
-          renderJson('execute-payment-result', result);
+          renderPaymentExecutionSummary('execute-payment-result', result);
           loadWaitingOrders();
           loadDesktopDashboard();
-        });
+        }, { successMessage: 'Isplata je izvršena za nalog ' + record.order_id + '.' });
       }),
       actionButton('Popuni formu', function() {
         showSection('execute-payment');
@@ -441,7 +442,7 @@
         return [
           actionButton('Presek', function() {
             callApi('apiGetShiftBalance', [record.shift_id], function(balance) {
-              renderJson('shift-result', balance);
+              renderShiftBalanceSummary('shift-result', balance);
             });
           })
         ];
@@ -600,6 +601,106 @@
 
   function renderJson(targetId, value) {
     renderHtml(targetId, '<pre>' + escapeHtml(JSON.stringify(value, null, 2)) + '</pre>');
+  }
+
+  function renderPaymentRequestSummary(targetId, request, title) {
+    renderSummaryCard(targetId, title || 'Zahtev za isplatu', [
+      ['ID zahteva', request && request.request_id],
+      ['Za isplatu', request && request.requested_for_name],
+      ['Iznos', amountWithCurrency(request && request.amount, request && request.currency)],
+      ['Svrha', request && request.purpose],
+      ['Status', request && request.status]
+    ]);
+  }
+
+  function renderOrderSummary(targetId, order, title) {
+    renderSummaryCard(targetId, title || 'Nalog za isplatu', [
+      ['ID naloga', order && order.order_id],
+      ['Primaoc', order && order.pay_to_name],
+      ['Iznos', amountWithCurrency(order && (order.amount_ordered || order.amount), order && order.currency)],
+      ['Blagajna', order && order.cashbox_id],
+      ['Status', order && order.status]
+    ]);
+  }
+
+  function renderPaymentExecutionSummary(targetId, result) {
+    var event = (result && (result.cashEvent || result.cash_event || result.event)) || {};
+    var order = (result && (result.order || result.paymentOrder || result.payment_order)) || {};
+    renderSummaryCard(targetId, 'Isplata je proknjižena', [
+      ['ID događaja', event.event_id],
+      ['ID naloga', event.linked_order_id || order.order_id],
+      ['Iznos', amountWithCurrency(event.amount || order.amount_paid || order.amount_ordered, event.currency || order.currency)],
+      ['Blagajna', event.cashbox_id || order.cashbox_id],
+      ['Status', event.status || order.status]
+    ]);
+  }
+
+  function renderCashInflowSummary(targetId, event) {
+    renderSummaryCard(targetId, 'Uplata je proknjižena', [
+      ['ID događaja', event && event.event_id],
+      ['Iznos', amountWithCurrency(event && event.amount, event && event.currency)],
+      ['Blagajna', event && event.cashbox_id],
+      ['Opis', event && event.description],
+      ['Status', event && event.status]
+    ]);
+  }
+
+  function renderDocumentSummary(targetId, documentRecord, title) {
+    var fileUrl = documentRecord && documentRecord.file_url;
+    renderSummaryCard(targetId, title || 'Dokument', [
+      ['ID dokumenta', documentRecord && documentRecord.document_id],
+      ['Fajl', fileUrl ? '<a href="' + escapeHtml(fileUrl) + '" target="_blank" rel="noopener">' + escapeHtml(documentRecord.file_name || 'Otvori dokument') + '</a>' : documentRecord && documentRecord.file_name, Boolean(fileUrl)],
+      ['Vezano za', documentRecord && ((documentRecord.entity_type || '') + ' ' + (documentRecord.entity_id || ''))],
+      ['Status', documentRecord && documentRecord.status]
+    ]);
+  }
+
+  function renderShiftSummary(targetId, shift, title) {
+    renderSummaryCard(targetId, title || 'Smena', [
+      ['ID smene', shift && shift.shift_id],
+      ['Blagajna', shift && shift.cashbox_id],
+      ['Otvorio', shift && shift.opened_by],
+      ['Zatvorio', shift && shift.closed_by],
+      ['Status', shift && shift.status]
+    ]);
+  }
+
+  function renderShiftBalanceSummary(targetId, balance) {
+    renderSummaryCard(targetId, 'Presek smene', [
+      ['ID smene', balance && balance.shift_id],
+      ['Blagajna', balance && balance.cashbox_id],
+      ['Stanje', amountWithCurrency(balance && (balance.balance || balance.calculated_balance), balance && balance.currency)],
+      ['Status', balance && balance.status]
+    ]);
+  }
+
+  function renderDailyClosingSummary(targetId, closing, title) {
+    renderSummaryCard(targetId, title || 'Dnevni zaključak', [
+      ['ID zaključka', closing && closing.closing_id],
+      ['Datum', closing && closing.closing_date],
+      ['Blagajna', closing && closing.cashbox_id],
+      ['Obračunato', amountWithCurrency(closing && closing.calculated_balance, closing && closing.currency)],
+      ['Fizički', amountWithCurrency(closing && closing.physical_balance, closing && closing.currency)],
+      ['Razlika', amountWithCurrency(closing && closing.difference, closing && closing.currency)],
+      ['Status', closing && closing.status]
+    ]);
+  }
+
+  function renderSummaryCard(targetId, title, rows) {
+    var body = (rows || []).filter(function(row) {
+      return row[1] !== undefined && row[1] !== null && row[1] !== '';
+    }).map(function(row) {
+      var value = row[2] ? formatValue(row[1]) : escapeHtml(row[1]);
+      return '<div class="summary-row"><span class="summary-label">' + escapeHtml(row[0]) + '</span><span>' + value + '</span></div>';
+    }).join('');
+    renderHtml(targetId, '<div class="record summary-card"><div class="record-title">' + escapeHtml(title) + '</div>' + (body || '<div class="muted">Nema dodatnih podataka.</div>') + '</div>');
+  }
+
+  function amountWithCurrency(amount, currency) {
+    if (amount === undefined || amount === null || amount === '') {
+      return '';
+    }
+    return formatValue(amount) + (currency ? ' ' + formatValue(currency) : '');
   }
 
   function renderHtml(targetId, html) {
