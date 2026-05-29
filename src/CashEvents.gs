@@ -23,6 +23,17 @@ const CASH_EVENT_VIEW_ROLES_ = Object.freeze([
   USER_ROLES.ADMIN
 ]);
 
+const CASH_EVENT_CORRECTION_ROLES_ = Object.freeze([
+  USER_ROLES.ADMIN,
+  USER_ROLES.FINANCE,
+  USER_ROLES.CASHIER_SUPERVISOR
+]);
+
+const LOCKED_CASH_EVENT_REVERSAL_ROLES_ = Object.freeze([
+  USER_ROLES.ADMIN,
+  USER_ROLES.FINANCE
+]);
+
 function executePaymentOrder(orderId, paymentData) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -202,7 +213,7 @@ function calculateCashboxBalance(cashboxId, currency) {
     cashbox_id: cashboxId,
     currency: currency
   }).reduce(function(balance, event) {
-    if (event.status !== CASH_EVENT_STATUSES.POSTED && event.status !== CASH_EVENT_STATUSES.LOCKED) {
+    if (!isCashEventBalanceAffecting(event)) {
       return balance;
     }
 
@@ -231,7 +242,226 @@ function getCashEventsForCashbox(cashboxId, currency) {
 }
 
 function reverseCashEvent(eventId, reason) {
-  throw new Error('Cash event reversal is not implemented in Task 05. Use later correction/reversal workflow.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    const currentUser = requireActiveUserWithRole_(CASH_EVENT_CORRECTION_ROLES_);
+    assertNonEmptyString(eventId, 'eventId');
+    assertMandatoryReason(reason);
+
+    const match = findRecordById(SHEET_NAMES.CASH_EVENTS, 'event_id', eventId);
+    if (!match) {
+      throw new Error('Cash Event not found: ' + eventId);
+    }
+
+    const originalBefore = match.record;
+    assertCashEventCanBeReversed_(originalBefore);
+
+    const previousBalance = calculateCashboxBalance(originalBefore.cashbox_id, originalBefore.currency);
+    const now = getCurrentTimestamp_();
+    const cleanReason = String(reason).trim();
+    const reversalEvent = {
+      event_id: generateId_('CEV'),
+      created_at: now,
+      created_by: currentUser.email,
+      event_date: now,
+      event_type: CASH_EVENT_TYPES.REVERSAL,
+      cashbox_id: originalBefore.cashbox_id,
+      currency: originalBefore.currency,
+      direction: getOppositeDirection_(originalBefore.direction),
+      amount: Number(originalBefore.amount),
+      linked_request_id: originalBefore.linked_request_id || '',
+      linked_order_id: originalBefore.linked_order_id || '',
+      partner_name: originalBefore.partner_name || '',
+      description: buildReversalDescription_(originalBefore, cleanReason),
+      document_status: DOCUMENT_STATUSES.NONE,
+      status: CASH_EVENT_STATUSES.POSTED,
+      posted_by: currentUser.email,
+      posted_at: now,
+      locked_by: '',
+      locked_at: '',
+      reversal_of_event_id: originalBefore.event_id,
+      updated_at: ''
+    };
+
+    appendRecord(SHEET_NAMES.CASH_EVENTS, reversalEvent);
+    const originalAfter = updateRecordById(
+      SHEET_NAMES.CASH_EVENTS,
+      'event_id',
+      originalBefore.event_id,
+      {
+        status: CASH_EVENT_STATUSES.REVERSED,
+        updated_at: now
+      }
+    );
+    const newBalance = calculateCashboxBalance(originalBefore.cashbox_id, originalBefore.currency);
+
+    writeAuditLog(
+      AUDIT_ACTIONS.REVERSE,
+      SHEET_NAMES.CASH_EVENTS,
+      originalBefore.event_id,
+      originalBefore,
+      originalAfter,
+      'Cash event reversed. Reason: ' + cleanReason
+    );
+    writeAuditLog(
+      AUDIT_ACTIONS.POST,
+      SHEET_NAMES.CASH_EVENTS,
+      reversalEvent.event_id,
+      null,
+      reversalEvent,
+      'Posted reversal event for original event: ' + originalBefore.event_id
+    );
+
+    return {
+      originalEvent: originalAfter,
+      reversalEvent: reversalEvent,
+      previousBalance: previousBalance,
+      newBalance: newBalance
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function createCorrectionEvent(data) {
+  const currentUser = requireActiveUserWithRole_(CASH_EVENT_CORRECTION_ROLES_);
+  const correctionData = data || {};
+
+  assertRequiredFields(correctionData, [
+    'cashbox_id',
+    'currency',
+    'direction',
+    'amount',
+    'description',
+    'reason'
+  ]);
+  assertActiveCashbox(correctionData.cashbox_id);
+  assertActiveCurrency(correctionData.currency);
+  assertAllowedValue(correctionData.direction, ['IN', 'OUT'], 'direction');
+  assertPositiveAmount(correctionData.amount, 'amount');
+  assertNonEmptyString(correctionData.description, 'description');
+  assertMandatoryReason(correctionData.reason);
+
+  const now = getCurrentTimestamp_();
+  const correctionType = correctionData.correction_type || 'OTHER';
+  const description = buildCorrectionDescription_(
+    correctionType,
+    correctionData.description,
+    correctionData.reason
+  );
+  const event = {
+    event_id: generateId_('CEV'),
+    created_at: now,
+    created_by: currentUser.email,
+    event_date: correctionData.event_date || now,
+    event_type: CASH_EVENT_TYPES.CORRECTION,
+    cashbox_id: correctionData.cashbox_id,
+    currency: correctionData.currency,
+    direction: correctionData.direction,
+    amount: Number(correctionData.amount),
+    linked_request_id: correctionData.linked_request_id || '',
+    linked_order_id: correctionData.linked_order_id || '',
+    partner_name: correctionData.partner_name || '',
+    description: description,
+    document_status: correctionData.document_status === DOCUMENT_STATUSES.ATTACHED
+      ? DOCUMENT_STATUSES.ATTACHED
+      : DOCUMENT_STATUSES.NONE,
+    status: CASH_EVENT_STATUSES.POSTED,
+    posted_by: currentUser.email,
+    posted_at: now,
+    locked_by: '',
+    locked_at: '',
+    reversal_of_event_id: correctionData.reversal_of_event_id || '',
+    updated_at: ''
+  };
+
+  appendRecord(SHEET_NAMES.CASH_EVENTS, event);
+  writeAuditLog(
+    AUDIT_ACTIONS.POST,
+    SHEET_NAMES.CASH_EVENTS,
+    event.event_id,
+    null,
+    event,
+    'Posted correction event. Reason: ' + String(correctionData.reason).trim()
+  );
+
+  return event;
+}
+
+function assertCashEventCanBeReversed_(event) {
+  if (!event) {
+    throw new Error('Cash Event is required.');
+  }
+  if (event.status === CASH_EVENT_STATUSES.REVERSED) {
+    throw new Error('Cash Event is already reversed: ' + event.event_id);
+  }
+  if (event.status === CASH_EVENT_STATUSES.CANCELLED) {
+    throw new Error('Cancelled Cash Event cannot be reversed: ' + event.event_id);
+  }
+  assertEntityStatus(event, [
+    CASH_EVENT_STATUSES.POSTED,
+    CASH_EVENT_STATUSES.LOCKED
+  ], 'Cash Event');
+  if (event.direction === 'NEUTRAL') {
+    throw new Error('Neutral Cash Event cannot be reversed with this workflow.');
+  }
+  if (event.status === CASH_EVENT_STATUSES.LOCKED) {
+    assertUserHasRole(LOCKED_CASH_EVENT_REVERSAL_ROLES_);
+  }
+}
+
+function getOppositeDirection_(direction) {
+  if (direction === 'IN') {
+    return 'OUT';
+  }
+  if (direction === 'OUT') {
+    return 'IN';
+  }
+  throw new Error('Unsupported direction for reversal: ' + direction);
+}
+
+function isCashEventBalanceAffecting(event) {
+  return Boolean(event) && (
+    event.status === CASH_EVENT_STATUSES.POSTED ||
+    event.status === CASH_EVENT_STATUSES.LOCKED
+  );
+}
+
+function preventDirectEditOfLockedCashEvent(eventId, updates) {
+  assertNonEmptyString(eventId, 'eventId');
+  const match = findRecordById(SHEET_NAMES.CASH_EVENTS, 'event_id', eventId);
+  if (!match) {
+    throw new Error('Cash Event not found: ' + eventId);
+  }
+
+  const protectedStatuses = [
+    CASH_EVENT_STATUSES.POSTED,
+    CASH_EVENT_STATUSES.LOCKED,
+    CASH_EVENT_STATUSES.REVERSED
+  ];
+  if (protectedStatuses.indexOf(match.record.status) === -1) {
+    return true;
+  }
+
+  const protectedFields = [
+    'amount',
+    'currency',
+    'cashbox_id',
+    'direction',
+    'event_type',
+    'linked_order_id'
+  ];
+  const attempted = Object.keys(updates || {}).filter(function(field) {
+    return protectedFields.indexOf(field) !== -1 &&
+      String(updates[field]) !== String(match.record[field]);
+  });
+  if (attempted.length > 0) {
+    throw new Error('Posted, locked or reversed Cash Event cannot be edited directly. Use reversal/correction workflow.');
+  }
+
+  return true;
 }
 
 function buildCashPaymentDescription_(purpose, note) {
@@ -239,4 +469,17 @@ function buildCashPaymentDescription_(purpose, note) {
     return purpose + '\n' + note;
   }
   return note || purpose || '';
+}
+
+function buildReversalDescription_(originalEvent, reason) {
+  const prefix = originalEvent.status === CASH_EVENT_STATUSES.LOCKED
+    ? 'POST_CLOSING_CORRECTION. '
+    : '';
+  return prefix + 'Reversal of ' + originalEvent.event_id + '. Reason: ' + reason;
+}
+
+function buildCorrectionDescription_(correctionType, description, reason) {
+  return 'Correction type: ' + correctionType + '. ' +
+    String(description).trim() +
+    '\nReason: ' + String(reason).trim();
 }

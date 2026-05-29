@@ -10,7 +10,7 @@ Ovaj dokument navodi poznata ogranicenja trenutne verzije sistema.
 6. OCR is not implemented.
 7. ERP integration is not implemented.
 8. Accounting posting is not implemented.
-9. Reversal/correction workflow may need a dedicated later task.
+9. Payment order reopening after reversed cash outflow is not implemented.
 10. PDF report generation is not implemented unless already built.
 11. Document digital signature is not implemented.
 12. Advanced reporting/dashboard is not implemented.
@@ -22,3 +22,4 @@ Ovaj dokument navodi poznata ogranicenja trenutne verzije sistema.
 3. `clearTestData()` nije implementiran zbog zastite produkcionih podataka.
 4. UI je osnovni operativni sloj i nema napredne filtere, grafikone ni izvestaje.
 5. Dnevni zakljucak zakljucava ukljucene cash evente, ali korekcije posle zakljucka pripadaju posebnom buducem workflow-u.
+6. Post-closing korekcije se evidentiraju kroz storno/korektivne dogadjaje, ali prethodni dnevni zakljucak se ne otkljucava automatski.

@@ -60,6 +60,10 @@ function assertNonEmptyString(value, fieldName) {
   }
 }
 
+function assertMandatoryReason(reason) {
+  assertNonEmptyString(reason, 'reason');
+}
+
 function assertActiveCurrency(currency) {
   assertNonEmptyString(currency, 'currency');
   assertAllowedValue(currency, SUPPORTED_CURRENCIES, 'currency');

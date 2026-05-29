@@ -37,7 +37,8 @@ Zavrseni su osnovni moduli za:
 6. shifts,
 7. daily closing,
 8. basic UI,
-9. hardening/testing.
+9. hardening/testing,
+10. corrections and reversals.
 
 Trenutni fokus je stabilizacija pre sireg testiranja: server-side permisije, validacije, konzistentni API odgovori, smoke testovi i E2E test plan.
 
@@ -56,6 +57,7 @@ Trenutni fokus je stabilizacija pre sireg testiranja: server-side permisije, val
 6. Izvrsi rucni E2E test iz `docs/12_E2E_TEST_PLAN.md`.
 7. Proveri deployment checklist u `docs/13_DEPLOYMENT_CHECKLIST.md`.
 8. Pregledaj poznata ogranicenja u `docs/14_KNOWN_LIMITATIONS.md`.
+9. Testiraj storno i korekcije prema `docs/15_CORRECTIONS_AND_REVERSALS.md`.
 
 ## Struktura
 
@@ -165,3 +167,14 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 7. Dodaj dokument kroz file input i proveri `DOCUMENTS`.
 8. Otvori i zatvori smenu kroz UI.
 9. Pripremi i kreiraj dnevni zakljucak kroz UI.
+
+## Manualni test za Task 11
+
+1. U `USERS` obezbedi aktivnog korisnika sa rolom `ADMIN`, `FINANCE` ili `CASHIER_SUPERVISOR`.
+2. Kreiraj `CASH_INFLOW`, zatim pokreni `reverseCashEvent(event_id, reason)`.
+3. Potvrdi da originalni event dobija status `REVERSED`.
+4. Potvrdi da je kreiran novi `REVERSAL` event sa suprotnim smerom.
+5. Pokreni `createCorrectionEvent()` za smer `IN` i `OUT`.
+6. Potvrdi da se stanje racuna samo iz `POSTED` i `LOCKED` dogadjaja.
+7. Potvrdi da `AUDIT_LOG` belezi `REVERSE` i `POST`.
+8. Ne menjaj iznose na posted ili locked eventima direktno.

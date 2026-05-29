@@ -222,7 +222,7 @@ function calculateOpeningBalanceBeforeDate_(cashboxId, currency, closingDate) {
     cashbox_id: cashboxId,
     currency: currency
   }).reduce(function(balance, event) {
-    if (event.status !== CASH_EVENT_STATUSES.POSTED && event.status !== CASH_EVENT_STATUSES.LOCKED) {
+    if (!isCashEventBalanceAffecting(event)) {
       return balance;
     }
     if (normalizeDateKey_(event.event_date) >= closingDateKey) {

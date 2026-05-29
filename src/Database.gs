@@ -97,6 +97,10 @@ function updateRecordById(sheetName, idField, idValue, updates) {
     throw new Error('Record not found in ' + sheetName + ': ' + idField + '=' + idValue);
   }
 
+  if (sheetName === SHEET_NAMES.CASH_EVENTS && idField === 'event_id') {
+    preventDirectEditOfLockedCashEvent(idValue, updates || {});
+  }
+
   const sheet = getSheetByNameOrThrow(sheetName);
   const headers = getHeaders_(sheet);
   const updatedRecord = {};

@@ -989,6 +989,128 @@ Ocekivano:
 1. Poslovne akcije dodaju nove audit redove.
 2. Stari audit redovi se ne menjaju kroz normalne poslovne funkcije.
 
+## Task 11 - Corrections and reversals
+
+Pre testiranja obezbediti aktivnog korisnika sa rolom `ADMIN`, `FINANCE` ili `CASHIER_SUPERVISOR`. Za storno `LOCKED` dogadjaja koristiti `ADMIN` ili `FINANCE`.
+
+### Test 1: Reverse posted CASH_INFLOW
+
+Koraci:
+
+1. Kreirati `CASH_INFLOW` kroz `createCashInflow()`.
+2. Pokrenuti `reverseCashEvent(event_id, 'Test storna priliva')`.
+3. Proveriti originalni i storno red u `CASH_EVENTS`.
+4. Proveriti stanje i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Originalni `CASH_INFLOW` postoji sa statusom `POSTED`.
+2. `reverseCashEvent` kreira `REVERSAL` event.
+3. Storno smer je `OUT`.
+4. Originalni status postaje `REVERSED`.
+5. Obracun stanja koristi samo balance-affecting evente.
+6. Audit log sadrzi `REVERSE` i `POST`.
+
+### Test 2: Reverse posted CASH_OUTFLOW
+
+Koraci:
+
+1. Kreirati i izvrsiti payment order da nastane `CASH_OUTFLOW`.
+2. Pokrenuti `reverseCashEvent(event_id, 'Test storna isplate')`.
+3. Proveriti `CASH_EVENTS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Originalni `CASH_OUTFLOW` postoji sa statusom `POSTED`.
+2. Kreira se `REVERSAL` event.
+3. Storno smer je `IN`.
+4. Originalni status postaje `REVERSED`.
+5. Stanje se racuna prema statusima `POSTED` i `LOCKED`.
+6. Audit log belezi storno.
+
+### Test 3: Prevent duplicate reversal
+
+Koraci:
+
+1. Stornirati jedan posted event.
+2. Ponovo pokrenuti `reverseCashEvent()` za isti originalni event.
+
+Ocekivano:
+
+1. Event je vec `REVERSED`.
+2. Drugi pokusaj je odbijen.
+3. Ne kreira se novi storno event.
+
+### Test 4: Prevent reversal without reason
+
+Koraci:
+
+1. Pokrenuti `reverseCashEvent(event_id, '')`.
+2. Proveriti `CASH_EVENTS`.
+
+Ocekivano:
+
+1. Razlog je prazan.
+2. Sistem odbija storno.
+3. Nema promene podataka.
+
+### Test 5: Create correction IN
+
+Koraci:
+
+1. Pokrenuti `createCorrectionEvent({ cashbox_id, currency, direction: 'IN', amount, description, reason })`.
+2. Proveriti `CASH_EVENTS`, stanje i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Kreiran je `CORRECTION` event sa smerom `IN`.
+2. Status je `POSTED`.
+3. Stanje se uvecava.
+4. Audit log sadrzi `POST`.
+
+### Test 6: Create correction OUT
+
+Koraci:
+
+1. Pokrenuti `createCorrectionEvent({ cashbox_id, currency, direction: 'OUT', amount, description, reason })`.
+2. Proveriti `CASH_EVENTS`, stanje i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Kreiran je `CORRECTION` event sa smerom `OUT`.
+2. Status je `POSTED`.
+3. Stanje se smanjuje.
+4. Audit log sadrzi `POST`.
+
+### Test 7: Locked event reversal requires elevated role
+
+Koraci:
+
+1. Zakljuciti dan tako da event postane `LOCKED`.
+2. Pokusati storno sa rolom `CASHIER_SUPERVISOR`.
+3. Pokusati storno sa rolom `ADMIN` ili `FINANCE`.
+
+Ocekivano:
+
+1. Event je `LOCKED`.
+2. Korisnik bez elevated role ne moze da stornira.
+3. `ADMIN` ili `FINANCE` mogu da storniraju.
+4. Audit log belezi akciju.
+
+### Test 8: Balance excludes REVERSED original event
+
+Koraci:
+
+1. Stornirati posted event.
+2. Pokrenuti `calculateCashboxBalance(cashbox_id, currency)`.
+3. Proveriti originalni i storno event.
+
+Ocekivano:
+
+1. Originalni event je `REVERSED`.
+2. Obracun stanja iskljucuje originalni `REVERSED` event.
+3. `REVERSAL` event utice na stanje prema svom smeru.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu
