@@ -2,13 +2,14 @@
  * Database helpers for Google Sheets.
  */
 function getDatabaseSpreadsheet_() {
-  if (APP_CONFIG.SPREADSHEET_ID) {
-    return SpreadsheetApp.openById(APP_CONFIG.SPREADSHEET_ID);
+  const spreadsheetId = APP_CONFIG.DATABASE_SPREADSHEET_ID || APP_CONFIG.SPREADSHEET_ID;
+  if (spreadsheetId) {
+    return SpreadsheetApp.openById(spreadsheetId);
   }
 
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   if (!spreadsheet) {
-    throw new Error('No active spreadsheet. Set SPREADSHEET_ID in Config.gs.');
+    throw new Error('No active spreadsheet. Set DATABASE_SPREADSHEET_ID in Config.gs.');
   }
   return spreadsheet;
 }

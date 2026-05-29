@@ -1296,6 +1296,98 @@ Ocekivano:
 2. Dugme za stampu se ne vidi u PDF-u.
 3. Poslovni podaci ostaju nepromenjeni.
 
+## Task 14 - Production readiness and pilot rollout
+
+Pre testiranja obezbediti pilot Google Sheet bazu, realne korisnike i bar jednu aktivnu blagajnu.
+
+### Test 1: System setup validation
+
+Koraci:
+
+1. Pokrenuti `validateSystemSetup()`.
+2. Pregledati `errors` i `warnings`.
+
+Ocekivano:
+
+1. `validateSystemSetup()` vraca `ok` ili jasnu listu gresaka.
+2. Nema tihih neuspeha.
+
+### Test 2: Dangerous defaults validation
+
+Koraci:
+
+1. Ostaviti aktivnog placeholder korisnika kao `admin@example.com`.
+2. Pokrenuti `validateNoDangerousDefaults()`.
+3. Deaktivirati ili zameniti placeholder korisnika realnim nalogom.
+
+Ocekivano:
+
+1. Funkcija detektuje placeholder korisnike u `PILOT` ili `PROD`.
+2. `DEBUG_MODE` upozorenje ili greska se prikazuje ako je konfiguracija nesigurna.
+
+### Test 3: Backup copy
+
+Koraci:
+
+1. Pokrenuti `createDatabaseBackupCopy()` kao `ADMIN` ili `FINANCE`.
+2. Otvoriti vraceni URL.
+
+Ocekivano:
+
+1. Ovlašćeni korisnik pravi backup kopiju.
+2. Backup fajl postoji u Drive-u.
+3. Funkcija vraća file URL.
+
+### Test 4: CSV export
+
+Koraci:
+
+1. Pokrenuti `exportSheetAsCsv('USERS')`.
+2. Proveriti prvi red CSV teksta.
+3. Proveriti `USERS` sheet.
+
+Ocekivano:
+
+1. Ovlašćeni korisnik eksportuje jedan sheet.
+2. CSV sadrži header red.
+3. Podaci nisu izmenjeni.
+
+### Test 5: Unauthorized backup
+
+Koraci:
+
+1. Korisnik bez role `ADMIN` ili `FINANCE` pokreće `createDatabaseBackupCopy()`.
+
+Ocekivano:
+
+1. Server odbija akciju.
+2. Backup fajl se ne kreira.
+
+### Test 6: Run all smoke tests
+
+Koraci:
+
+1. Pokrenuti `runAllSmokeTests()`.
+2. Pregledati svaki rezultat.
+
+Ocekivano:
+
+1. Rezultati koriste `PASS`, `FAIL` ili `SKIPPED`.
+2. Greške imaju poruku.
+3. Nema lažnog `PASS` rezultata.
+
+### Test 7: Pilot checklist review
+
+Koraci:
+
+1. Otvoriti `docs/22_GO_LIVE_CHECKLIST.md`.
+2. Proći sve sekcije pre početka pilota.
+
+Ocekivano:
+
+1. Administrator može da prati checklistu.
+2. Nedostajuće stavke su vidljive pre pilota.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

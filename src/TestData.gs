@@ -5,19 +5,19 @@
  * multi-user testing. These helpers are not a production data reset tool.
  */
 const TEST_DATA_USERS_ = Object.freeze([
-  { user_id: 'USR_TEST_ADMIN', email: 'admin@example.com', full_name: 'Test Admin', role: USER_ROLES.ADMIN, active: true, default_cashbox_id: 'CB_MAIN' },
-  { user_id: 'USR_TEST_DIRECTOR', email: 'director@example.com', full_name: 'Test Director', role: USER_ROLES.DIRECTOR, active: true, default_cashbox_id: 'CB_MAIN' },
-  { user_id: 'USR_TEST_FINANCE', email: 'finance@example.com', full_name: 'Test Finance', role: USER_ROLES.FINANCE, active: true, default_cashbox_id: 'CB_MAIN' },
-  { user_id: 'USR_TEST_SUPERVISOR', email: 'supervisor@example.com', full_name: 'Test Supervisor', role: USER_ROLES.CASHIER_SUPERVISOR, active: true, default_cashbox_id: 'CB_MAIN' },
-  { user_id: 'USR_TEST_CASHIER', email: 'cashier@example.com', full_name: 'Test Cashier', role: USER_ROLES.CASHIER, active: true, default_cashbox_id: 'CB_MAIN' },
-  { user_id: 'USR_TEST_APPROVER', email: 'approver@example.com', full_name: 'Test Approver', role: USER_ROLES.APPROVER, active: true, default_cashbox_id: 'CB_MAIN' },
-  { user_id: 'USR_TEST_REQUESTER', email: 'requester@example.com', full_name: 'Test Requester', role: USER_ROLES.REQUESTER, active: true, default_cashbox_id: 'CB_MAIN' },
-  { user_id: 'USR_TEST_VIEWER', email: 'viewer@example.com', full_name: 'Test Viewer', role: USER_ROLES.VIEWER, active: true, default_cashbox_id: '' }
+  { user_id: 'TEST_USR_ADMIN', email: 'admin@example.com', full_name: 'TEST - Admin', role: USER_ROLES.ADMIN, active: false, default_cashbox_id: 'TEST_CB_MAIN' },
+  { user_id: 'TEST_USR_DIRECTOR', email: 'director@example.com', full_name: 'TEST - Director', role: USER_ROLES.DIRECTOR, active: false, default_cashbox_id: 'TEST_CB_MAIN' },
+  { user_id: 'TEST_USR_FINANCE', email: 'finance@example.com', full_name: 'TEST - Finance', role: USER_ROLES.FINANCE, active: false, default_cashbox_id: 'TEST_CB_MAIN' },
+  { user_id: 'TEST_USR_SUPERVISOR', email: 'supervisor@example.com', full_name: 'TEST - Supervisor', role: USER_ROLES.CASHIER_SUPERVISOR, active: false, default_cashbox_id: 'TEST_CB_MAIN' },
+  { user_id: 'TEST_USR_CASHIER', email: 'cashier@example.com', full_name: 'TEST - Cashier', role: USER_ROLES.CASHIER, active: false, default_cashbox_id: 'TEST_CB_MAIN' },
+  { user_id: 'TEST_USR_APPROVER', email: 'approver@example.com', full_name: 'TEST - Approver', role: USER_ROLES.APPROVER, active: false, default_cashbox_id: 'TEST_CB_MAIN' },
+  { user_id: 'TEST_USR_REQUESTER', email: 'requester@example.com', full_name: 'TEST - Requester', role: USER_ROLES.REQUESTER, active: false, default_cashbox_id: 'TEST_CB_MAIN' },
+  { user_id: 'TEST_USR_VIEWER', email: 'viewer@example.com', full_name: 'TEST - Viewer', role: USER_ROLES.VIEWER, active: false, default_cashbox_id: '' }
 ]);
 
 const TEST_DATA_CASHBOXES_ = Object.freeze([
-  { cashbox_id: 'CB_MAIN', name: 'Glavna blagajna', location: 'Test lokacija', responsible_user_id: 'USR_TEST_CASHIER', active: true },
-  { cashbox_id: 'CB_EUR', name: 'Devizna blagajna', location: 'Test lokacija', responsible_user_id: 'USR_TEST_CASHIER', active: true }
+  { cashbox_id: 'TEST_CB_MAIN', name: 'TEST - Glavna blagajna', location: 'Test lokacija', responsible_user_id: 'TEST_USR_CASHIER', active: true },
+  { cashbox_id: 'TEST_CB_EUR', name: 'TEST - Devizna blagajna', location: 'Test lokacija', responsible_user_id: 'TEST_USR_CASHIER', active: true }
 ]);
 
 const TEST_DATA_CURRENCIES_ = Object.freeze([
@@ -52,17 +52,20 @@ function createTestCurrencies() {
 }
 
 function createMinimalTestSetup() {
+  if (APP_CONFIG.ENVIRONMENT === 'PROD') {
+    throw new Error('Test data helpers are blocked in PROD.');
+  }
   initializeDatabase();
   return {
     currencies: createTestCurrencies(),
     cashboxes: createTestCashboxes(),
     users: createTestUsers(),
-    warning: 'Placeholder emails must be replaced with real Google Workspace emails before real user testing.'
+    warning: 'Test users are created as inactive placeholders. Add real Google Workspace users for pilot testing.'
   };
 }
 
 function clearTestData() {
-  throw new Error('clearTestData is not implemented for safety. Use a separate test spreadsheet.');
+  throw new Error('clearTestData is not implemented for safety. Use a separate test spreadsheet or call a future test-only cleanup with CONFIRM_DELETE_TEST_DATA.');
 }
 
 function upsertTestRecord_(sheetName, idField, idValue, record) {

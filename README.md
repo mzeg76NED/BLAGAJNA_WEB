@@ -40,9 +40,10 @@ Zavrseni su osnovni moduli za:
 9. hardening/testing,
 10. corrections and reversals,
 11. operational reports and management dashboard,
-12. printable reports and document templates.
+12. printable reports and document templates,
+13. pilot readiness, admin validation, backup/export and rollout documentation.
 
-Trenutni fokus je priprema za operativno testiranje: print prikazi, dokument šabloni, browser `Save as PDF` i provera da štampa ne menja poslovne zapise.
+Trenutni status je pilot paket. Sistem je spreman za kontrolisanu probu uz realne korisnike, eksplicitnu konfiguraciju, dnevni backup i paralelnu ručnu kontrolu.
 
 ## How to test
 
@@ -62,6 +63,45 @@ Trenutni fokus je priprema za operativno testiranje: print prikazi, dokument ša
 9. Testiraj storno i korekcije prema `docs/15_CORRECTIONS_AND_REVERSALS.md`.
 10. Testiraj izvestaje i dashboard prema `docs/16_REPORTS_AND_DASHBOARD.md`.
 11. Testiraj print prikaze i browser `Save as PDF` prema `docs/17_PRINTABLE_REPORTS_AND_TEMPLATES.md`.
+12. Pripremi pilot prema `docs/18_PILOT_ROLLOUT_PLAN.md`.
+13. Prođi admin setup iz `docs/19_ADMIN_SETUP_GUIDE.md`.
+14. Prođi go-live listu iz `docs/22_GO_LIVE_CHECKLIST.md`.
+
+## Pilot setup
+
+1. U `src/Config.gs` proveri `ENVIRONMENT`, `DATABASE_SPREADSHEET_ID`, `DOCUMENT_ROOT_FOLDER_ID` i `DEBUG_MODE`.
+2. Pokreni `initializeDatabase()`.
+3. Dodaj realne korisnike u `USERS`.
+4. Dodaj pilot blagajne u `CASHBOXES`.
+5. Pokreni `validateSystemSetup()`.
+6. Pokreni `validateNoDangerousDefaults()`.
+7. Deploy Apps Script kao Web App.
+8. Pokreni `runAllSmokeTests()`.
+9. Napravi backup kroz `createDatabaseBackupCopy()`.
+
+## Backup
+
+Backup funkcije su:
+
+```text
+createDatabaseBackupCopy()
+exportSheetAsCsv('CASH_EVENTS')
+exportAllCoreSheetsAsCsv()
+```
+
+Backup smeju da pokrenu samo `ADMIN` i `FINANCE`.
+
+## Known limitations
+
+Poznata ograničenja su u `docs/14_KNOWN_LIMITATIONS.md`, a pilot problemi se vode u `docs/23_KNOWN_ISSUES_REGISTER.md`.
+
+## Next recommended task
+
+Sledeći zadatak posle realnog pilota:
+
+```text
+Task 15 — Pilot feedback fixes and production stabilization
+```
 
 ## Struktura
 
@@ -205,3 +245,14 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 7. Otvori print rute za izvestaje: `?view=print-report&type=missing-documents` i `?view=print-report&type=cashbox-balance`.
 8. Iz browser dijaloga sacuvaj dokument kao PDF.
 9. Potvrdi da print prikazi ne menjaju statuse, ne kreiraju isplate i ne dodaju audit redove.
+
+## Manualni test za Task 14
+
+1. Pokreni `getSystemStatus()` i proveri konfiguraciju, korisnike, blagajne, valute i Drive folder.
+2. Pokreni `validateSystemSetup()` i reši sve greške pre pilota.
+3. Pokreni `validateNoDangerousDefaults()` i ukloni aktivne placeholder korisnike.
+4. Pokreni `createDatabaseBackupCopy()` kao `ADMIN` ili `FINANCE`.
+5. Pokreni `exportSheetAsCsv('USERS')` i proveri header red.
+6. Pokreni `runAllSmokeTests()` i proveri `PASS`, `FAIL` i `SKIPPED` rezultate.
+7. Prođi `docs/22_GO_LIVE_CHECKLIST.md`.
+8. Korisnicima podeli `docs/20_USER_SOP.md`.
