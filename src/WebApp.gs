@@ -161,6 +161,72 @@ function apiListDailyClosings(filters) {
   });
 }
 
+function apiGetManagementDashboardSummary(filters) {
+  return apiWrap_(function() {
+    return getManagementDashboardSummary(filters || {});
+  });
+}
+
+function apiGetCashboxBalanceReport(filters) {
+  return apiWrap_(function() {
+    return getCashboxBalanceReport(filters || {});
+  });
+}
+
+function apiGetOpenPaymentRequestsReport(filters) {
+  return apiWrap_(function() {
+    return getOpenPaymentRequestsReport(filters || {});
+  });
+}
+
+function apiGetRequestsForApprovalReport(filters) {
+  return apiWrap_(function() {
+    return getRequestsForApprovalReport(filters || {});
+  });
+}
+
+function apiGetOrdersWaitingPaymentReport(filters) {
+  return apiWrap_(function() {
+    return getOrdersWaitingPaymentReport(filters || {});
+  });
+}
+
+function apiGetExecutedPaymentsReport(filters) {
+  return apiWrap_(function() {
+    return getExecutedPaymentsReport(filters || {});
+  });
+}
+
+function apiGetMissingDocumentsReport(filters) {
+  return apiWrap_(function() {
+    return getMissingDocumentsReport(filters || {});
+  });
+}
+
+function apiGetDailyClosingReport(filters) {
+  return apiWrap_(function() {
+    return getDailyClosingReport(filters || {});
+  });
+}
+
+function apiGetDifferencesReport(filters) {
+  return apiWrap_(function() {
+    return getDifferencesReport(filters || {});
+  });
+}
+
+function apiGetCorrectionsAndReversalsReport(filters) {
+  return apiWrap_(function() {
+    return getCorrectionsAndReversalsReport(filters || {});
+  });
+}
+
+function apiGetAuditExceptionsReport(filters) {
+  return apiWrap_(function() {
+    return getAuditExceptionsReport(filters || {});
+  });
+}
+
 function apiGetCurrentUserContext() {
   return apiWrap_(function() {
     return getCurrentUser();

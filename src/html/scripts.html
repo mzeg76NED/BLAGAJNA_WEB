@@ -17,6 +17,9 @@
     callApi('apiGetCurrentUserContext', [], function(user) {
       uiState.currentUser = user;
       renderCurrentUser(user);
+      if (document.getElementById('desktop-user-card')) {
+        loadDesktopDashboard();
+      }
     }, { quiet: true });
   });
 
@@ -138,6 +141,19 @@
       });
     });
 
+    bindClick('mobile-report-balance-btn', function() {
+      loadReport('apiGetCashboxBalanceReport', 'mobile-report-filters-form', 'mobile-reports-result', ['cashbox_id', 'cashbox_name', 'currency', 'balance']);
+    });
+    bindClick('mobile-report-waiting-orders-btn', function() {
+      loadReport('apiGetOrdersWaitingPaymentReport', 'mobile-report-filters-form', 'mobile-reports-result', ['order_id', 'pay_to_name', 'remaining_amount', 'currency', 'status']);
+    });
+    bindClick('mobile-report-approval-requests-btn', function() {
+      loadReport('apiGetRequestsForApprovalReport', 'mobile-report-filters-form', 'mobile-reports-result', ['request_id', 'requested_for_name', 'amount', 'currency', 'status']);
+    });
+    bindClick('mobile-report-missing-documents-btn', function() {
+      loadReport('apiGetMissingDocumentsReport', 'mobile-report-filters-form', 'mobile-reports-result', ['entity_type', 'entity_id', 'date', 'description', 'document_status']);
+    });
+
     bindDesktop();
   }
 
@@ -169,6 +185,36 @@
       callApi('apiCalculateCashboxBalance', [data.cashbox_id, data.currency], function(result) {
         renderHtml('balance-result', '<div class="record"><div class="record-title">Stanje: ' + escapeHtml(result) + ' ' + escapeHtml(data.currency) + '</div></div>');
       });
+    });
+    bindClick('report-balance-btn', function() {
+      loadReport('apiGetCashboxBalanceReport', 'report-filters-form', 'reports-result', ['cashbox_id', 'cashbox_name', 'currency', 'balance']);
+    });
+    bindClick('report-open-requests-btn', function() {
+      loadReport('apiGetOpenPaymentRequestsReport', 'report-filters-form', 'reports-result', ['request_id', 'created_at', 'requested_for_name', 'amount', 'currency', 'priority', 'status', 'document_status']);
+    });
+    bindClick('report-approval-requests-btn', function() {
+      loadReport('apiGetRequestsForApprovalReport', 'report-filters-form', 'reports-result', ['request_id', 'created_at', 'requested_for_name', 'amount', 'currency', 'priority', 'status']);
+    });
+    bindClick('report-waiting-orders-btn', function() {
+      loadReport('apiGetOrdersWaitingPaymentReport', 'report-filters-form', 'reports-result', ['order_id', 'cashbox_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'remaining_amount', 'currency', 'status']);
+    });
+    bindClick('report-executed-payments-btn', function() {
+      loadReport('apiGetExecutedPaymentsReport', 'report-filters-form', 'reports-result', ['event_id', 'event_date', 'cashbox_id', 'currency', 'amount', 'partner_name', 'linked_order_id', 'status']);
+    });
+    bindClick('report-missing-documents-btn', function() {
+      loadReport('apiGetMissingDocumentsReport', 'report-filters-form', 'reports-result', ['entity_type', 'entity_id', 'date', 'description', 'amount', 'currency', 'document_status']);
+    });
+    bindClick('report-daily-closings-btn', function() {
+      loadReport('apiGetDailyClosingReport', 'report-filters-form', 'reports-result', ['closing_id', 'closing_date', 'cashbox_id', 'currency', 'calculated_balance', 'physical_balance', 'difference', 'status']);
+    });
+    bindClick('report-differences-btn', function() {
+      loadReport('apiGetDifferencesReport', 'report-filters-form', 'reports-result', ['source_type', 'source_id', 'date', 'cashbox_id', 'currency', 'difference', 'status']);
+    });
+    bindClick('report-corrections-btn', function() {
+      loadReport('apiGetCorrectionsAndReversalsReport', 'report-filters-form', 'reports-result', ['event_id', 'event_date', 'event_type', 'cashbox_id', 'currency', 'direction', 'amount', 'status']);
+    });
+    bindClick('report-audit-exceptions-btn', function() {
+      loadReport('apiGetAuditExceptionsReport', 'report-filters-form', 'reports-result', ['exception_type', 'entity_type', 'entity_id', 'date', 'description', 'status']);
     });
   }
 
@@ -338,18 +384,32 @@
     callApi('apiGetCurrentUserContext', [], function(user) {
       setText('desktop-user-card', (user.full_name || user.email || 'Nepoznat korisnik') + ' · ' + (user.role || ''));
     }, { quiet: true });
-    callApi('apiListRequestsForApproval', [], function(result) {
-      setText('desktop-requests-card', String((result || []).length));
+    callApi('apiGetManagementDashboardSummary', [{}], function(summary) {
+      setText('desktop-balance-card', summarizeBalances(summary.balances));
+      setText('desktop-requests-card', String(summary.requestsForApprovalCount || 0));
+      setText('desktop-orders-card', String(summary.ordersWaitingPaymentCount || 0));
+      setText('desktop-missing-documents-card', String(summary.missingDocumentsCount || 0));
+      setText('desktop-shifts-card', String(summary.openShiftsCount || 0));
+      setText('desktop-closings-card', String(summary.dailyClosingsTodayCount || 0));
+      setText('desktop-differences-card', String(summary.differencesCount || 0));
+      setText('desktop-reversals-card', String(summary.reversalsTodayCount || 0));
     }, { quiet: true });
-    callApi('apiListOrdersWaitingForPayment', [], function(result) {
-      setText('desktop-orders-card', String((result || []).length));
-    }, { quiet: true });
-    callApi('apiGetMyActiveShifts', [], function(result) {
-      setText('desktop-shifts-card', String((result || []).length));
-    }, { quiet: true });
-    callApi('apiListDailyClosings', [{}], function(result) {
-      setText('desktop-closings-card', String((result || []).length));
-    }, { quiet: true });
+  }
+
+  function loadReport(apiName, formId, targetId, fields) {
+    callApi(apiName, [serializeForm(formId)], function(result) {
+      renderTable(targetId, result || [], fields);
+    });
+  }
+
+  function summarizeBalances(balances) {
+    balances = balances || [];
+    if (!balances.length) {
+      return '0';
+    }
+    return balances.slice(0, 3).map(function(item) {
+      return formatValue(item.balance) + ' ' + formatValue(item.currency);
+    }).join(' / ');
   }
 
   function fillConfigOptions() {

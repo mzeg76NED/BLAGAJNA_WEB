@@ -38,7 +38,8 @@ Zavrseni su osnovni moduli za:
 7. daily closing,
 8. basic UI,
 9. hardening/testing,
-10. corrections and reversals.
+10. corrections and reversals,
+11. operational reports and management dashboard.
 
 Trenutni fokus je stabilizacija pre sireg testiranja: server-side permisije, validacije, konzistentni API odgovori, smoke testovi i E2E test plan.
 
@@ -58,6 +59,7 @@ Trenutni fokus je stabilizacija pre sireg testiranja: server-side permisije, val
 7. Proveri deployment checklist u `docs/13_DEPLOYMENT_CHECKLIST.md`.
 8. Pregledaj poznata ogranicenja u `docs/14_KNOWN_LIMITATIONS.md`.
 9. Testiraj storno i korekcije prema `docs/15_CORRECTIONS_AND_REVERSALS.md`.
+10. Testiraj izvestaje i dashboard prema `docs/16_REPORTS_AND_DASHBOARD.md`.
 
 ## Struktura
 
@@ -178,3 +180,14 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 6. Potvrdi da se stanje racuna samo iz `POSTED` i `LOCKED` dogadjaja.
 7. Potvrdi da `AUDIT_LOG` belezi `REVERSE` i `POST`.
 8. Ne menjaj iznose na posted ili locked eventima direktno.
+
+## Manualni test za Task 12
+
+1. Deploy Apps Script kao Web App.
+2. Otvori desktop prikaz sa `?view=desktop`.
+3. Klikni `Osveži dashboard` i proveri kartice.
+4. Otvori `Reports`.
+5. Pokreni presek stanja blagajni.
+6. Pokreni otvorene zahteve, naloge koji cekaju isplatu i nedostajuca dokumenta.
+7. Pokreni dnevne zakljucke, razlike i korekcije/storno.
+8. Potvrdi da report pozivi ne menjaju poslovne tabele i ne dodaju audit redove.

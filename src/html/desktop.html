@@ -17,6 +17,7 @@
         <button data-target="desktop-documents" type="button">Documents</button>
         <button data-target="desktop-shifts" type="button">Shifts</button>
         <button data-target="desktop-closings" type="button">Daily Closings</button>
+        <button data-target="desktop-reports" type="button">Reports</button>
         <button data-target="desktop-audit" type="button">Audit</button>
         <a class="button-link" href="?view=mobile">Mobilni prikaz</a>
       </nav>
@@ -40,6 +41,10 @@
               <p id="desktop-user-card" class="record-title">-</p>
             </div>
             <div class="card">
+              <h3>Stanje blagajne</h3>
+              <p id="desktop-balance-card" class="record-title">-</p>
+            </div>
+            <div class="card">
               <h3>Zahtevi za odobrenje</h3>
               <p id="desktop-requests-card" class="record-title">-</p>
             </div>
@@ -48,12 +53,24 @@
               <p id="desktop-orders-card" class="record-title">-</p>
             </div>
             <div class="card">
-              <h3>Moje otvorene smene</h3>
+              <h3>Nedostaju dokumenta</h3>
+              <p id="desktop-missing-documents-card" class="record-title">-</p>
+            </div>
+            <div class="card">
+              <h3>Otvorene smene</h3>
               <p id="desktop-shifts-card" class="record-title">-</p>
             </div>
             <div class="card">
               <h3>Dnevni zaključci</h3>
               <p id="desktop-closings-card" class="record-title">-</p>
+            </div>
+            <div class="card">
+              <h3>Razlike</h3>
+              <p id="desktop-differences-card" class="record-title">-</p>
+            </div>
+            <div class="card">
+              <h3>Korekcije/storno</h3>
+              <p id="desktop-reversals-card" class="record-title">-</p>
             </div>
             <div class="card">
               <h3>Presek blagajne</h3>
@@ -131,6 +148,32 @@
             <button id="desktop-load-closings-btn" type="button">Pregled dnevnih zaključaka</button>
             <button id="load-daily-closings-btn" type="button">Pregled kao kartice</button>
             <div id="daily-closing-result" class="result-box"></div>
+          </div>
+        </section>
+
+        <section id="desktop-reports" class="section" data-section>
+          <div class="card">
+            <h2>Operativni izveštaji</h2>
+            <form id="report-filters-form" class="form-grid two">
+              <label>ID blagajne <input name="cashbox_id"></label>
+              <label>Valuta <input name="currency" placeholder="RSD, EUR ili prazno za sve"></label>
+              <label>Od datuma <input name="date_from" type="date"></label>
+              <label>Do datuma <input name="date_to" type="date"></label>
+              <label>Status <input name="status"></label>
+            </form>
+            <div class="actions">
+              <button id="report-balance-btn" type="button">Presek stanja blagajni</button>
+              <button id="report-open-requests-btn" type="button">Otvoreni zahtevi</button>
+              <button id="report-approval-requests-btn" type="button">Zahtevi za odobrenje</button>
+              <button id="report-waiting-orders-btn" type="button">Nalozi koji čekaju isplatu</button>
+              <button id="report-executed-payments-btn" type="button">Izvršene isplate</button>
+              <button id="report-missing-documents-btn" type="button">Nedostajuća dokumenta</button>
+              <button id="report-daily-closings-btn" type="button">Dnevni zaključci</button>
+              <button id="report-differences-btn" type="button">Razlike</button>
+              <button id="report-corrections-btn" type="button">Korekcije i storno</button>
+              <button id="report-audit-exceptions-btn" type="button">Izuzeci za kontrolu</button>
+            </div>
+            <div id="reports-result" class="result-box"></div>
           </div>
         </section>
 

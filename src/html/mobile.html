@@ -55,6 +55,10 @@
           <h2>Zaključak</h2>
           <button data-target="daily-closing" type="button">DNEVNI ZAKLJUČAK</button>
         </div>
+        <div class="card">
+          <h2>Pregledi</h2>
+          <button data-target="mobile-reports" type="button">OPERATIVNI PREGLEDI</button>
+        </div>
       </section>
 
       <section id="new-payment-request" class="section" data-section>
@@ -63,7 +67,7 @@
           <form id="payment-request-form" class="form-grid">
             <label>Primalac novca <input name="requested_for_name" required></label>
             <label>Iznos <input name="amount" type="number" step="0.01" required></label>
-            <label>Valuta <select name="currency" data-currency-options></select></label>
+            <label>Valuta <input name="currency" placeholder="RSD, EUR ili prazno za sve"></label>
             <label>Svrha <input name="purpose" required></label>
             <label>Opis <textarea name="description"></textarea></label>
             <label>Prioritet <select name="priority" data-priority-options></select></label>
@@ -219,6 +223,23 @@
           </form>
         </div>
         <div id="daily-closing-result" class="result-box"></div>
+      </section>
+
+      <section id="mobile-reports" class="section" data-section>
+        <div class="card">
+          <h2>Pregledi</h2>
+          <form id="mobile-report-filters-form" class="form-grid">
+            <label>ID blagajne <input name="cashbox_id"></label>
+            <label>Valuta <select name="currency" data-currency-options></select></label>
+          </form>
+          <div class="button-grid">
+            <button id="mobile-report-balance-btn" type="button">Presek blagajne</button>
+            <button id="mobile-report-waiting-orders-btn" type="button">Nalozi za isplatu</button>
+            <button id="mobile-report-approval-requests-btn" type="button">Zahtevi za odobrenje</button>
+            <button id="mobile-report-missing-documents-btn" type="button">Nedostaju dokumenta</button>
+          </div>
+          <div id="mobile-reports-result" class="result-box"></div>
+        </div>
       </section>
     </main>
     <?!= include('html/scripts'); ?>

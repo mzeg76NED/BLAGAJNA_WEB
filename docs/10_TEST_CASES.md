@@ -1111,6 +1111,83 @@ Ocekivano:
 2. Obracun stanja iskljucuje originalni `REVERSED` event.
 3. `REVERSAL` event utice na stanje prema svom smeru.
 
+## Task 12 - Operational reports and dashboard
+
+Pre testiranja obezbediti aktivnog korisnika sa rolom koja sme da vidi izvestaje: `ADMIN`, `DIRECTOR`, `FINANCE`, `CASHIER_SUPERVISOR` ili `CASHIER`.
+
+### Test 1: Dashboard summary
+
+Ocekivano:
+
+1. Dashboard API vraca summary.
+2. Brojaci odgovaraju trenutnim sheetovima.
+3. Nijedan poslovni red se ne menja.
+
+### Test 2: Cashbox balance report
+
+Ocekivano:
+
+1. Izvestaj prikazuje aktivne blagajne.
+2. Stanje odgovara funkciji `calculateCashboxBalance`.
+
+### Test 3: Requests for approval report
+
+Ocekivano:
+
+1. Zahtevi `SUBMITTED` i `IN_REVIEW` se prikazuju.
+2. `REJECTED` i `CANCELLED` zahtevi se ne prikazuju.
+
+### Test 4: Orders waiting payment report
+
+Ocekivano:
+
+1. `WAITING_PAYMENT` i `PARTIALLY_PAID` nalozi se prikazuju.
+2. `PAID` i `CANCELLED` nalozi se ne prikazuju.
+
+### Test 5: Missing documents report
+
+Ocekivano:
+
+1. Entiteti sa `document_status = MISSING` se prikazuju.
+2. Entiteti sa `ATTACHED` se ne prikazuju.
+
+### Test 6: Daily closing report
+
+Ocekivano:
+
+1. Dnevni zakljucci se prikazuju.
+2. Filteri po datumu, blagajni i valuti rade ako su uneti.
+
+### Test 7: Differences report
+
+Ocekivano:
+
+1. Zakljucci sa nenultom razlikom se prikazuju.
+2. Zakljucci bez razlike se ne prikazuju.
+
+### Test 8: Corrections and reversals report
+
+Ocekivano:
+
+1. Korektivni dogadjaji se prikazuju.
+2. Storno dogadjaji se prikazuju.
+3. Originalni `REVERSED` dogadjaji se prikazuju prema dokumentovanoj strategiji.
+
+### Test 9: Reports are read-only
+
+Ocekivano:
+
+1. Pokretanje report funkcija ne kreira, ne azurira i ne brise poslovne redove.
+2. Audit log se ne puni read-only report pozivima.
+
+### Test 10: Desktop dashboard opens
+
+Ocekivano:
+
+1. Desktop dashboard se ucitava.
+2. Kartice su vidljive.
+3. Report tabele mogu da se osveze.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu
