@@ -163,12 +163,12 @@
     });
     bindClick('desktop-load-requests-btn', function() {
       callApi('apiListRequestsForApproval', [], function(result) {
-        renderTable('desktop-table-result', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status']);
+        renderActionRecords('desktop-table-result', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], requestApprovalActions_);
       });
     });
     bindClick('desktop-load-orders-btn', function() {
       callApi('apiListOrdersWaitingForPayment', [], function(result) {
-        renderTable('desktop-table-result-orders', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'cashbox_id', 'status']);
+        renderActionRecords('desktop-table-result-orders', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'cashbox_id', 'status'], waitingOrderActions_);
       });
     });
     bindClick('desktop-load-shifts-btn', function() {
@@ -344,45 +344,95 @@
 
   function loadMyRequests() {
     callApi('apiListMyPaymentRequests', [], function(result) {
-      renderRecords('my-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status']);
+      renderActionRecords('my-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], function(record) {
+        return approvedRequestActions_(record, loadMyRequests);
+      });
     });
   }
 
   function loadApprovalRequests() {
     callApi('apiListRequestsForApproval', [], function(result) {
-      renderActionRecords('approval-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], function(record) {
-        return [
-          actionButton('Odobri', function() {
-            callApi('apiApprovePaymentRequest', [record.request_id], loadApprovalRequests);
-          }),
-          actionButton('Odbij', function() {
-            var reason = prompt('Razlog odbijanja');
-            if (reason) {
-              callApi('apiRejectPaymentRequest', [record.request_id, reason], loadApprovalRequests);
-            }
-          }, 'danger')
-        ];
-      });
+      renderActionRecords('approval-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], requestApprovalActions_);
     });
   }
 
   function loadWaitingOrders() {
     callApi('apiListOrdersWaitingForPayment', [], function(result) {
-      renderActionRecords('waiting-orders-list', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'purpose', 'cashbox_id'], function(record) {
-        return [
-          actionButton('Izvrši isplatu', function() {
-            showSection('execute-payment');
-            setInputValue('execute-payment-form', 'order_id', record.order_id);
-          }),
-          actionButton('Odbij izvršenje', function() {
-            var reason = prompt('Razlog odbijanja izvršenja');
-            if (reason) {
-              callApi('apiRejectPaymentOrderByCashier', [record.order_id, reason], loadWaitingOrders);
-            }
-          }, 'danger')
-        ];
+      renderActionRecords('waiting-orders-list', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'purpose', 'cashbox_id'], waitingOrderActions_);
+    });
+  }
+
+  function requestApprovalActions_(record) {
+    return [
+      actionButton('Odobri', function() {
+        callApi('apiApprovePaymentRequest', [record.request_id], loadApprovalRequests);
+      }),
+      actionButton('Odobri + kreiraj nalog', function() {
+        callApi('apiApprovePaymentRequest', [record.request_id], function(approved) {
+          createAndIssueOrderFromRequest_(approved || record, loadApprovalRequests);
+        });
+      }),
+      actionButton('Odbij', function() {
+        var reason = prompt('Razlog odbijanja');
+        if (reason) {
+          callApi('apiRejectPaymentRequest', [record.request_id, reason], loadApprovalRequests);
+        }
+      }, 'danger')
+    ];
+  }
+
+  function approvedRequestActions_(record, reload) {
+    if (record.status !== 'APPROVED') {
+      return [];
+    }
+    return [
+      actionButton('Kreiraj i izdaj nalog', function() {
+        createAndIssueOrderFromRequest_(record, reload || loadMyRequests);
+      })
+    ];
+  }
+
+  function createAndIssueOrderFromRequest_(record, reload) {
+    var defaultCashbox = record.preferred_cashbox_id || (uiState.currentUser && uiState.currentUser.default_cashbox_id) || 'CB_MAIN';
+    var cashboxId = prompt('ID blagajne za nalog', defaultCashbox);
+    if (!cashboxId) {
+      return;
+    }
+    callApi('apiCreatePaymentOrderFromRequest', [record.request_id, { cashbox_id: cashboxId }], function(order) {
+      callApi('apiIssuePaymentOrder', [order.order_id], function(issued) {
+        showMessage('Nalog je kreiran i izdat: ' + issued.order_id, 'success');
+        renderJson('desktop-table-result-orders', issued);
+        if (reload) {
+          reload();
+        }
       });
     });
+  }
+
+  function waitingOrderActions_(record) {
+    return [
+      actionButton('Izvrši odmah', function() {
+        if (!confirm('Izvršiti isplatu za nalog ' + record.order_id + '?')) {
+          return;
+        }
+        callApi('apiExecutePaymentOrder', [record.order_id, {}], function(result) {
+          showMessage('Isplata je izvršena za nalog ' + record.order_id + '.', 'success');
+          renderJson('execute-payment-result', result);
+          loadWaitingOrders();
+          loadDesktopDashboard();
+        });
+      }),
+      actionButton('Popuni formu', function() {
+        showSection('execute-payment');
+        setInputValue('execute-payment-form', 'order_id', record.order_id);
+      }),
+      actionButton('Odbij izvršenje', function() {
+        var reason = prompt('Razlog odbijanja izvršenja');
+        if (reason) {
+          callApi('apiRejectPaymentOrderByCashier', [record.order_id, reason], loadWaitingOrders);
+        }
+      }, 'danger')
+    ];
   }
 
   function loadMyShifts() {
