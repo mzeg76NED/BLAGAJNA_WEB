@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?!= include('html/print-styles'); ?>
+  </head>
+  <body>
+    <? var data = printData || {}; var header = data.printHeader || {}; var closing = data.closing || {}; var cashbox = data.cashbox || {}; var events = data.includedEvents || []; var documents = data.documents || []; ?>
+    <main class="print-page">
+      <div class="print-actions no-print">
+        <button type="button" onclick="window.print()">Štampaj / Sačuvaj kao PDF</button>
+      </div>
+      <header class="print-header">
+        <div class="brand"><?= header.appName ?></div>
+        <div><?= header.subtitle ?></div>
+        <div class="muted"><?= header.companyName ?></div>
+      </header>
+
+      <h1>Dnevni zaključak blagajne</h1>
+      <section class="field-grid">
+        <div class="field"><span class="label">ID zaključka</span><?= closing.closing_id ?></div>
+        <div class="field"><span class="label">Status</span><?= closing.status ?></div>
+        <div class="field"><span class="label">Datum</span><?= closing.closing_date ?></div>
+        <div class="field"><span class="label">Blagajna</span><?= cashbox.name || closing.cashbox_id ?></div>
+        <div class="field"><span class="label">Valuta</span><?= closing.currency ?></div>
+        <div class="field"><span class="label">Početno stanje</span><?= closing.opening_balance ?></div>
+        <div class="field"><span class="label">Ukupno ulaz</span><?= closing.total_in ?></div>
+        <div class="field"><span class="label">Ukupno izlaz</span><?= closing.total_out ?></div>
+        <div class="field"><span class="label">Izračunato stanje</span><?= closing.calculated_balance ?></div>
+        <div class="field"><span class="label">Fizičko stanje</span><?= closing.physical_balance ?></div>
+        <div class="field"><span class="label">Razlika</span><?= closing.difference ?></div>
+        <div class="field"><span class="label">Zaključio</span><?= closing.closed_by ?></div>
+      </section>
+
+      <h2>Uključeni blagajnički događaji</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Datum</th><th>Tip</th><th>Smer</th><th>Iznos</th><th>Status</th></tr></thead>
+        <tbody>
+          <? if (events.length === 0) { ?><tr><td colspan="6">Nema događaja za prikaz.</td></tr><? } ?>
+          <? events.forEach(function(event) { ?>
+            <tr><td><?= event.event_id ?></td><td><?= event.event_date ?></td><td><?= event.event_type ?></td><td><?= event.direction ?></td><td><?= event.amount ?> <?= event.currency ?></td><td><?= event.status ?></td></tr>
+          <? }); ?>
+        </tbody>
+      </table>
+
+      <h2>Dokumenti</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Naziv fajla</th><th>Status</th><th>Link</th></tr></thead>
+        <tbody>
+          <? if (documents.length === 0) { ?><tr><td colspan="4">Nema dokumenata.</td></tr><? } ?>
+          <? documents.forEach(function(documentRecord) { ?>
+            <tr><td><?= documentRecord.document_id ?></td><td><?= documentRecord.file_name ?></td><td><?= documentRecord.status ?></td><td><?= documentRecord.file_url ?></td></tr>
+          <? }); ?>
+        </tbody>
+      </table>
+
+      <div class="signature-grid"><div class="signature-line">Blagajnik</div><div class="signature-line">Kontrola</div></div>
+      <footer class="print-footer">
+        <div>Generisano: <?= header.generatedAt ?> · Korisnik: <?= header.generatedBy ?> · Izvor: <?= header.sourceType ?> <?= header.sourceId ?></div>
+        <div><?= header.note ?></div>
+      </footer>
+    </main>
+  </body>
+</html>

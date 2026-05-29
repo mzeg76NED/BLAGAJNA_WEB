@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?!= include('html/print-styles'); ?>
+  </head>
+  <body>
+    <? var data = printData || {}; var header = data.printHeader || {}; var order = data.order || {}; var request = data.sourceRequest || {}; var event = data.linkedCashEvent || {}; var cashbox = data.cashbox || {}; var documents = data.documents || []; ?>
+    <main class="print-page">
+      <div class="print-actions no-print">
+        <button type="button" onclick="window.print()">Štampaj / Sačuvaj kao PDF</button>
+      </div>
+      <header class="print-header">
+        <div class="brand"><?= header.appName ?></div>
+        <div><?= header.subtitle ?></div>
+        <div class="muted"><?= header.companyName ?></div>
+      </header>
+
+      <h1>Nalog za isplatu</h1>
+      <section class="field-grid">
+        <div class="field"><span class="label">ID naloga</span><?= order.order_id ?></div>
+        <div class="field"><span class="label">Status</span><?= order.status ?></div>
+        <div class="field"><span class="label">Tip naloga</span><?= order.order_type ?></div>
+        <div class="field"><span class="label">Izvorni zahtev</span><?= request.request_id || order.source_request_id ?></div>
+        <div class="field"><span class="label">Blagajna</span><?= cashbox.name || order.cashbox_id ?></div>
+        <div class="field"><span class="label">Prima</span><?= order.pay_to_name ?></div>
+        <div class="field"><span class="label">Naloženo</span><?= order.amount_ordered ?> <?= order.currency ?></div>
+        <div class="field"><span class="label">Isplaćeno</span><?= order.amount_paid ?> <?= order.currency ?></div>
+        <div class="field"><span class="label">Rok</span><?= order.due_date ?></div>
+        <div class="field"><span class="label">Prioritet</span><?= order.priority ?></div>
+        <div class="field"><span class="label">Izdao</span><?= order.issued_by ?></div>
+        <div class="field"><span class="label">Izdato</span><?= order.issued_at ?></div>
+      </section>
+
+      <h2>Svrha</h2>
+      <p><?= order.purpose ?></p>
+      <h2>Opis</h2>
+      <p><?= order.description ?></p>
+      <h2>Povezana isplata</h2>
+      <p><?= event.event_id || order.linked_cash_event_id || 'Nema povezane isplate.' ?></p>
+      <h2>Dokumenti</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Naziv fajla</th><th>Status</th><th>Link</th></tr></thead>
+        <tbody>
+          <? if (documents.length === 0) { ?><tr><td colspan="4">Nema dokumenata.</td></tr><? } ?>
+          <? documents.forEach(function(documentRecord) { ?>
+            <tr><td><?= documentRecord.document_id ?></td><td><?= documentRecord.file_name ?></td><td><?= documentRecord.status ?></td><td><?= documentRecord.file_url ?></td></tr>
+          <? }); ?>
+        </tbody>
+      </table>
+
+      <div class="signature-grid"><div class="signature-line">Izdao nalog</div><div class="signature-line">Blagajnik</div></div>
+      <footer class="print-footer">
+        <div>Generisano: <?= header.generatedAt ?> · Korisnik: <?= header.generatedBy ?> · Izvor: <?= header.sourceType ?> <?= header.sourceId ?></div>
+        <div><?= header.note ?></div>
+      </footer>
+    </main>
+  </body>
+</html>

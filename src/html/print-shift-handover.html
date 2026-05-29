@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?!= include('html/print-styles'); ?>
+  </head>
+  <body>
+    <? var data = printData || {}; var header = data.printHeader || {}; var shift = data.shift || {}; var cashbox = data.cashbox || {}; var documents = data.documents || []; var balances = [{ label: 'Početno stanje', values: data.openingBalance || {} }, { label: 'Zaključno stanje', values: data.closingBalance || {} }, { label: 'Fizičko stanje', values: data.physicalBalance || {} }, { label: 'Razlika', values: data.difference || {} }]; ?>
+    <main class="print-page">
+      <div class="print-actions no-print">
+        <button type="button" onclick="window.print()">Štampaj / Sačuvaj kao PDF</button>
+      </div>
+      <header class="print-header">
+        <div class="brand"><?= header.appName ?></div>
+        <div><?= header.subtitle ?></div>
+        <div class="muted"><?= header.companyName ?></div>
+      </header>
+
+      <h1>Primopredaja smene</h1>
+      <section class="field-grid">
+        <div class="field"><span class="label">ID smene</span><?= shift.shift_id ?></div>
+        <div class="field"><span class="label">Status</span><?= shift.status ?></div>
+        <div class="field"><span class="label">Blagajna</span><?= cashbox.name || shift.cashbox_id ?></div>
+        <div class="field"><span class="label">Otvorio</span><?= shift.opened_by ?></div>
+        <div class="field"><span class="label">Otvoreno</span><?= shift.opened_at ?></div>
+        <div class="field"><span class="label">Predato korisniku</span><?= shift.handover_to ?></div>
+        <div class="field"><span class="label">Predato</span><?= shift.handover_at ?></div>
+        <div class="field"><span class="label">Zatvorio</span><?= shift.closed_by ?></div>
+        <div class="field"><span class="label">Zatvoreno</span><?= shift.closed_at ?></div>
+      </section>
+
+      <h2>Stanja po valutama</h2>
+      <table>
+        <thead><tr><th>Vrsta</th><th>Valuta</th><th>Iznos</th></tr></thead>
+        <tbody>
+          <? balances.forEach(function(group) { var keys = Object.keys(group.values || {}); if (keys.length === 0) { ?>
+            <tr><td><?= group.label ?></td><td colspan="2">Nema podataka.</td></tr>
+          <? } keys.forEach(function(currency) { ?>
+            <tr><td><?= group.label ?></td><td><?= currency ?></td><td><?= group.values[currency] ?></td></tr>
+          <? }); }); ?>
+        </tbody>
+      </table>
+
+      <h2>Napomena</h2>
+      <p><?= shift.note || shift.opening_note ?></p>
+      <h2>Dokumenti</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Naziv fajla</th><th>Status</th><th>Link</th></tr></thead>
+        <tbody>
+          <? if (documents.length === 0) { ?><tr><td colspan="4">Nema dokumenata.</td></tr><? } ?>
+          <? documents.forEach(function(documentRecord) { ?>
+            <tr><td><?= documentRecord.document_id ?></td><td><?= documentRecord.file_name ?></td><td><?= documentRecord.status ?></td><td><?= documentRecord.file_url ?></td></tr>
+          <? }); ?>
+        </tbody>
+      </table>
+
+      <div class="signature-grid"><div class="signature-line">Predao smenu</div><div class="signature-line">Primio smenu</div></div>
+      <footer class="print-footer">
+        <div>Generisano: <?= header.generatedAt ?> · Korisnik: <?= header.generatedBy ?> · Izvor: <?= header.sourceType ?> <?= header.sourceId ?></div>
+        <div><?= header.note ?></div>
+      </footer>
+    </main>
+  </body>
+</html>

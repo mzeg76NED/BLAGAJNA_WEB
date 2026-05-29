@@ -175,6 +175,35 @@
             </div>
             <div id="reports-result" class="result-box"></div>
           </div>
+          <div class="card">
+            <h2>Štampa i PDF</h2>
+            <form id="print-tools-form" class="form-grid two">
+              <label>Payment Request ID <input name="payment_request_id" placeholder="REQ-..."></label>
+              <label>Payment Order ID <input name="payment_order_id" placeholder="ORD-..."></label>
+              <label>Cash Event ID <input name="cash_event_id" placeholder="CEV-..."></label>
+              <label>Shift ID <input name="shift_id" placeholder="SHF-..."></label>
+              <label>Daily Closing ID <input name="daily_closing_id" placeholder="CLS-..."></label>
+              <label>Izveštaj
+                <select name="report_type" id="print-report-type">
+                  <option value="missing-documents">Nedostajuća dokumenta</option>
+                  <option value="cashbox-balance">Presek stanja blagajni</option>
+                  <option value="orders-waiting-payment">Nalozi koji čekaju isplatu</option>
+                  <option value="requests-for-approval">Zahtevi za odobrenje</option>
+                  <option value="daily-closing">Dnevni zaključci</option>
+                  <option value="differences">Razlike</option>
+                  <option value="corrections-reversals">Korekcije i storno</option>
+                </select>
+              </label>
+            </form>
+            <div class="actions">
+              <button id="print-payment-request-btn" type="button">Print Payment Request</button>
+              <button id="print-payment-order-btn" type="button">Print Payment Order</button>
+              <button id="print-cash-event-btn" type="button">Print Cash Event</button>
+              <button id="print-shift-btn" type="button">Print Shift Handover</button>
+              <button id="print-daily-closing-btn" type="button">Print Daily Closing</button>
+              <button id="print-report-btn" type="button">Print Current Report</button>
+            </div>
+          </div>
         </section>
 
         <section id="desktop-audit" class="section" data-section>

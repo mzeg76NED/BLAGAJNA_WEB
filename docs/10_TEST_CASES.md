@@ -1188,6 +1188,114 @@ Ocekivano:
 2. Kartice su vidljive.
 3. Report tabele mogu da se osveze.
 
+## Task 13 - Printable reports and document templates
+
+Pre testiranja deploy-ovati Apps Script kao Web App i obezbediti zapise za Payment Request, Payment Order, Cash Event, Shift i Daily Closing.
+
+### Test 1: Print Payment Request
+
+Koraci:
+
+1. Otvoriti `?view=print-payment-request&id=REQ-...`.
+2. Proveriti prikazane podatke.
+3. Proveriti `PAYMENT_REQUESTS`, `CASH_EVENTS` i `AUDIT_LOG`.
+
+Ocekivano:
+
+1. Prikaz se ucitava kao read-only dokument.
+2. Status zahteva se ne menja.
+3. Ne kreira se cash event.
+4. Audit log se ne puni samo zbog stampe.
+
+### Test 2: Print Payment Order
+
+Koraci:
+
+1. Otvoriti `?view=print-payment-order&id=ORD-...`.
+2. Proveriti podatke naloga i povezani zahtev ako postoji.
+
+Ocekivano:
+
+1. Nalog se prikazuje za stampu.
+2. Status naloga se ne menja.
+3. Isplata se ne izvrsava iz print prikaza.
+
+### Test 3: Print Cash Event
+
+Koraci:
+
+1. Otvoriti `?view=print-cash-event&id=CEV-...`.
+2. Proveriti iznos, smer, blagajnu, valutu i status.
+
+Ocekivano:
+
+1. Cash event se prikazuje.
+2. Iznos i status ostaju nepromenjeni.
+3. Nema dodatnog cash eventa.
+
+### Test 4: Print Shift Handover
+
+Koraci:
+
+1. Otvoriti `?view=print-shift-handover&id=SHF-...`.
+2. Proveriti stanje po valutama i potpise.
+
+Ocekivano:
+
+1. Primopredaja smene se prikazuje.
+2. Smena se ne zatvara i ne menja status kroz print prikaz.
+
+### Test 5: Print Daily Closing
+
+Koraci:
+
+1. Otvoriti `?view=print-daily-closing&id=CLS-...`.
+2. Proveriti izracunato stanje, fizicko stanje, razliku i ukljucene cash evente.
+
+Ocekivano:
+
+1. Dnevni zakljucak se prikazuje.
+2. Zakljucak ostaje nepromenjen.
+3. Cash eventi ostaju u postojecem statusu.
+
+### Test 6: Print missing documents report
+
+Koraci:
+
+1. Otvoriti `?view=print-report&type=missing-documents`.
+2. Uporediti rezultat sa desktop reportom.
+
+Ocekivano:
+
+1. Izvestaj prikazuje read-only tabelu.
+2. Report ne menja dokument status.
+
+### Test 7: Print cashbox balance report
+
+Koraci:
+
+1. Otvoriti `?view=print-report&type=cashbox-balance`.
+2. Proveriti da se stanja poklapaju sa `calculateCashboxBalance()`.
+
+Ocekivano:
+
+1. Izvestaj prikazuje stanje blagajni.
+2. Stanje nije rucno uneto i nije promenjeno stampom.
+
+### Test 8: Browser Save as PDF
+
+Koraci:
+
+1. Otvoriti bilo koji print prikaz.
+2. Kliknuti `Štampaj / Sačuvaj kao PDF`.
+3. U browser dijalogu izabrati `Save as PDF`.
+
+Ocekivano:
+
+1. PDF moze da se sacuva iz browsera.
+2. Dugme za stampu se ne vidi u PDF-u.
+3. Poslovni podaci ostaju nepromenjeni.
+
 ## Pocetni poslovni scenariji za kasnije
 
 - Kreiranje zahteva za isplatu

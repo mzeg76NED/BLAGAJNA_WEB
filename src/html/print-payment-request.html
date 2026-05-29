@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?!= include('html/print-styles'); ?>
+  </head>
+  <body>
+    <? var data = printData || {}; var header = data.printHeader || {}; var request = data.request || {}; var requester = data.requester || {}; var linkedOrder = data.linkedOrder || {}; var documents = data.documents || []; ?>
+    <main class="print-page">
+      <div class="print-actions no-print">
+        <button type="button" onclick="window.print()">Štampaj / Sačuvaj kao PDF</button>
+      </div>
+      <header class="print-header">
+        <div class="brand"><?= header.appName ?></div>
+        <div><?= header.subtitle ?></div>
+        <div class="muted"><?= header.companyName ?></div>
+      </header>
+
+      <h1>Zahtev za isplatu</h1>
+      <section class="field-grid">
+        <div class="field"><span class="label">ID zahteva</span><?= request.request_id ?></div>
+        <div class="field"><span class="label">Status</span><?= request.status ?></div>
+        <div class="field"><span class="label">Kreirano</span><?= request.created_at ?></div>
+        <div class="field"><span class="label">Kreirao</span><?= request.created_by ?></div>
+        <div class="field"><span class="label">Podnosilac</span><?= requester.full_name || request.requester_user_id ?></div>
+        <div class="field"><span class="label">Za isplatu</span><?= request.requested_for_name ?></div>
+        <div class="field"><span class="label">Iznos</span><?= request.amount ?> <?= request.currency ?></div>
+        <div class="field"><span class="label">Prioritet</span><?= request.priority ?></div>
+        <div class="field"><span class="label">Potrebno do</span><?= request.needed_by_date ?></div>
+        <div class="field"><span class="label">Preferirana blagajna</span><?= request.preferred_cashbox_id ?></div>
+        <div class="field"><span class="label">Pregledao</span><?= request.reviewed_by ?></div>
+        <div class="field"><span class="label">Pregledano</span><?= request.reviewed_at ?></div>
+      </section>
+
+      <h2>Svrha</h2>
+      <p><?= request.purpose ?></p>
+      <h2>Opis</h2>
+      <p><?= request.description ?></p>
+      <h2>Povezani nalog</h2>
+      <p><?= linkedOrder.order_id || request.linked_order_id || 'Nema povezanog naloga.' ?></p>
+      <h2>Dokumenti</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Naziv fajla</th><th>Status</th><th>Link</th></tr></thead>
+        <tbody>
+          <? if (documents.length === 0) { ?>
+            <tr><td colspan="4">Nema dokumenata.</td></tr>
+          <? } ?>
+          <? documents.forEach(function(documentRecord) { ?>
+            <tr><td><?= documentRecord.document_id ?></td><td><?= documentRecord.file_name ?></td><td><?= documentRecord.status ?></td><td><?= documentRecord.file_url ?></td></tr>
+          <? }); ?>
+        </tbody>
+      </table>
+
+      <footer class="print-footer">
+        <div>Generisano: <?= header.generatedAt ?> · Korisnik: <?= header.generatedBy ?> · Izvor: <?= header.sourceType ?> <?= header.sourceId ?></div>
+        <div><?= header.note ?></div>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -2,11 +2,24 @@
  * Web App entry point and thin API wrappers for the frontend.
  */
 function doGet(e) {
-  const allowedViews = ['index', 'mobile', 'desktop'];
+  const allowedViews = [
+    'index',
+    'mobile',
+    'desktop',
+    'print-payment-request',
+    'print-payment-order',
+    'print-cash-event',
+    'print-shift-handover',
+    'print-daily-closing',
+    'print-report'
+  ];
   const params = e && e.parameter ? e.parameter : {};
   const requestedView = params.view || params.page || 'mobile';
   const view = allowedViews.indexOf(requestedView) === -1 ? 'mobile' : requestedView;
   const template = HtmlService.createTemplateFromFile('html/' + view);
+  if (view.indexOf('print-') === 0) {
+    template.printData = buildPrintTemplateData_(view, params);
+  }
 
   return template.evaluate()
     .setTitle(APP_CONFIG.APP_NAME)

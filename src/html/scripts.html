@@ -216,6 +216,25 @@
     bindClick('report-audit-exceptions-btn', function() {
       loadReport('apiGetAuditExceptionsReport', 'report-filters-form', 'reports-result', ['exception_type', 'entity_type', 'entity_id', 'date', 'description', 'status']);
     });
+    bindClick('print-payment-request-btn', function() {
+      openPrintView('print-payment-request', getPrintInputValue_('payment_request_id'));
+    });
+    bindClick('print-payment-order-btn', function() {
+      openPrintView('print-payment-order', getPrintInputValue_('payment_order_id'));
+    });
+    bindClick('print-cash-event-btn', function() {
+      openPrintView('print-cash-event', getPrintInputValue_('cash_event_id'));
+    });
+    bindClick('print-shift-btn', function() {
+      openPrintView('print-shift-handover', getPrintInputValue_('shift_id'));
+    });
+    bindClick('print-daily-closing-btn', function() {
+      openPrintView('print-daily-closing', getPrintInputValue_('daily_closing_id'));
+    });
+    bindClick('print-report-btn', function() {
+      var reportTypeSelect = document.getElementById('print-report-type');
+      openPrintReport(reportTypeSelect ? reportTypeSelect.value : 'missing-documents');
+    });
   }
 
   function callApi(functionName, args, onSuccess, options) {
@@ -400,6 +419,36 @@
     callApi(apiName, [serializeForm(formId)], function(result) {
       renderTable(targetId, result || [], fields);
     });
+  }
+
+  function openPrintView(view, id) {
+    if (!id) {
+      showMessage('Unesite ID zapisa za štampu.', 'error');
+      return;
+    }
+    window.open(getBasePrintUrl_() + '?view=' + encodeURIComponent(view) + '&id=' + encodeURIComponent(id), '_blank');
+  }
+
+  function openPrintReport(reportType) {
+    var filters = serializeForm('report-filters-form');
+    var query = Object.keys(filters).map(function(key) {
+      return encodeURIComponent(key) + '=' + encodeURIComponent(filters[key]);
+    }).join('&');
+    var url = getBasePrintUrl_() + '?view=print-report&type=' + encodeURIComponent(reportType);
+    window.open(query ? url + '&' + query : url, '_blank');
+  }
+
+  function printCurrentPage() {
+    window.print();
+  }
+
+  function getBasePrintUrl_() {
+    return window.location.href.split('?')[0];
+  }
+
+  function getPrintInputValue_(name) {
+    var input = document.querySelector('#print-tools-form [name="' + name + '"]');
+    return input ? input.value.trim() : '';
   }
 
   function summarizeBalances(balances) {

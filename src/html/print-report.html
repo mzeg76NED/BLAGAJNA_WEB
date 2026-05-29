@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?!= include('html/print-styles'); ?>
+  </head>
+  <body>
+    <? var data = printData || {}; var header = data.printHeader || {}; var rows = data.rows || []; var filters = data.filters || {}; var columns = rows.length ? Object.keys(rows[0]) : []; ?>
+    <main class="print-page">
+      <div class="print-actions no-print">
+        <button type="button" onclick="window.print()">Štampaj / Sačuvaj kao PDF</button>
+      </div>
+      <header class="print-header">
+        <div class="brand"><?= header.appName ?></div>
+        <div><?= header.subtitle ?></div>
+        <div class="muted"><?= header.companyName ?></div>
+      </header>
+
+      <h1><?= data.title ?></h1>
+      <section class="meta-grid">
+        <div class="field"><span class="label">Tip izveštaja</span><?= data.reportType ?></div>
+        <div class="field"><span class="label">Broj redova</span><?= rows.length ?></div>
+        <? Object.keys(filters).forEach(function(key) { ?>
+          <div class="field"><span class="label"><?= key ?></span><?= filters[key] ?></div>
+        <? }); ?>
+      </section>
+
+      <h2>Podaci</h2>
+      <table>
+        <thead>
+          <tr>
+            <? if (columns.length === 0) { ?><th>Rezultat</th><? } ?>
+            <? columns.forEach(function(column) { ?><th><?= column ?></th><? }); ?>
+          </tr>
+        </thead>
+        <tbody>
+          <? if (rows.length === 0) { ?><tr><td>Nema podataka.</td></tr><? } ?>
+          <? rows.forEach(function(row) { ?>
+            <tr>
+              <? columns.forEach(function(column) { ?><td><?= typeof row[column] === 'object' ? JSON.stringify(row[column]) : row[column] ?></td><? }); ?>
+            </tr>
+          <? }); ?>
+        </tbody>
+      </table>
+
+      <footer class="print-footer">
+        <div>Generisano: <?= header.generatedAt ?> · Korisnik: <?= header.generatedBy ?> · Izvor: <?= header.sourceType ?> <?= header.sourceId ?></div>
+        <div><?= header.note ?></div>
+      </footer>
+    </main>
+  </body>
+</html>

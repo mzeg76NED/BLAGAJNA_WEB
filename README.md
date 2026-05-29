@@ -39,9 +39,10 @@ Zavrseni su osnovni moduli za:
 8. basic UI,
 9. hardening/testing,
 10. corrections and reversals,
-11. operational reports and management dashboard.
+11. operational reports and management dashboard,
+12. printable reports and document templates.
 
-Trenutni fokus je stabilizacija pre sireg testiranja: server-side permisije, validacije, konzistentni API odgovori, smoke testovi i E2E test plan.
+Trenutni fokus je priprema za operativno testiranje: print prikazi, dokument šabloni, browser `Save as PDF` i provera da štampa ne menja poslovne zapise.
 
 ## How to test
 
@@ -60,6 +61,7 @@ Trenutni fokus je stabilizacija pre sireg testiranja: server-side permisije, val
 8. Pregledaj poznata ogranicenja u `docs/14_KNOWN_LIMITATIONS.md`.
 9. Testiraj storno i korekcije prema `docs/15_CORRECTIONS_AND_REVERSALS.md`.
 10. Testiraj izvestaje i dashboard prema `docs/16_REPORTS_AND_DASHBOARD.md`.
+11. Testiraj print prikaze i browser `Save as PDF` prema `docs/17_PRINTABLE_REPORTS_AND_TEMPLATES.md`.
 
 ## Struktura
 
@@ -191,3 +193,15 @@ Ovaj skeleton sadrži početne module, dokumentacione stubove i placeholder funk
 6. Pokreni otvorene zahteve, naloge koji cekaju isplatu i nedostajuca dokumenta.
 7. Pokreni dnevne zakljucke, razlike i korekcije/storno.
 8. Potvrdi da report pozivi ne menjaju poslovne tabele i ne dodaju audit redove.
+
+## Manualni test za Task 13
+
+1. Deploy Apps Script kao Web App.
+2. Otvori print rutu za zahtev: `?view=print-payment-request&id=REQ-...`.
+3. Otvori print rutu za nalog: `?view=print-payment-order&id=ORD-...`.
+4. Otvori print rutu za cash event: `?view=print-cash-event&id=CEV-...`.
+5. Otvori print rutu za primopredaju smene: `?view=print-shift-handover&id=SHF-...`.
+6. Otvori print rutu za dnevni zakljucak: `?view=print-daily-closing&id=CLS-...`.
+7. Otvori print rute za izvestaje: `?view=print-report&type=missing-documents` i `?view=print-report&type=cashbox-balance`.
+8. Iz browser dijaloga sacuvaj dokument kao PDF.
+9. Potvrdi da print prikazi ne menjaju statuse, ne kreiraju isplate i ne dodaju audit redove.
