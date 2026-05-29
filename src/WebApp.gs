@@ -14,7 +14,7 @@ function doGet(e) {
     'print-report'
   ];
   const params = e && e.parameter ? e.parameter : {};
-  const requestedView = params.view || params.page || 'mobile';
+  const requestedView = params.view || params.page || detectDefaultView_(e);
   const view = allowedViews.indexOf(requestedView) === -1 ? 'mobile' : requestedView;
   const template = HtmlService.createTemplateFromFile('html/' + view);
   if (view.indexOf('print-') === 0) {
@@ -24,6 +24,19 @@ function doGet(e) {
   return template.evaluate()
     .setTitle(APP_CONFIG.APP_NAME)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function detectDefaultView_(e) {
+  const params = e && e.parameter ? e.parameter : {};
+  const userAgent = params.userAgent || params.ua || '';
+  return detectMobile_(userAgent) ? 'mobile' : 'desktop';
+}
+
+function detectMobile_(userAgent) {
+  if (!userAgent) {
+    return true;
+  }
+  return /Mobi|Android|iPhone|iPad/i.test(String(userAgent));
 }
 
 function include(filename) {
@@ -351,13 +364,22 @@ function parseJsonInput_(value) {
 
 function buildAppConfigForUi_(currentUser) {
   const defaultCashboxId = getDefaultCashboxIdForUser_(currentUser || {});
+  const cashboxes = listCashboxes();
+  const defaultCashbox = cashboxes.filter(function(cashbox) {
+    return cashbox.cashbox_id === defaultCashboxId;
+  })[0] || {
+    cashbox_id: defaultCashboxId,
+    name: defaultCashboxId
+  };
   return {
     appName: APP_CONFIG.APP_NAME,
     version: APP_CONFIG.VERSION,
     currencies: SUPPORTED_CURRENCIES,
+    cashboxes: cashboxes,
     requestPriorities: objectValues_(REQUEST_PRIORITIES),
     entityTypes: objectValues_(ENTITY_TYPES),
     defaultCashboxId: defaultCashboxId,
+    defaultCashboxName: defaultCashbox.name || defaultCashbox.cashbox_id,
     today: Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Europe/Belgrade', 'yyyy-MM-dd')
   };
 }
@@ -368,21 +390,4 @@ function withDefaultCashbox_(data) {
     result.cashbox_id = getDefaultCashboxIdForCurrentUser_();
   }
   return result;
-}
-
-function getDefaultCashboxIdForCurrentUser_() {
-  return getDefaultCashboxIdForUser_(getCurrentUser());
-}
-
-function getDefaultCashboxIdForUser_(user) {
-  if (user && user.default_cashbox_id) {
-    return user.default_cashbox_id;
-  }
-  const activeCashbox = listRecords(SHEET_NAMES.CASHBOXES).filter(function(cashbox) {
-    return isTruthy_(cashbox.active);
-  })[0];
-  if (!activeCashbox) {
-    throw new Error('Nema aktivne blagajne u sistemu.');
-  }
-  return activeCashbox.cashbox_id;
 }

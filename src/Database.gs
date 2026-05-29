@@ -47,6 +47,14 @@ function getSheetByNameOrThrow(sheetName) {
 }
 
 function getHeaders_(sheet) {
+  const configured = TABLE_HEADERS[sheet.getName()];
+  if (configured && configured.length) {
+    return configured.slice();
+  }
+  return getActualHeaders_(sheet);
+}
+
+function getActualHeaders_(sheet) {
   const lastColumn = sheet.getLastColumn();
   if (lastColumn === 0) {
     return [];
@@ -122,7 +130,7 @@ function updateRecordById(sheetName, idField, idValue, updates) {
 
 function listRecords(sheetName, filters) {
   const sheet = getSheetByNameOrThrow(sheetName);
-  const headers = getHeaders_(sheet);
+  const headers = getConfiguredHeaders_(sheetName);
   const lastRow = sheet.getLastRow();
   const activeFilters = filters || {};
 
@@ -132,6 +140,32 @@ function listRecords(sheetName, filters) {
 
   return sheet.getRange(2, 1, lastRow - 1, headers.length)
     .getValues()
+    .map(function(row) {
+      return rowToRecord_(headers, row);
+    })
+    .filter(function(record) {
+      return Object.keys(activeFilters).every(function(field) {
+        return String(record[field]) === String(activeFilters[field]);
+      });
+    });
+}
+
+function listLatestRecords(sheetName, limit, filters) {
+  const sheet = getSheetByNameOrThrow(sheetName);
+  const headers = getConfiguredHeaders_(sheetName);
+  const lastRow = sheet.getLastRow();
+  const maxRows = Number(limit || 100);
+  const rowCount = isFinite(maxRows) && maxRows > 0 ? Math.min(maxRows, Math.max(lastRow - 1, 0)) : Math.max(lastRow - 1, 0);
+  const activeFilters = filters || {};
+
+  if (rowCount < 1) {
+    return [];
+  }
+
+  const startRow = lastRow - rowCount + 1;
+  return sheet.getRange(startRow, 1, rowCount, headers.length)
+    .getValues()
+    .reverse()
     .map(function(row) {
       return rowToRecord_(headers, row);
     })
@@ -193,7 +227,7 @@ function getConfiguredHeaders_(sheetName) {
 }
 
 function syncConfiguredHeaders_(sheet, configuredHeaders) {
-  const existingHeaders = getHeaders_(sheet);
+  const existingHeaders = getActualHeaders_(sheet);
   const headersToAdd = configuredHeaders.filter(function(header) {
     return existingHeaders.indexOf(header) === -1;
   });

@@ -268,6 +268,130 @@ function smokeTestReportsReadOnly() {
   });
 }
 
+function smokeTestDraftOrderCannotBeExecuted() {
+  return runSmokeTest_('Draft order cannot be executed', function() {
+    ensureSmokeTestRole_([
+      USER_ROLES.ADMIN,
+      USER_ROLES.CASHIER_SUPERVISOR
+    ]);
+    createMinimalTestSetup();
+    const request = createSmokeApprovedRequest_();
+    const order = createPaymentOrderFromRequest(request.request_id, {
+      cashbox_id: 'TEST_CB_MAIN',
+      amount_ordered: 100
+    });
+    const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
+    let failed = false;
+    try {
+      executePaymentOrder(order.order_id, { amount: 100 });
+    } catch (error) {
+      failed = true;
+    }
+    const afterCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
+    if (!failed) {
+      throw new Error('Draft order execution did not fail.');
+    }
+    if (beforeCashEvents !== afterCashEvents) {
+      throw new Error('Draft order execution created a cash event.');
+    }
+    return {
+      message: 'Draft order execution was rejected without cash event.',
+      details: { order_id: order.order_id }
+    };
+  });
+}
+
+function smokeTestOverpaymentRejected() {
+  return runSmokeTest_('Overpayment rejection', function() {
+    ensureSmokeTestRole_([
+      USER_ROLES.ADMIN,
+      USER_ROLES.CASHIER_SUPERVISOR
+    ]);
+    createMinimalTestSetup();
+    createCashInflow({
+      cashbox_id: 'TEST_CB_MAIN',
+      currency: 'RSD',
+      amount: 10000,
+      description: 'SMOKE TEST overpayment funding'
+    });
+    const request = createSmokeApprovedRequest_();
+    const order = issuePaymentOrder(createPaymentOrderFromRequest(request.request_id, {
+      cashbox_id: 'TEST_CB_MAIN',
+      amount_ordered: 1000
+    }).order_id);
+    const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
+    let failed = false;
+    try {
+      executePaymentOrder(order.order_id, { amount: 1001 });
+    } catch (error) {
+      failed = true;
+    }
+    const afterCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
+    if (!failed) {
+      throw new Error('Overpayment did not fail.');
+    }
+    if (beforeCashEvents !== afterCashEvents) {
+      throw new Error('Overpayment created a cash event.');
+    }
+    return {
+      message: 'Overpayment was rejected without cash event.',
+      details: { order_id: order.order_id }
+    };
+  });
+}
+
+function smokeTestDuplicateOrderPrevention() {
+  return runSmokeTest_('Duplicate order prevention', function() {
+    ensureSmokeTestRole_([
+      USER_ROLES.ADMIN,
+      USER_ROLES.DIRECTOR,
+      USER_ROLES.FINANCE,
+      USER_ROLES.CASHIER_SUPERVISOR,
+      USER_ROLES.APPROVER
+    ]);
+    createMinimalTestSetup();
+    const request = createSmokeApprovedRequest_();
+    const order = createPaymentOrderFromRequest(request.request_id, { cashbox_id: 'TEST_CB_MAIN' });
+    let failed = false;
+    try {
+      createPaymentOrderFromRequest(request.request_id, { cashbox_id: 'TEST_CB_MAIN' });
+    } catch (error) {
+      failed = true;
+    }
+    if (!failed) {
+      throw new Error('Duplicate order creation did not fail.');
+    }
+    return {
+      message: 'Second payment order for the same request was rejected.',
+      details: {
+        request_id: request.request_id,
+        order_id: order.order_id
+      }
+    };
+  });
+}
+
+function smokeTestCashMovementsReportLimit() {
+  return runSmokeTest_('Cash movements report limit', function() {
+    ensureSmokeTestRole_(REPORT_VIEW_ROLES_);
+    const beforeAuditRows = listRecords(SHEET_NAMES.AUDIT_LOG).length;
+    const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
+    const rows = getCashMovementsReport({ limit: 5 });
+    const afterAuditRows = listRecords(SHEET_NAMES.AUDIT_LOG).length;
+    const afterCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
+    if (rows.length > 5) {
+      throw new Error('Cash movements report did not respect limit.');
+    }
+    if (beforeAuditRows !== afterAuditRows || beforeCashEvents !== afterCashEvents) {
+      throw new Error('Cash movements report wrote data.');
+    }
+    return {
+      message: 'Cash movements report is read-only and respects limit.',
+      details: { rowCount: rows.length }
+    };
+  });
+}
+
 function runAllSmokeTests() {
   const tests = [
     smokeTestDatabaseInitialization(),
@@ -278,7 +402,11 @@ function runAllSmokeTests() {
     smokeTestDocumentWorkflow(),
     smokeTestShiftWorkflow(),
     smokeTestDailyClosingWorkflow(),
-    smokeTestReportsReadOnly()
+    smokeTestReportsReadOnly(),
+    smokeTestDraftOrderCannotBeExecuted(),
+    smokeTestOverpaymentRejected(),
+    smokeTestDuplicateOrderPrevention(),
+    smokeTestCashMovementsReportLimit()
   ];
   return {
     ok: tests.every(function(test) { return test.status === 'PASS' || test.status === 'SKIPPED'; }),

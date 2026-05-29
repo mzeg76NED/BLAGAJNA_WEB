@@ -1404,6 +1404,61 @@ Ocekivano:
 - Dnevni zakljucak
 - Provera audit log-a
 
+## Task 15 dodatni testovi
+
+### Performanse UI akcija
+
+Meriti okvirno vreme za:
+
+1. ucitavanje desktop dashboard-a,
+2. knjizenje nove uplate,
+3. kreiranje i slanje zahteva,
+4. odobrenje i izdavanje naloga,
+5. izvrsenje naloga,
+6. ucitavanje kretanja blagajne,
+7. upload dokumenta.
+
+Ocekivano:
+
+1. UI prikazuje loading stanje odmah posle klika.
+2. Rezultat se prikazuje kao kartica ili tabela bez raw JSON-a.
+3. Vreme izvrsenja se upisuje u izvestaj testiranja ako ostane iznad cilja.
+
+### Negativni testovi placanja
+
+Testirati:
+
+1. izvrsenje `DRAFT` naloga mora biti odbijeno,
+2. isplata veca od preostalog iznosa mora biti odbijena,
+3. isplata bez dovoljnog stanja mora biti odbijena,
+4. drugi nalog za isti odobren zahtev mora biti odbijen,
+5. parcijalna isplata mora ostaviti nalog u `PARTIALLY_PAID`,
+6. zavrsna isplata mora prebaciti nalog u `PAID`.
+
+Ocekivano:
+
+1. Ne kreira se `CASH_OUTFLOW` kada akcija ne prodje validaciju.
+2. Status naloga ostaje poslovno ispravan.
+3. Audit log postoji za uspesne vazne akcije.
+
+### UI testovi
+
+Testirati:
+
+1. mobilno izvrsenje naloga izborom iz liste, bez rucnog unosa `ORD-...`,
+2. unos fizickog stanja smene kroz polja po valuti, bez JSON-a,
+3. prikaz kretanja blagajne na mobilnom kao citljive kartice,
+4. desktop KPI kartice,
+5. desktop panel detalja zahteva,
+6. srpske labele i obojene status bedzeve,
+7. autoload i empty state poruke.
+
+Ocekivano:
+
+1. Korisnik ne vidi tehnicke nazive polja kao glavne labele.
+2. Blagajna se ne bira u redovnim pilot formama.
+3. Valuta je vidljiva kao kontekst.
+
 ## Napomena
 
 Task 02 ne implementira poslovne tokove. Testira samo model podataka, inicijalizaciju Google Sheets baze, osnovne database helper funkcije, validacije i audit log osnovu.

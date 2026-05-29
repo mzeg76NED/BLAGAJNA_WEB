@@ -8,3 +8,6 @@
 | KI-004 | 2026-05-29 | Platform | Apps Script quotas must be monitored. | Medium | Open | Admin | Watch execution time and Drive operations. |
 | KI-005 | 2026-05-29 | Print/PDF | Server-side PDF generation is not implemented. | Low | Open | Admin | Use browser Print / Save as PDF. |
 | KI-006 | 2026-05-29 | Corrections | Correction after daily closing requires management process. | High | Open | Finance | Use reversal/correction events and document approval. |
+| KI-007 | 2026-05-29 | Performance | Core UI actions measured during pilot took 22-40 seconds before Task 15 optimization. | High | Monitoring | Admin | Re-measure after deployment. |
+| KI-008 | 2026-05-29 | Platform | Apps Script iframe can limit browser automation visibility. | Medium | Open | Admin | Use screenshot plus Sheet verification. |
+| KI-009 | 2026-05-29 | Database | Google Sheets is not a high-volume transactional database. | Medium | Open | Admin | Keep pilot volume controlled and monitor quotas. |

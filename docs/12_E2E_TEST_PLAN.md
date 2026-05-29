@@ -49,3 +49,26 @@ Requester creates Payment Request
 ## Ogranicenje testiranja identiteta
 
 Google Apps Script izvrsava kod kao aktivni korisnik prema deployment podesavanjima. Testiranje vise rola mora se raditi sa realnim Google Workspace nalozima ili odvojenim test deployment-om. Sistem ne treba da lazno impersonira produkcione role.
+
+## Agent-assisted UI testiranje
+
+Za Task 15 moze se koristiti agent-assisted testiranje kroz Edge browser u kome je korisnik vec ulogovan.
+
+Napomene:
+
+1. Apps Script Web App se cesto izvrsava u sandbox iframe-u, pa DOM nije uvek dostupan za punu automatizaciju.
+2. Prihvatljivo je koristiti kombinaciju screenshot provere, klikova po koordinatama i verifikacije u Google Sheet bazi.
+3. Svi test zapisi moraju u opisu imati `E2E TEST` ili `SMOKE TEST`.
+4. Dnevni zakljucak se u pilot bazi testira samo kao preview, osim ako postoji izricito odobrenje za realno zakljucavanje dogadjaja.
+
+Task 15 E2E minimum:
+
+1. otvoriti mobilni prikaz,
+2. proknjiziti E2E uplatu,
+3. proveriti kretanja blagajne,
+4. kreirati i poslati zahtev,
+5. odobriti i izdati nalog,
+6. izabrati nalog iz liste i izvrsiti isplatu,
+7. proveriti `CASH_OUTFLOW` u kretanjima,
+8. otvoriti desktop prikaz preko `?view=desktop`,
+9. proveriti KPI kartice, kretanja blagajne i detalj panel zahteva.

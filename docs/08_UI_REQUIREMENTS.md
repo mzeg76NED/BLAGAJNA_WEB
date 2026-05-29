@@ -142,6 +142,22 @@ Backend cuva fajl u Google Drive, a u `DOCUMENTS` upisuje metapodatke.
 1. Nema naprednog dashboard-a i grafikona.
 2. Nema PDF izvestaja.
 3. Nema OCR-a.
-4. Fizičko stanje smene se unosi kao JSON tekst.
-5. UI ne prikazuje detaljan audit log, vec samo placeholder.
-6. Frontend validacija je samo pomocna; server ostaje izvor poslovnih pravila.
+4. UI ne prikazuje detaljan audit log, vec samo placeholder.
+5. Frontend validacija je samo pomocna; server ostaje izvor poslovnih pravila.
+
+## Task 15 UI pravila
+
+Task 15 uklanja najkriticnije operativne prepreke iz pilot testa:
+
+1. Korisnik ne unosi rucno ID naloga za isplatu, vec bira nalog iz liste naloga koji cekaju izvrsenje.
+2. Korisnik ne unosi JSON za fizicko stanje smene, vec popunjava numericka polja po valuti.
+3. Mobilni i desktop prikaz imaju globalni kontekst aktivne blagajne i valute.
+4. Blagajna se ne trazi u redovnim dijalozima tokom pilota.
+5. Desktop navigacija i korisnicke poruke su na srpskom jeziku, latinica.
+6. Statusi se prikazuju kao obojeni bedzevi sa srpskim nazivima.
+7. Mobilne liste se automatski ucitavaju pri ulasku u sekciju i prikazuju empty state kada nema podataka.
+8. Mobilni prikaz ima bottom navigaciju za najcesce akcije.
+9. Desktop dashboard prikazuje KPI kartice iz realnih backend podataka.
+10. Desktop zahtevi koriste kontekstualni panel za detalje.
+
+Server ostaje izvor poslovnih pravila. UI ne sme da zaobidje validacije, role, statusna pravila ili audit log.

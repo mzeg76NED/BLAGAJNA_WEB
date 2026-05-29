@@ -108,15 +108,26 @@ function getCashboxBalanceReport(filters) {
   const currencies = getActiveCurrencies_().filter(function(currency) {
     return !scopedFilters.currency || currency.currency_code === scopedFilters.currency;
   });
+  const balanceByKey = listRecords(SHEET_NAMES.CASH_EVENTS)
+    .filter(function(event) {
+      return isCashEventBalanceAffecting(event);
+    })
+    .reduce(function(index, event) {
+      const key = event.cashbox_id + '|' + event.currency;
+      const amount = safeNumber_(event.amount);
+      index[key] = (index[key] || 0) + (event.direction === 'OUT' ? -amount : amount);
+      return index;
+    }, {});
 
   const rows = [];
   cashboxes.forEach(function(cashbox) {
     currencies.forEach(function(currency) {
+      const key = cashbox.cashbox_id + '|' + currency.currency_code;
       rows.push({
         cashbox_id: cashbox.cashbox_id,
         cashbox_name: cashbox.name || cashbox.cashbox_id,
         currency: currency.currency_code,
-        balance: calculateCashboxBalance(cashbox.cashbox_id, currency.currency_code)
+        balance: balanceByKey[key] || 0
       });
     });
   });

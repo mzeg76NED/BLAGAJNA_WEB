@@ -13,52 +13,65 @@
             <h1>BLAGAJNA</h1>
             <p class="muted" data-current-user>Korisnik se učitava...</p>
           </div>
-          <button class="small" data-target="home" type="button">Početna</button>
+        </div>
+        <div class="session-context">
+          <span class="ctx-chip"><i class="ti ti-building-bank" aria-hidden="true"></i><span data-session-cashbox>Blagajna se učitava...</span></span>
+          <span class="ctx-chip"><i class="ti ti-coins" aria-hidden="true"></i><select data-session-currency-select aria-label="Valuta"></select></span>
         </div>
         <div id="message" class="message"></div>
       </header>
 
       <section id="home" class="section active" data-section>
-        <div class="card">
+        <div class="alert-card" id="urgent-alert" style="display:none">
+          <i class="ti ti-clock-play" aria-hidden="true"></i>
+          <div>
+            <div class="alert-title" id="urgent-alert-title"></div>
+            <div class="alert-sub">Tapni da vidiš naloge</div>
+          </div>
+        </div>
+        <div class="card" id="home-group-requests">
           <h2>Zahtevi</h2>
           <div class="button-grid">
-            <button data-target="new-payment-request" type="button">NOVI ZAHTEV ZA ISPLATU</button>
-            <button data-target="my-payment-requests" type="button">MOJI ZAHTEVI</button>
-            <button data-target="approval-requests" type="button">ZAHTEVI ZA ODOBRENJE</button>
+            <button data-target="new-payment-request" type="button"><i class="ti ti-plus" aria-hidden="true"></i> NOVI ZAHTEV ZA ISPLATU</button>
+            <button data-target="my-payment-requests" type="button"><i class="ti ti-inbox" aria-hidden="true"></i> MOJI ZAHTEVI</button>
           </div>
         </div>
-        <div class="card">
+        <div class="card" id="home-group-approval">
+          <h2>Odobrenja</h2>
+          <button data-target="approval-requests" type="button"><i class="ti ti-check" aria-hidden="true"></i> ZAHTEVI ZA ODOBRENJE</button>
+        </div>
+        <div class="card" id="home-group-orders">
           <h2>Nalozi</h2>
           <div class="button-grid">
-            <button data-target="orders-waiting" type="button">NALOZI ZA ISPLATU</button>
-            <button data-target="execute-payment" type="button">IZVRŠI NALOG</button>
+            <button data-target="orders-waiting" type="button"><i class="ti ti-file-invoice" aria-hidden="true"></i> NALOZI ZA ISPLATU</button>
+            <button class="primary" data-target="execute-payment" type="button"><i class="ti ti-clock-play" aria-hidden="true"></i> IZVRŠI NALOG</button>
           </div>
         </div>
-        <div class="card">
+        <div class="card" id="home-group-cashbox">
           <h2>Blagajna</h2>
           <div class="button-grid">
-            <button data-target="cash-inflow" type="button">NOVA UPLATA</button>
-            <button data-target="mobile-reports" id="mobile-report-cash-movements-shortcut" type="button">KRETANJA BLAGAJNE</button>
-            <button data-target="attach-document" type="button">DODAJ DOKUMENT</button>
-            <button data-target="cashbox-balance" type="button">PRESEK BLAGAJNE</button>
+            <button class="primary" data-target="cash-inflow" type="button"><i class="ti ti-cash" aria-hidden="true"></i> NOVA UPLATA</button>
+            <button data-target="mobile-reports" id="mobile-report-cash-movements-shortcut" type="button"><i class="ti ti-chart-bar" aria-hidden="true"></i> KRETANJA BLAGAJNE</button>
+            <button data-target="attach-document" type="button"><i class="ti ti-files" aria-hidden="true"></i> DODAJ DOKUMENT</button>
+            <button data-target="cashbox-balance" type="button"><i class="ti ti-wallet" aria-hidden="true"></i> PRESEK BLAGAJNE</button>
           </div>
         </div>
-        <div class="card">
+        <div class="card" id="home-group-shift">
           <h2>Smena</h2>
           <div class="button-grid">
-            <button data-target="shift" type="button">OTVORI SMENU</button>
-            <button data-target="shift" id="load-my-shifts-home-btn" type="button">MOJE SMENE</button>
-            <button data-target="shift" type="button">PRIMOPREDAJA SMENE</button>
-            <button data-target="shift" type="button">ZATVORI SMENU</button>
+            <button data-target="shift" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> OTVORI SMENU</button>
+            <button data-target="shift" id="load-my-shifts-home-btn" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> MOJE SMENE</button>
+            <button data-target="shift" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> PRIMOPREDAJA SMENE</button>
+            <button data-target="shift" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> ZATVORI SMENU</button>
           </div>
         </div>
-        <div class="card">
+        <div class="card" id="home-group-closing">
           <h2>Zaključak</h2>
-          <button data-target="daily-closing" type="button">DNEVNI ZAKLJUČAK</button>
+          <button data-target="daily-closing" type="button"><i class="ti ti-scale" aria-hidden="true"></i> DNEVNI ZAKLJUČAK</button>
         </div>
-        <div class="card">
+        <div class="card" id="home-group-reports">
           <h2>Pregledi</h2>
-          <button data-target="mobile-reports" type="button">OPERATIVNI PREGLEDI</button>
+          <button data-target="mobile-reports" type="button"><i class="ti ti-chart-bar" aria-hidden="true"></i> OPERATIVNI PREGLEDI</button>
         </div>
       </section>
 
@@ -81,7 +94,7 @@
         </div>
       </section>
 
-      <section id="my-payment-requests" class="section" data-section>
+      <section id="my-payment-requests" class="section" data-section data-autoload="loadMyRequests">
         <div class="card">
           <h2>Moji zahtevi</h2>
           <button id="load-my-requests-btn" type="button">Učitaj moje zahteve</button>
@@ -89,7 +102,7 @@
         </div>
       </section>
 
-      <section id="approval-requests" class="section" data-section>
+      <section id="approval-requests" class="section" data-section data-autoload="loadApprovalRequests">
         <div class="card">
           <h2>Zahtevi za odobrenje</h2>
           <button id="load-approval-requests-btn" type="button">Učitaj zahteve</button>
@@ -97,7 +110,7 @@
         </div>
       </section>
 
-      <section id="orders-waiting" class="section" data-section>
+      <section id="orders-waiting" class="section" data-section data-autoload="loadWaitingOrders">
         <div class="card">
           <h2>Nalozi za isplatu</h2>
           <button id="load-waiting-orders-btn" type="button">Učitaj naloge</button>
@@ -105,14 +118,22 @@
         </div>
       </section>
 
-      <section id="execute-payment" class="section" data-section>
+      <section id="execute-payment" class="section" data-section data-autoload="loadWaitingOrdersForExecution">
         <div class="card">
           <h2>Izvrši nalog</h2>
+          <button id="load-waiting-orders-for-execution-btn" type="button"><i class="ti ti-refresh" aria-hidden="true"></i> Učitaj naloge</button>
+          <div id="execution-orders-list" class="list"></div>
+        </div>
+        <div class="card" id="execute-payment-form-card" style="display:none">
+          <h3 id="execute-payment-order-summary">Izabrani nalog</h3>
           <form id="execute-payment-form" class="form-grid">
-            <label>ID naloga <input name="order_id" required></label>
-            <label>Iznos <input name="amount" type="number" step="0.01"></label>
+            <input name="order_id" type="hidden" required>
+            <label>Iznos isplate <input name="amount" type="number" step="0.01" placeholder="Ostavite prazno za puni iznos"></label>
             <label>Napomena <textarea name="note"></textarea></label>
-            <button class="primary" type="submit">Izvrši isplatu</button>
+            <div class="actions">
+              <button class="primary" type="submit"><i class="ti ti-check" aria-hidden="true"></i> Izvrši isplatu</button>
+              <button id="cancel-execution-btn" type="button">Otkaži</button>
+            </div>
           </form>
           <div id="execute-payment-result" class="result-box"></div>
         </div>
@@ -183,7 +204,7 @@
           <form id="handover-shift-form" class="form-grid">
             <label>ID smene <input name="shift_id" required></label>
             <label>Email primaoca <input name="handover_to" type="email" required></label>
-            <label>Fizičko stanje JSON <textarea name="physical_balance_json" placeholder='{"RSD":100000,"EUR":500}'></textarea></label>
+            <div class="currency-balance-inputs" data-physical-balance-inputs></div>
             <label>Napomena <textarea name="note"></textarea></label>
             <button type="submit">Predaj smenu</button>
           </form>
@@ -192,7 +213,7 @@
           <h3>Zatvori smenu</h3>
           <form id="close-shift-form" class="form-grid">
             <label>ID smene <input name="shift_id" required></label>
-            <label>Fizičko stanje JSON <textarea name="physical_balance_json" placeholder='{"RSD":100000,"EUR":500}' required></textarea></label>
+            <div class="currency-balance-inputs" data-physical-balance-inputs></div>
             <label>Napomena <textarea name="note"></textarea></label>
             <button class="primary" type="submit">Zatvori smenu</button>
           </form>
@@ -244,6 +265,12 @@
         </div>
       </section>
     </main>
+    <nav class="bottom-nav" aria-label="Navigacija">
+      <button class="tab-btn active" data-target="home" type="button"><i class="ti ti-home" aria-hidden="true"></i><span>Početna</span></button>
+      <button class="tab-btn" data-target="approval-requests" type="button"><i class="ti ti-inbox" aria-hidden="true"></i><span>Zahtevi</span><span class="tab-count" data-tab-count="approval-requests" style="display:none"></span></button>
+      <button class="tab-btn" data-target="orders-waiting" type="button"><i class="ti ti-file-invoice" aria-hidden="true"></i><span>Nalozi</span><span class="tab-count" data-tab-count="orders-waiting" style="display:none"></span></button>
+      <button class="tab-btn" data-target="daily-closing" type="button"><i class="ti ti-scale" aria-hidden="true"></i><span>Zaključak</span></button>
+    </nav>
     <?!= include('html/scripts'); ?>
   </body>
 </html>

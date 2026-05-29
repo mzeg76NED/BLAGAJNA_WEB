@@ -9,6 +9,8 @@ Ovaj dokument navodi poznata ograničenja trenutne pilot verzije sistema.
 3. Concurrent writes moraju se pažljivo testirati tokom pilota.
 4. User identity zavisi od Apps Script deployment podešavanja.
 5. Offline rad nije podržan.
+6. Apps Script pozivi mogu biti spori, posebno kada backend čita više Google Sheets tabela.
+7. Apps Script iframe može ograničiti automatsko UI testiranje kroz DOM.
 
 ## Integracije
 
@@ -41,3 +43,4 @@ Ovaj dokument navodi poznata ograničenja trenutne pilot verzije sistema.
 4. Backup must be operationally enforced.
 5. Pre svake veće izmene treba napraviti svežu kopiju Google Sheet baze.
 6. Poznati problemi iz pilota moraju se voditi u `docs/23_KNOWN_ISSUES_REGISTER.md`.
+7. Dnevni zaključak zaključava uključene događaje i ne treba ga rutinski izvršavati nad pilot podacima bez odobrenja.

@@ -73,6 +73,7 @@ function executePaymentOrder(orderId, paymentData) {
     }
 
     assertActiveCashbox(paymentCashboxId);
+    assertCashboxAccess(paymentCashboxId);
     assertActiveCurrency(paymentCurrency);
 
     const previousBalance = calculateCashboxBalance(paymentCashboxId, paymentCurrency);
@@ -159,6 +160,7 @@ function createCashInflow(data) {
   assertNonEmptyString(inflowData.description, 'description');
   assertPositiveAmount(inflowData.amount);
   assertActiveCashbox(inflowData.cashbox_id);
+  assertCashboxAccess(inflowData.cashbox_id);
   assertActiveCurrency(inflowData.currency);
 
   const now = getCurrentTimestamp_();

@@ -56,98 +56,106 @@ const PAYMENT_ORDER_WAITING_LIST_ROLES_ = Object.freeze([
 ]);
 
 function createPaymentOrderFromRequest(requestId, orderData) {
-  const currentUser = requireActiveUserWithRole_(PAYMENT_ORDER_CREATOR_ROLES_);
-  assertNonEmptyString(requestId, 'requestId');
-  const data = orderData || {};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
 
-  const requestMatch = getPaymentRequestMatchOrThrow_(requestId);
-  const request = requestMatch.record;
-  assertEntityStatus(request, [REQUEST_STATUSES.APPROVED], 'Payment Request');
+  try {
+    const currentUser = requireActiveUserWithRole_(PAYMENT_ORDER_CREATOR_ROLES_);
+    assertNonEmptyString(requestId, 'requestId');
+    const data = orderData || {};
 
-  if (request.linked_order_id) {
-    throw new Error('Payment Request already has linked payment order: ' + request.linked_order_id);
-  }
-  assertNoActiveOrderForRequest_(requestId);
+    const requestMatch = getPaymentRequestMatchOrThrow_(requestId);
+    const request = requestMatch.record;
+    assertEntityStatus(request, [REQUEST_STATUSES.APPROVED], 'Payment Request');
 
-  assertRequiredFields(data, ['cashbox_id']);
-  assertActiveCashbox(data.cashbox_id);
-
-  const amountOrdered = Number(data.amount_ordered || request.amount);
-  const currency = data.currency || request.currency;
-  const priority = data.priority || request.priority || REQUEST_PRIORITIES.NORMAL;
-  const documentStatus = data.document_status || DOCUMENT_STATUSES.NONE;
-
-  assertPositiveAmount(amountOrdered);
-  assertActiveCurrency(currency);
-  assertAllowedValue(priority, objectValues_(REQUEST_PRIORITIES), 'priority');
-  assertAllowedValue(documentStatus, [
-    DOCUMENT_STATUSES.NONE,
-    DOCUMENT_STATUSES.MISSING,
-    DOCUMENT_STATUSES.ATTACHED
-  ], 'document_status');
-
-  const now = getCurrentTimestamp_();
-  const order = {
-    order_id: generateId_('ORD'),
-    created_at: now,
-    created_by: currentUser.email,
-    source_request_id: request.request_id,
-    order_type: ORDER_TYPES.FROM_REQUEST,
-    cashbox_id: data.cashbox_id,
-    pay_to_name: data.pay_to_name || request.requested_for_name,
-    amount_ordered: amountOrdered,
-    amount_paid: 0,
-    currency: currency,
-    purpose: data.purpose || request.purpose,
-    description: buildOrderDescriptionFromRequest_(request.description, data.description),
-    due_date: data.due_date || request.needed_by_date || '',
-    priority: priority,
-    status: ORDER_STATUSES.DRAFT,
-    issued_by: '',
-    issued_at: '',
-    executed_by: '',
-    executed_at: '',
-    linked_cash_event_id: '',
-    document_status: documentStatus,
-    cancellation_reason: '',
-    cashier_rejection_reason: '',
-    updated_at: ''
-  };
-
-  assertNonEmptyString(order.pay_to_name, 'pay_to_name');
-  assertNonEmptyString(order.purpose, 'purpose');
-
-  appendRecord(SHEET_NAMES.PAYMENT_ORDERS, order);
-
-  const updatedRequest = updateRecordById(
-    SHEET_NAMES.PAYMENT_REQUESTS,
-    'request_id',
-    request.request_id,
-    {
-      status: REQUEST_STATUSES.CONVERTED_TO_ORDER,
-      linked_order_id: order.order_id,
-      updated_at: now
+    if (request.linked_order_id) {
+      throw new Error('Payment Request already has linked payment order: ' + request.linked_order_id);
     }
-  );
+    assertNoActiveOrderForRequest_(requestId);
 
-  writeAuditLog(
-    AUDIT_ACTIONS.CREATE,
-    SHEET_NAMES.PAYMENT_ORDERS,
-    order.order_id,
-    null,
-    order,
-    'Payment order created from approved request. Order does not affect cashbox balance.'
-  );
-  writeAuditLog(
-    AUDIT_ACTIONS.UPDATE,
-    SHEET_NAMES.PAYMENT_REQUESTS,
-    request.request_id,
-    request,
-    updatedRequest,
-    'Payment request converted to payment order.'
-  );
+    assertRequiredFields(data, ['cashbox_id']);
+    assertActiveCashbox(data.cashbox_id);
+    assertCashboxAccess(data.cashbox_id);
 
-  return order;
+    const amountOrdered = Number(data.amount_ordered || request.amount);
+    const currency = data.currency || request.currency;
+    const priority = data.priority || request.priority || REQUEST_PRIORITIES.NORMAL;
+    const documentStatus = data.document_status || DOCUMENT_STATUSES.NONE;
+
+    assertPositiveAmount(amountOrdered);
+    assertActiveCurrency(currency);
+    assertAllowedValue(priority, objectValues_(REQUEST_PRIORITIES), 'priority');
+    assertAllowedValue(documentStatus, [
+      DOCUMENT_STATUSES.NONE,
+      DOCUMENT_STATUSES.MISSING,
+      DOCUMENT_STATUSES.ATTACHED
+    ], 'document_status');
+
+    const now = getCurrentTimestamp_();
+    const order = {
+      order_id: generateId_('ORD'),
+      created_at: now,
+      created_by: currentUser.email,
+      source_request_id: request.request_id,
+      order_type: ORDER_TYPES.FROM_REQUEST,
+      cashbox_id: data.cashbox_id,
+      pay_to_name: data.pay_to_name || request.requested_for_name,
+      amount_ordered: amountOrdered,
+      amount_paid: 0,
+      currency: currency,
+      purpose: data.purpose || request.purpose,
+      description: buildOrderDescriptionFromRequest_(request.description, data.description),
+      due_date: data.due_date || request.needed_by_date || '',
+      priority: priority,
+      status: ORDER_STATUSES.DRAFT,
+      issued_by: '',
+      issued_at: '',
+      executed_by: '',
+      executed_at: '',
+      linked_cash_event_id: '',
+      document_status: documentStatus,
+      cancellation_reason: '',
+      cashier_rejection_reason: '',
+      updated_at: ''
+    };
+
+    assertNonEmptyString(order.pay_to_name, 'pay_to_name');
+    assertNonEmptyString(order.purpose, 'purpose');
+
+    appendRecord(SHEET_NAMES.PAYMENT_ORDERS, order);
+
+    const updatedRequest = updateRecordById(
+      SHEET_NAMES.PAYMENT_REQUESTS,
+      'request_id',
+      request.request_id,
+      {
+        status: REQUEST_STATUSES.CONVERTED_TO_ORDER,
+        linked_order_id: order.order_id,
+        updated_at: now
+      }
+    );
+
+    writeAuditLog(
+      AUDIT_ACTIONS.CREATE,
+      SHEET_NAMES.PAYMENT_ORDERS,
+      order.order_id,
+      null,
+      order,
+      'Payment order created from approved request. Order does not affect cashbox balance.'
+    );
+    writeAuditLog(
+      AUDIT_ACTIONS.UPDATE,
+      SHEET_NAMES.PAYMENT_REQUESTS,
+      request.request_id,
+      request,
+      updatedRequest,
+      'Payment request converted to payment order.'
+    );
+
+    return order;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function createDirectPaymentOrder(orderData) {
@@ -166,6 +174,7 @@ function createDirectPaymentOrder(orderData) {
   assertPositiveAmount(data.amount_ordered);
   assertActiveCurrency(data.currency);
   assertActiveCashbox(data.cashbox_id);
+  assertCashboxAccess(data.cashbox_id);
 
   const priority = data.priority || REQUEST_PRIORITIES.NORMAL;
   const documentStatus = data.document_status || DOCUMENT_STATUSES.NONE;
@@ -359,7 +368,21 @@ function listPaymentOrders(filters) {
 }
 
 function markPaymentOrderClosed(orderId, reason) {
-  throw new Error('Payment Order closing is handled after payment execution in Task 05 or later.');
+  assertNonEmptyString(orderId, 'orderId');
+  const match = getPaymentOrderMatchOrThrow_(orderId);
+  if (match.record.status === ORDER_STATUSES.CLOSED) {
+    return match.record;
+  }
+  assertEntityStatus(match.record, [ORDER_STATUSES.PAID], 'Payment Order');
+  return updatePaymentOrderWithAudit_(
+    orderId,
+    {
+      status: ORDER_STATUSES.CLOSED,
+      updated_at: getCurrentTimestamp_()
+    },
+    AUDIT_ACTIONS.UPDATE,
+    reason || 'Payment order closed after completed payment.'
+  );
 }
 
 function getPaymentOrderMatchOrThrow_(orderId) {

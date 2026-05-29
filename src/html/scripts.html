@@ -5,6 +5,94 @@
     loading: false
   };
 
+  var SESSION = {
+    cashboxId: '',
+    cashboxName: '',
+    currency: 'RSD'
+  };
+
+  var AUTOLOAD_MAP = {};
+
+  var STATUS_BADGE_MAP = {
+    'DRAFT': 'badge-draft',
+    'SUBMITTED': 'badge-submitted',
+    'IN_REVIEW': 'badge-in-review',
+    'APPROVED': 'badge-approved',
+    'REJECTED': 'badge-rejected',
+    'CANCELLED': 'badge-cancelled',
+    'CONVERTED_TO_ORDER': 'badge-approved',
+    'WAITING_PAYMENT': 'badge-waiting',
+    'PARTIALLY_PAID': 'badge-partially',
+    'PAID': 'badge-paid',
+    'CLOSED': 'badge-closed',
+    'REJECTED_BY_CASHIER': 'badge-rejected',
+    'POSTED': 'badge-posted',
+    'LOCKED': 'badge-locked',
+    'REVERSED': 'badge-reversed',
+    'OPEN': 'badge-open',
+    'CLOSED_WITH_DIFFERENCE': 'badge-difference'
+  };
+
+  var STATUS_LABEL_MAP = {
+    'DRAFT': 'Nacrt',
+    'SUBMITTED': 'Podnet',
+    'IN_REVIEW': 'U obradi',
+    'APPROVED': 'Odobren',
+    'REJECTED': 'Odbijen',
+    'CANCELLED': 'Otkazan',
+    'CONVERTED_TO_ORDER': 'Pretvoren u nalog',
+    'WAITING_PAYMENT': 'Čeka isplatu',
+    'PARTIALLY_PAID': 'Delimično isplaćen',
+    'PAID': 'Isplaćen',
+    'CLOSED': 'Zatvoren',
+    'REJECTED_BY_CASHIER': 'Odbio blagajnik',
+    'POSTED': 'Proknjižen',
+    'LOCKED': 'Zaključan',
+    'REVERSED': 'Storniran',
+    'OPEN': 'Otvorena',
+    'CLOSED_WITH_DIFFERENCE': 'Zatvorena s razlikom'
+  };
+
+  var FIELD_LABEL_MAP = {
+    request_id: 'ID zahteva',
+    order_id: 'ID naloga',
+    event_id: 'ID događaja',
+    shift_id: 'ID smene',
+    closing_id: 'ID zaključka',
+    created_at: 'Kreirano',
+    created_by: 'Kreirao',
+    requested_for_name: 'Primalac',
+    pay_to_name: 'Primalac',
+    amount: 'Iznos',
+    amount_ordered: 'Iznos naloga',
+    amount_paid: 'Isplaćeno',
+    remaining_amount: 'Preostalo',
+    currency: 'Valuta',
+    purpose: 'Svrha',
+    description: 'Opis',
+    priority: 'Prioritet',
+    status: 'Status',
+    document_status: 'Dokument',
+    event_date: 'Datum',
+    event_type: 'Tip',
+    direction: 'Smer',
+    signed_amount: 'Iznos sa smerom',
+    partner_name: 'Partner',
+    linked_order_id: 'Povezan nalog',
+    source_request_id: 'Povezan zahtev',
+    cashbox_name: 'Blagajna',
+    balance: 'Stanje',
+    calculated_balance: 'Obračunato',
+    physical_balance: 'Fizički',
+    difference: 'Razlika',
+    closing_date: 'Datum zaključka',
+    entity_type: 'Tip entiteta',
+    entity_id: 'ID entiteta',
+    date: 'Datum',
+    opened_at: 'Otvoreno',
+    opened_by: 'Otvorio'
+  };
+
   document.addEventListener('DOMContentLoaded', function() {
     bindUi();
     var activeSection = document.querySelector('[data-section].active');
@@ -12,10 +100,14 @@
     callApi('apiGetUiBootstrap', [Boolean(document.getElementById('desktop-user-card'))], function(data) {
       uiState.config = data.config || {};
       uiState.currentUser = data.user || null;
+      initializeSession();
       fillConfigOptions();
       setTodayDefaults();
+      renderPhysicalBalanceInputs();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
+      applyRoleBasedHomeMobile_(uiState.currentUser && uiState.currentUser.role);
+      refreshUrgentAlert();
       if (data.dashboard) {
         renderDesktopDashboard(data.dashboard);
       }
@@ -23,6 +115,13 @@
   });
 
   function bindUi() {
+    AUTOLOAD_MAP = {
+      loadMyRequests: loadMyRequests,
+      loadApprovalRequests: loadApprovalRequests,
+      loadWaitingOrders: loadWaitingOrders,
+      loadWaitingOrdersForExecution: loadWaitingOrdersForExecution
+    };
+
     document.querySelectorAll('[data-target]').forEach(function(button) {
       button.addEventListener('click', function() {
         showSection(button.getAttribute('data-target'));
@@ -48,6 +147,9 @@
     bindClick('load-my-requests-btn', loadMyRequests);
     bindClick('load-approval-requests-btn', loadApprovalRequests);
     bindClick('load-waiting-orders-btn', loadWaitingOrders);
+    bindClick('load-waiting-orders-for-execution-btn', loadWaitingOrdersForExecution);
+    bindClick('cancel-execution-btn', cancelExecutionSelection);
+    bindClick('close-detail-panel-btn', closeRequestDetailPanel);
     bindClick('load-my-shifts-home-btn', loadMyShifts);
 
     bindForm('execute-payment-form', function(data) {
@@ -57,6 +159,8 @@
       })], function(result) {
         renderPaymentExecutionSummary('execute-payment-result', result);
         loadWaitingOrders(true);
+        loadWaitingOrdersForExecution(true);
+        cancelExecutionSelection();
         refreshDashboardInBackground();
       }, { successMessage: 'Isplata je uspešno izvršena.' });
     });
@@ -109,14 +213,14 @@
       });
     });
 
-    bindForm('handover-shift-form', function(data) {
-      callApi('apiHandoverShift', [data.shift_id, data.handover_to, data.physical_balance_json, data.note], function(result) {
+    bindForm('handover-shift-form', function(data, form) {
+      callApi('apiHandoverShift', [data.shift_id, data.handover_to, collectPhysicalBalance_(form), data.note], function(result) {
         renderShiftSummary('shift-result', result, 'Primopredaja je evidentirana');
       }, { successMessage: 'Primopredaja je evidentirana.' });
     });
 
-    bindForm('close-shift-form', function(data) {
-      callApi('apiCloseShift', [data.shift_id, data.physical_balance_json, data.note], function(result) {
+    bindForm('close-shift-form', function(data, form) {
+      callApi('apiCloseShift', [data.shift_id, collectPhysicalBalance_(form), data.note], function(result) {
         renderShiftSummary('shift-result', result, 'Smena je zatvorena');
         refreshDashboardInBackground();
       }, { successMessage: 'Smena je zatvorena.' });
@@ -130,6 +234,9 @@
     });
 
     bindForm('daily-close-form', function(data) {
+      if (!confirm('Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?')) {
+        return;
+      }
       data = withUiDefaults(data);
       callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
         renderDailyClosingSummary('daily-closing-result', result, 'Dnevni zaključak je kreiran');
@@ -173,7 +280,7 @@
     });
     bindClick('desktop-load-requests-btn', function() {
       callApi('apiListRequestsForApproval', [], function(result) {
-        renderActionRecords('desktop-table-result', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], requestApprovalActions_);
+        renderDesktopRequestRecords(result || []);
       });
     });
     bindClick('desktop-load-orders-btn', function() {
@@ -251,6 +358,66 @@
     });
   }
 
+  function initializeSession() {
+    var config = uiState.config || {};
+    var cashboxes = config.cashboxes || [];
+    var cashboxId = config.defaultCashboxId || (cashboxes[0] && cashboxes[0].cashbox_id) || 'CB_MAIN';
+    var cashbox = cashboxes.filter(function(item) {
+      return item.cashbox_id === cashboxId;
+    })[0] || { cashbox_id: cashboxId, name: config.defaultCashboxName || cashboxId };
+    SESSION.cashboxId = cashbox.cashbox_id;
+    SESSION.cashboxName = cashbox.name || cashbox.cashbox_id;
+    SESSION.currency = config.defaultCurrency || (config.currencies && config.currencies[0]) || 'RSD';
+    updateContextDisplay_();
+  }
+
+  function updateContextDisplay_() {
+    document.querySelectorAll('[data-session-cashbox]').forEach(function(element) {
+      element.textContent = SESSION.cashboxName || SESSION.cashboxId || 'Blagajna nije izabrana';
+    });
+    document.querySelectorAll('[data-session-currency-select]').forEach(function(select) {
+      var values = uiState.config.currencies || ['RSD', 'EUR'];
+      if (!select.options.length) {
+        select.innerHTML = values.map(function(value) {
+          return '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + '</option>';
+        }).join('');
+        select.addEventListener('change', function() {
+          SESSION.currency = select.value || 'RSD';
+          syncCurrencyFields_();
+        });
+      }
+      select.value = SESSION.currency;
+    });
+    syncCurrencyFields_();
+  }
+
+  function syncCurrencyFields_() {
+    document.querySelectorAll('[data-currency-options]').forEach(function(select) {
+      if (select.value !== SESSION.currency) {
+        select.value = SESSION.currency;
+      }
+    });
+  }
+
+  function renderPhysicalBalanceInputs() {
+    var currencies = uiState.config.currencies || ['RSD', 'EUR'];
+    document.querySelectorAll('[data-physical-balance-inputs]').forEach(function(container) {
+      container.innerHTML = currencies.map(function(currency) {
+        return '<label>Fizičko stanje - ' + escapeHtml(currency) +
+          '<input name="physical_' + escapeHtml(currency) + '" type="number" step="0.01" min="0" placeholder="0.00"></label>';
+      }).join('');
+    });
+  }
+
+  function collectPhysicalBalance_(form) {
+    var result = {};
+    Array.prototype.forEach.call(form.querySelectorAll('[name^="physical_"]'), function(input) {
+      var currency = input.name.replace('physical_', '');
+      result[currency] = parseFloat(input.value) || 0;
+    });
+    return result;
+  }
+
   function callApi(functionName, args, onSuccess, options) {
     options = options || {};
     if (!window.google || !google.script || !google.script.run) {
@@ -292,6 +459,14 @@
     document.querySelectorAll('[data-section]').forEach(function(section) {
       section.classList.toggle('active', section.id === sectionId);
     });
+    document.querySelectorAll('.tab-btn').forEach(function(button) {
+      button.classList.toggle('active', button.getAttribute('data-target') === sectionId);
+    });
+    var activeSection = document.getElementById(sectionId);
+    var autoload = activeSection ? activeSection.getAttribute('data-autoload') : '';
+    if (autoload && AUTOLOAD_MAP[autoload]) {
+      AUTOLOAD_MAP[autoload](true);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -376,13 +551,89 @@
   function loadApprovalRequests(isBackground) {
     callApi('apiListRequestsForApproval', [], function(result) {
       renderActionRecords('approval-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], requestApprovalActions_);
+      updateTabCounts_(result.length, null);
     }, { quiet: Boolean(isBackground) });
   }
 
   function loadWaitingOrders(isBackground) {
     callApi('apiListOrdersWaitingForPayment', [], function(result) {
       renderActionRecords('waiting-orders-list', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'purpose'], waitingOrderActions_);
+      updateTabCounts_(null, result.length);
+      renderUrgentAlert_(result.length);
     }, { quiet: Boolean(isBackground) });
+  }
+
+  function loadWaitingOrdersForExecution(isBackground) {
+    callApi('apiListOrdersWaitingForPayment', [], function(result) {
+      renderActionRecords('execution-orders-list', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'purpose', 'priority'], function(record) {
+        return [actionButton('Izaberi nalog', function() {
+          selectOrderForExecution(record);
+        })];
+      });
+      updateTabCounts_(null, result.length);
+      renderUrgentAlert_(result.length);
+    }, { quiet: Boolean(isBackground) });
+  }
+
+  function selectOrderForExecution(record) {
+    setInputValue('execute-payment-form', 'order_id', record.order_id);
+    var remaining = Number(record.amount_ordered || 0) - Number(record.amount_paid || 0);
+    setText('execute-payment-order-summary',
+      record.order_id + ' · ' + (record.pay_to_name || '') + ' · preostalo ' + formatNumber_(remaining) + ' ' + (record.currency || '')
+    );
+    var card = document.getElementById('execute-payment-form-card');
+    if (card) {
+      card.style.display = '';
+    }
+  }
+
+  function cancelExecutionSelection() {
+    setInputValue('execute-payment-form', 'order_id', '');
+    var card = document.getElementById('execute-payment-form-card');
+    if (card) {
+      card.style.display = 'none';
+    }
+  }
+
+  function refreshUrgentAlert() {
+    if (!document.getElementById('urgent-alert')) {
+      return;
+    }
+    callApi('apiListOrdersWaitingForPayment', [], function(result) {
+      renderUrgentAlert_((result || []).length);
+      updateTabCounts_(null, (result || []).length);
+    }, { quiet: true });
+  }
+
+  function renderUrgentAlert_(count) {
+    var alert = document.getElementById('urgent-alert');
+    var title = document.getElementById('urgent-alert-title');
+    if (!alert || !title) {
+      return;
+    }
+    title.textContent = count + ' naloga čeka izvršenje';
+    alert.style.display = count > 0 ? '' : 'none';
+    alert.onclick = function() {
+      showSection('orders-waiting');
+    };
+  }
+
+  function updateTabCounts_(approvalCount, ordersCount) {
+    if (approvalCount !== null && approvalCount !== undefined) {
+      updateTabCount_('approval-requests', approvalCount);
+    }
+    if (ordersCount !== null && ordersCount !== undefined) {
+      updateTabCount_('orders-waiting', ordersCount);
+    }
+  }
+
+  function updateTabCount_(target, count) {
+    var element = document.querySelector('[data-tab-count="' + target + '"]');
+    if (!element) {
+      return;
+    }
+    element.textContent = count;
+    element.style.display = count > 0 ? 'inline-block' : 'none';
   }
 
   function requestApprovalActions_(record) {
@@ -483,7 +734,11 @@
 
   function loadReport(apiName, formId, targetId, fields) {
     callApi(apiName, [withUiDefaults(serializeForm(formId))], function(result) {
-      renderTable(targetId, result || [], fields);
+      if (targetId === 'mobile-reports-result') {
+        renderRecords(targetId, result || [], fields);
+      } else {
+        renderTable(targetId, result || [], fields);
+      }
     });
   }
 
@@ -505,6 +760,27 @@
     setText('desktop-closings-card', String(summary.dailyClosingsTodayCount || 0));
     setText('desktop-differences-card', String(summary.differencesCount || 0));
     setText('desktop-reversals-card', String(summary.reversalsTodayCount || 0));
+    renderKpiCards_(summary);
+  }
+
+  function renderKpiCards_(summary) {
+    var primaryBalance = summary && summary.balances && summary.balances[0] ? summary.balances[0] : null;
+    var balanceValue = primaryBalance ? formatNumber_(primaryBalance.balance) + ' ' + primaryBalance.currency : '-';
+    setText('kpi-balance-value', balanceValue);
+    setText('kpi-balance-sub', primaryBalance ? (primaryBalance.cashbox_name || primaryBalance.cashbox_id || '') : '');
+    setText('kpi-approval-value', String(summary.requestsForApprovalCount || 0));
+    setText('kpi-orders-value', String(summary.ordersWaitingPaymentCount || 0));
+    setText('kpi-docs-value', String(summary.missingDocumentsCount || 0));
+    toggleKpiClass_('kpi-balance', 'kpi-success', primaryBalance && Number(primaryBalance.balance) > 0);
+    toggleKpiClass_('kpi-approval', 'kpi-warn', Number(summary.requestsForApprovalCount || 0) > 0);
+    toggleKpiClass_('kpi-orders', 'kpi-danger', Number(summary.ordersWaitingPaymentCount || 0) > 0);
+  }
+
+  function toggleKpiClass_(id, className, enabled) {
+    var element = document.getElementById(id);
+    if (element) {
+      element.classList.toggle(className, Boolean(enabled));
+    }
   }
 
   function openPrintView(view, id) {
@@ -558,6 +834,13 @@
       select.innerHTML = values.map(function(value) {
         return '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + '</option>';
       }).join('');
+      if (selector === '[data-currency-options]') {
+        select.value = SESSION.currency || values[0] || 'RSD';
+        select.addEventListener('change', function() {
+          SESSION.currency = select.value || SESSION.currency;
+          updateContextDisplay_();
+        });
+      }
     });
   }
 
@@ -581,11 +864,15 @@
     if (!result.cashbox_id) {
       result.cashbox_id = getDefaultCashboxId();
     }
+    if (!result.currency) {
+      result.currency = SESSION.currency || 'RSD';
+    }
     return cleanObject(result);
   }
 
   function getDefaultCashboxId() {
-    return (uiState.config && uiState.config.defaultCashboxId) ||
+    return SESSION.cashboxId ||
+      (uiState.config && uiState.config.defaultCashboxId) ||
       (uiState.currentUser && uiState.currentUser.default_cashbox_id) ||
       'CB_MAIN';
   }
@@ -596,10 +883,28 @@
     });
   }
 
+  function applyRoleBasedHomeMobile_(role) {
+    var visibility = {
+      'home-group-requests': ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','APPROVER','CASHIER','REQUESTER'],
+      'home-group-approval': ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','APPROVER'],
+      'home-group-orders': ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','CASHIER'],
+      'home-group-cashbox': ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','CASHIER'],
+      'home-group-shift': ['ADMIN','CASHIER_SUPERVISOR','CASHIER'],
+      'home-group-closing': ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR'],
+      'home-group-reports': ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR']
+    };
+    Object.keys(visibility).forEach(function(groupId) {
+      var element = document.getElementById(groupId);
+      if (element) {
+        element.style.display = visibility[groupId].indexOf(role) !== -1 ? '' : 'none';
+      }
+    });
+  }
+
   function renderRecords(targetId, records, fields) {
     records = records || [];
     if (records.length === 0) {
-      renderHtml(targetId, '<div class="record">Nema podataka.</div>');
+      renderHtml(targetId, renderEmptyState_('Nema podataka.'));
       return;
     }
     renderHtml(targetId, records.map(function(record) {
@@ -610,7 +915,7 @@
   function renderActionRecords(targetId, records, fields, actionsFactory) {
     records = records || [];
     if (records.length === 0) {
-      renderHtml(targetId, '<div class="record">Nema podataka.</div>');
+      renderHtml(targetId, renderEmptyState_(emptyStateMessageFor_(targetId)));
       return;
     }
     var html = records.map(function(record, index) {
@@ -626,16 +931,70 @@
     renderHtml(targetId, html);
   }
 
+  function renderDesktopRequestRecords(records) {
+    records = records || [];
+    if (!records.length) {
+      renderHtml('desktop-table-result', renderEmptyState_('Nema zahteva koji čekaju odobrenje.'));
+      closeRequestDetailPanel();
+      return;
+    }
+    window.__desktopRequestRecords = records;
+    var html = records.map(function(record, index) {
+      var body = recordHtml(record, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], []);
+      return body.replace('<div class="record"', '<div class="record" role="button" tabindex="0" onclick="showRequestDetailPanel(' + index + ')"');
+    }).join('');
+    renderHtml('desktop-table-result', html);
+  }
+
+  function showRequestDetailPanel(index) {
+    var record = (window.__desktopRequestRecords || [])[index];
+    if (!record) {
+      return;
+    }
+    var panel = document.getElementById('request-detail-panel');
+    var body = document.getElementById('detail-panel-body');
+    if (!panel || !body) {
+      return;
+    }
+    var actions = requestApprovalActions_(record).map(function(action, actionIndex) {
+      var key = 'detail-' + index + '-' + actionIndex + '-' + Date.now();
+      window.__recordActions = window.__recordActions || {};
+      window.__recordActions[key] = action.handler;
+      return '<button class="small ' + escapeHtml(action.kind || '') + '" onclick="window.__recordActions[\'' + key + '\']()">' + escapeHtml(action.label) + '</button>';
+    }).join('');
+    body.innerHTML = [
+      detailRow_('ID zahteva', record.request_id),
+      detailRow_('Primalac', record.requested_for_name),
+      detailRow_('Iznos', amountWithCurrency(record.amount, record.currency), true),
+      detailRow_('Svrha', record.purpose),
+      detailRow_('Prioritet', renderPriorityBadge(record.priority) || record.priority, Boolean(renderPriorityBadge(record.priority))),
+      detailRow_('Status', renderStatusBadge(record.status), true),
+      actions ? '<div class="actions">' + actions + '</div>' : ''
+    ].join('');
+    panel.style.display = '';
+  }
+
+  function closeRequestDetailPanel() {
+    var panel = document.getElementById('request-detail-panel');
+    if (panel) {
+      panel.style.display = 'none';
+    }
+  }
+
+  function detailRow_(label, value, raw) {
+    return '<div class="detail-row"><span class="detail-key">' + escapeHtml(label) + '</span><span>' + (raw ? formatValue(value) : escapeHtml(formatValue(value))) + '</span></div>';
+  }
+
   function renderTable(targetId, records, fields) {
     records = records || [];
     if (records.length === 0) {
-      renderHtml(targetId, '<div class="record">Nema podataka.</div>');
+      renderHtml(targetId, renderEmptyState_(emptyStateMessageFor_(targetId)));
       return;
     }
-    var head = fields.map(function(field) { return '<th>' + escapeHtml(field) + '</th>'; }).join('');
+    var head = fields.map(function(field) { return '<th>' + escapeHtml(labelForField_(field)) + '</th>'; }).join('');
     var rows = records.map(function(record) {
       return '<tr>' + fields.map(function(field) {
-        return '<td>' + escapeHtml(formatValue(record[field])) + '</td>';
+        return '<td>' + formatCellHtml_(field, record[field]) + '</td>';
       }).join('') + '</tr>';
     }).join('');
     renderHtml(targetId, '<div class="table-wrap"><table><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>');
@@ -644,9 +1003,55 @@
   function recordHtml(record, fields, extraHtml) {
     var title = fields.length ? formatValue(record[fields[0]]) : 'Zapis';
     var body = fields.slice(1).map(function(field) {
-      return '<div><span class="badge">' + escapeHtml(field) + '</span> ' + escapeHtml(formatValue(record[field])) + '</div>';
+      return '<div><span class="badge">' + escapeHtml(labelForField_(field)) + '</span> ' + formatCellHtml_(field, record[field]) + '</div>';
     }).join('');
-    return '<div class="record"><div class="record-title">' + escapeHtml(title) + '</div>' + body + (extraHtml || []).join('') + '</div>';
+    var priority = renderPriorityBadge(record.priority);
+    return '<div class="record"><div class="record-title">' + escapeHtml(title) + (priority ? ' ' + priority : '') + '</div>' + body + (extraHtml || []).join('') + '</div>';
+  }
+
+  function renderEmptyState_(message) {
+    return '<div class="empty-state"><i class="ti ti-inbox-off" aria-hidden="true"></i><p>' + escapeHtml(message || 'Nema podataka.') + '</p></div>';
+  }
+
+  function emptyStateMessageFor_(targetId) {
+    var messages = {
+      'my-requests-list': 'Nemate podnetih zahteva.',
+      'approval-requests-list': 'Nema zahteva koji čekaju odobrenje.',
+      'waiting-orders-list': 'Nema naloga koji čekaju isplatu.',
+      'execution-orders-list': 'Nema naloga koji čekaju izvršenje.',
+      'daily-closing-result': 'Nema zaključaka za izabrani period.'
+    };
+    return messages[targetId] || 'Nema podataka.';
+  }
+
+  function labelForField_(field) {
+    return FIELD_LABEL_MAP[field] || field;
+  }
+
+  function formatCellHtml_(field, value) {
+    if (field === 'status' || field === 'document_status') {
+      return renderStatusBadge(value);
+    }
+    if (field === 'priority') {
+      return renderPriorityBadge(value) || escapeHtml(formatValue(value));
+    }
+    return escapeHtml(formatValue(value));
+  }
+
+  function renderStatusBadge(status) {
+    if (!status) {
+      return '';
+    }
+    var cls = STATUS_BADGE_MAP[status] || 'badge-draft';
+    var label = STATUS_LABEL_MAP[status] || status;
+    return '<span class="badge ' + cls + '">' + escapeHtml(label) + '</span>';
+  }
+
+  function renderPriorityBadge(priority) {
+    if (priority === 'URGENT') {
+      return '<span class="badge badge-urgent"><i class="ti ti-flame" aria-hidden="true"></i> Hitno</span>';
+    }
+    return '';
   }
 
   function actionButton(label, handler, kind) {
@@ -734,6 +1139,7 @@
       ['Obračunato', amountWithCurrency(closing && closing.calculated_balance, closing && closing.currency)],
       ['Fizički', amountWithCurrency(closing && closing.physical_balance, closing && closing.currency)],
       ['Razlika', amountWithCurrency(closing && closing.difference, closing && closing.currency)],
+      ['Broj događaja', closing && (closing.included_event_count || closing.includedEventsCount)],
       ['Status', closing && closing.status]
     ]);
   }
@@ -742,7 +1148,11 @@
     var body = (rows || []).filter(function(row) {
       return row[1] !== undefined && row[1] !== null && row[1] !== '';
     }).map(function(row) {
+      var label = String(row[0] || '');
       var value = row[2] ? formatValue(row[1]) : escapeHtml(row[1]);
+      if (label.toLowerCase().indexOf('status') !== -1) {
+        value = renderStatusBadge(row[1]);
+      }
       return '<div class="summary-row"><span class="summary-label">' + escapeHtml(row[0]) + '</span><span>' + value + '</span></div>';
     }).join('');
     renderHtml(targetId, '<div class="record summary-card"><div class="record-title">' + escapeHtml(title) + '</div>' + (body || '<div class="muted">Nema dodatnih podataka.</div>') + '</div>');
@@ -794,6 +1204,17 @@
       return JSON.stringify(value);
     }
     return String(value);
+  }
+
+  function formatNumber_(value) {
+    var numberValue = Number(value || 0);
+    if (!isFinite(numberValue)) {
+      return formatValue(value);
+    }
+    return numberValue.toLocaleString('sr-RS', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
   }
 
   function escapeHtml(value) {
