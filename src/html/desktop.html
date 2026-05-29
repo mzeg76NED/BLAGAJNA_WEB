@@ -75,7 +75,7 @@
             <div class="card">
               <h3>Presek blagajne</h3>
               <form id="balance-form" class="form-grid">
-                <label>ID blagajne <input name="cashbox_id"></label>
+                <input name="cashbox_id" type="hidden">
                 <label>Valuta <select name="currency" data-currency-options></select></label>
                 <button type="submit">Prikaži stanje</button>
               </form>
@@ -109,7 +109,7 @@
           <div class="card">
             <h2>Cashbox Balance</h2>
             <form id="desktop-balance-form" class="form-grid two">
-              <label>ID blagajne <input name="cashbox_id"></label>
+              <input name="cashbox_id" type="hidden">
               <label>Valuta <select name="currency" data-currency-options></select></label>
               <button type="submit">Prikaži stanje</button>
             </form>
@@ -155,7 +155,7 @@
           <div class="card">
             <h2>Operativni izveštaji</h2>
             <form id="report-filters-form" class="form-grid two">
-              <label>ID blagajne <input name="cashbox_id"></label>
+              <input name="cashbox_id" type="hidden">
               <label>Valuta <input name="currency" placeholder="RSD, EUR ili prazno za sve"></label>
               <label>Od datuma <input name="date_from" type="date"></label>
               <label>Do datuma <input name="date_to" type="date"></label>
@@ -166,6 +166,7 @@
               <button id="report-open-requests-btn" type="button">Otvoreni zahtevi</button>
               <button id="report-approval-requests-btn" type="button">Zahtevi za odobrenje</button>
               <button id="report-waiting-orders-btn" type="button">Nalozi koji čekaju isplatu</button>
+              <button id="report-cash-movements-btn" type="button">Kretanja blagajne</button>
               <button id="report-executed-payments-btn" type="button">Izvršene isplate</button>
               <button id="report-missing-documents-btn" type="button">Nedostajuća dokumenta</button>
               <button id="report-daily-closings-btn" type="button">Dnevni zaključci</button>

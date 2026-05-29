@@ -14,27 +14,89 @@ const REPORT_VIEW_ROLES_ = Object.freeze([
 function getManagementDashboardSummary(filters) {
   const scopedFilters = normalizeReportFilters_(filters);
   const dateKey = scopedFilters.date || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Europe/Belgrade', 'yyyy-MM-dd');
-  const dailyClosingsToday = getDailyClosingReport(Object.assign({}, scopedFilters, {
-    date_from: dateKey,
-    date_to: dateKey
-  }));
-  const reversalsToday = getCorrectionsAndReversalsReport(Object.assign({}, scopedFilters, {
-    date_from: dateKey,
-    date_to: dateKey
-  })).filter(function(event) {
-    return event.event_type === CASH_EVENT_TYPES.REVERSAL || event.status === CASH_EVENT_STATUSES.REVERSED;
+  const activeCashboxes = getActiveCashboxes_().filter(function(cashbox) {
+    return !scopedFilters.cashbox_id || cashbox.cashbox_id === scopedFilters.cashbox_id;
   });
+  const activeCurrencies = getActiveCurrencies_().filter(function(currency) {
+    return !scopedFilters.currency || currency.currency_code === scopedFilters.currency;
+  });
+  const cashboxIds = activeCashboxes.map(function(cashbox) { return cashbox.cashbox_id; });
+  const currencyCodes = activeCurrencies.map(function(currency) { return currency.currency_code; });
+  const requests = listRecords(SHEET_NAMES.PAYMENT_REQUESTS);
+  const orders = listRecords(SHEET_NAMES.PAYMENT_ORDERS);
+  const cashEvents = listRecords(SHEET_NAMES.CASH_EVENTS);
+  const shifts = listRecords(SHEET_NAMES.SHIFTS);
+  const dailyClosings = listRecords(SHEET_NAMES.DAILY_CLOSING);
+  const balances = activeCashboxes.reduce(function(rows, cashbox) {
+    activeCurrencies.forEach(function(currency) {
+      const balance = cashEvents.reduce(function(total, event) {
+        if (event.cashbox_id !== cashbox.cashbox_id ||
+          event.currency !== currency.currency_code ||
+          !isCashEventBalanceAffecting(event)) {
+          return total;
+        }
+        const amount = safeNumber_(event.amount);
+        return event.direction === 'OUT' ? total - amount : total + amount;
+      }, 0);
+      rows.push({
+        cashbox_id: cashbox.cashbox_id,
+        cashbox_name: cashbox.name || cashbox.cashbox_id,
+        currency: currency.currency_code,
+        balance: balance
+      });
+    });
+    return rows;
+  }, []);
 
   return {
-    balances: getCashboxBalanceReport(scopedFilters),
-    openRequestsCount: getOpenPaymentRequestsReport(scopedFilters).length,
-    requestsForApprovalCount: getRequestsForApprovalReport(scopedFilters).length,
-    ordersWaitingPaymentCount: getOrdersWaitingPaymentReport(scopedFilters).length,
-    missingDocumentsCount: getMissingDocumentsReport(scopedFilters).length,
-    openShiftsCount: getOpenShiftsReport_(scopedFilters).length,
-    dailyClosingsTodayCount: dailyClosingsToday.length,
-    differencesCount: getDifferencesReport(scopedFilters).length,
-    reversalsTodayCount: reversalsToday.length
+    balances: balances,
+    openRequestsCount: requests.filter(function(request) {
+      return [
+        REQUEST_STATUSES.DRAFT,
+        REQUEST_STATUSES.SUBMITTED,
+        REQUEST_STATUSES.IN_REVIEW,
+        REQUEST_STATUSES.APPROVED
+      ].indexOf(request.status) !== -1 &&
+        (!scopedFilters.currency || request.currency === scopedFilters.currency);
+    }).length,
+    requestsForApprovalCount: requests.filter(function(request) {
+      return (request.status === REQUEST_STATUSES.SUBMITTED || request.status === REQUEST_STATUSES.IN_REVIEW) &&
+        (!scopedFilters.currency || request.currency === scopedFilters.currency);
+    }).length,
+    ordersWaitingPaymentCount: orders.filter(function(order) {
+      return (order.status === ORDER_STATUSES.WAITING_PAYMENT || order.status === ORDER_STATUSES.PARTIALLY_PAID) &&
+        cashboxIds.indexOf(order.cashbox_id) !== -1 &&
+        (!scopedFilters.currency || order.currency === scopedFilters.currency);
+    }).length,
+    missingDocumentsCount: []
+      .concat(requests)
+      .concat(orders)
+      .concat(cashEvents)
+      .concat(shifts)
+      .concat(dailyClosings)
+      .filter(function(record) {
+        return record.document_status === DOCUMENT_STATUSES.MISSING;
+      }).length,
+    openShiftsCount: shifts.filter(function(shift) {
+      return shift.status === SHIFT_STATUSES.OPEN && cashboxIds.indexOf(shift.cashbox_id) !== -1;
+    }).length,
+    dailyClosingsTodayCount: dailyClosings.filter(function(closing) {
+      return cashboxIds.indexOf(closing.cashbox_id) !== -1 &&
+        (!scopedFilters.currency || closing.currency === scopedFilters.currency) &&
+        normalizeReportDateKey_(closing.closing_date) === dateKey;
+    }).length,
+    differencesCount: dailyClosings.filter(function(closing) {
+      return cashboxIds.indexOf(closing.cashbox_id) !== -1 &&
+        Math.abs(safeNumber_(closing.difference)) > 0.000001;
+    }).length + shifts.filter(function(shift) {
+      return cashboxIds.indexOf(shift.cashbox_id) !== -1 && hasShiftDifference_(shift);
+    }).length,
+    reversalsTodayCount: cashEvents.filter(function(event) {
+      return cashboxIds.indexOf(event.cashbox_id) !== -1 &&
+        currencyCodes.indexOf(event.currency) !== -1 &&
+        (event.event_type === CASH_EVENT_TYPES.REVERSAL || event.status === CASH_EVENT_STATUSES.REVERSED) &&
+        normalizeReportDateKey_(event.event_date || event.created_at) === dateKey;
+    }).length
   };
 }
 
@@ -174,6 +236,39 @@ function getExecutedPaymentsReport(filters) {
       ]);
     })
     .sort(sortByEventDateDesc_);
+}
+
+function getCashMovementsReport(filters) {
+  const scopedFilters = normalizeReportFilters_(filters);
+  const range = getDateRangeFilter_(scopedFilters);
+  const limit = Number(scopedFilters.limit || 100);
+
+  return listRecords(SHEET_NAMES.CASH_EVENTS)
+    .filter(function(event) {
+      return (!scopedFilters.cashbox_id || event.cashbox_id === scopedFilters.cashbox_id) &&
+        (!scopedFilters.currency || event.currency === scopedFilters.currency) &&
+        (!scopedFilters.status || event.status === scopedFilters.status) &&
+        isDateInRange_(event.event_date || event.created_at, range.dateFrom, range.dateTo);
+    })
+    .map(function(event) {
+      const amount = safeNumber_(event.amount);
+      return {
+        event_date: event.event_date || event.created_at,
+        event_id: event.event_id,
+        event_type: event.event_type,
+        direction: event.direction,
+        amount: amount,
+        signed_amount: event.direction === 'OUT' ? -amount : amount,
+        currency: event.currency,
+        partner_name: event.partner_name,
+        description: event.description,
+        linked_order_id: event.linked_order_id,
+        status: event.status,
+        document_status: event.document_status
+      };
+    })
+    .sort(sortByEventDateDesc_)
+    .slice(0, isFinite(limit) && limit > 0 ? limit : 100);
 }
 
 function getMissingDocumentsReport(filters) {

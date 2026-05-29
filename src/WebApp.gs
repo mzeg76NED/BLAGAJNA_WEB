@@ -68,19 +68,34 @@ function apiRejectPaymentRequest(requestId, reason) {
 
 function apiCreatePaymentOrderFromRequest(requestId, orderData) {
   return apiWrap_(function() {
-    return createPaymentOrderFromRequest(requestId, orderData || {});
+    return createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
   });
 }
 
 function apiCreateDirectPaymentOrder(orderData) {
   return apiWrap_(function() {
-    return createDirectPaymentOrder(orderData || {});
+    return createDirectPaymentOrder(withDefaultCashbox_(orderData || {}));
   });
 }
 
 function apiIssuePaymentOrder(orderId) {
   return apiWrap_(function() {
     return issuePaymentOrder(orderId);
+  });
+}
+
+function apiCreateAndIssuePaymentOrderFromRequest(requestId, orderData) {
+  return apiWrap_(function() {
+    const order = createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
+    return issuePaymentOrder(order.order_id);
+  });
+}
+
+function apiApproveAndIssuePaymentOrder(requestId, orderData) {
+  return apiWrap_(function() {
+    approvePaymentRequest(requestId);
+    const order = createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
+    return issuePaymentOrder(order.order_id);
   });
 }
 
@@ -104,13 +119,13 @@ function apiExecutePaymentOrder(orderId, paymentData) {
 
 function apiCreateCashInflow(data) {
   return apiWrap_(function() {
-    return createCashInflow(data || {});
+    return createCashInflow(withDefaultCashbox_(data || {}));
   });
 }
 
 function apiCalculateCashboxBalance(cashboxId, currency) {
   return apiWrap_(function() {
-    return calculateCashboxBalance(cashboxId, currency);
+    return calculateCashboxBalance(cashboxId || getDefaultCashboxIdForCurrentUser_(), currency);
   });
 }
 
@@ -128,7 +143,7 @@ function apiListDocumentsForEntity(entityType, entityId) {
 
 function apiOpenShift(cashboxId, openingNote) {
   return apiWrap_(function() {
-    return openShift(cashboxId, openingNote);
+    return openShift(cashboxId || getDefaultCashboxIdForCurrentUser_(), openingNote);
   });
 }
 
@@ -158,13 +173,13 @@ function apiCloseShift(shiftId, physicalBalanceByCurrency, note) {
 
 function apiPrepareDailyClosing(cashboxId, currency, closingDate) {
   return apiWrap_(function() {
-    return prepareDailyClosing(cashboxId, currency, closingDate);
+    return prepareDailyClosing(cashboxId || getDefaultCashboxIdForCurrentUser_(), currency, closingDate);
   });
 }
 
 function apiCloseDailyCashbox(cashboxId, currency, closingDate, physicalBalance, note) {
   return apiWrap_(function() {
-    return closeDailyCashbox(cashboxId, currency, closingDate, physicalBalance, note);
+    return closeDailyCashbox(cashboxId || getDefaultCashboxIdForCurrentUser_(), currency, closingDate, physicalBalance, note);
   });
 }
 
@@ -177,6 +192,23 @@ function apiListDailyClosings(filters) {
 function apiGetManagementDashboardSummary(filters) {
   return apiWrap_(function() {
     return getManagementDashboardSummary(filters || {});
+  });
+}
+
+function apiGetUiBootstrap(includeDashboard) {
+  return apiWrap_(function() {
+    const user = getCurrentUser();
+    const config = buildAppConfigForUi_(user);
+    const data = {
+      config: config,
+      user: user
+    };
+    if (includeDashboard === true) {
+      data.dashboard = getManagementDashboardSummary({
+        cashbox_id: config.defaultCashboxId || ''
+      });
+    }
+    return data;
   });
 }
 
@@ -207,6 +239,12 @@ function apiGetOrdersWaitingPaymentReport(filters) {
 function apiGetExecutedPaymentsReport(filters) {
   return apiWrap_(function() {
     return getExecutedPaymentsReport(filters || {});
+  });
+}
+
+function apiGetCashMovementsReport(filters) {
+  return apiWrap_(function() {
+    return getCashMovementsReport(withDefaultCashbox_(filters || {}));
   });
 }
 
@@ -248,14 +286,7 @@ function apiGetCurrentUserContext() {
 
 function apiGetAppConfigForUi() {
   return apiWrap_(function() {
-    return {
-      appName: APP_CONFIG.APP_NAME,
-      version: APP_CONFIG.VERSION,
-      currencies: SUPPORTED_CURRENCIES,
-      requestPriorities: objectValues_(REQUEST_PRIORITIES),
-      entityTypes: objectValues_(ENTITY_TYPES),
-      today: Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Europe/Belgrade', 'yyyy-MM-dd')
-    };
+    return buildAppConfigForUi_(getCurrentUser());
   });
 }
 
@@ -316,4 +347,42 @@ function parseJsonInput_(value) {
     return value;
   }
   return JSON.parse(value);
+}
+
+function buildAppConfigForUi_(currentUser) {
+  const defaultCashboxId = getDefaultCashboxIdForUser_(currentUser || {});
+  return {
+    appName: APP_CONFIG.APP_NAME,
+    version: APP_CONFIG.VERSION,
+    currencies: SUPPORTED_CURRENCIES,
+    requestPriorities: objectValues_(REQUEST_PRIORITIES),
+    entityTypes: objectValues_(ENTITY_TYPES),
+    defaultCashboxId: defaultCashboxId,
+    today: Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Europe/Belgrade', 'yyyy-MM-dd')
+  };
+}
+
+function withDefaultCashbox_(data) {
+  const result = Object.assign({}, data || {});
+  if (!result.cashbox_id) {
+    result.cashbox_id = getDefaultCashboxIdForCurrentUser_();
+  }
+  return result;
+}
+
+function getDefaultCashboxIdForCurrentUser_() {
+  return getDefaultCashboxIdForUser_(getCurrentUser());
+}
+
+function getDefaultCashboxIdForUser_(user) {
+  if (user && user.default_cashbox_id) {
+    return user.default_cashbox_id;
+  }
+  const activeCashbox = listRecords(SHEET_NAMES.CASHBOXES).filter(function(cashbox) {
+    return isTruthy_(cashbox.active);
+  })[0];
+  if (!activeCashbox) {
+    throw new Error('Nema aktivne blagajne u sistemu.');
+  }
+  return activeCashbox.cashbox_id;
 }

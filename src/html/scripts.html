@@ -9,16 +9,15 @@
     bindUi();
     var activeSection = document.querySelector('[data-section].active');
     showSection(activeSection ? activeSection.id : 'home');
-    callApi('apiGetAppConfigForUi', [], function(config) {
-      uiState.config = config || {};
+    callApi('apiGetUiBootstrap', [Boolean(document.getElementById('desktop-user-card'))], function(data) {
+      uiState.config = data.config || {};
+      uiState.currentUser = data.user || null;
       fillConfigOptions();
       setTodayDefaults();
-    }, { quiet: true });
-    callApi('apiGetCurrentUserContext', [], function(user) {
-      uiState.currentUser = user;
-      renderCurrentUser(user);
-      if (document.getElementById('desktop-user-card')) {
-        loadDesktopDashboard();
+      applyDefaultCashboxFields();
+      renderCurrentUser(uiState.currentUser);
+      if (data.dashboard) {
+        renderDesktopDashboard(data.dashboard);
       }
     }, { quiet: true });
   });
@@ -41,7 +40,7 @@
       callApi('apiCreatePaymentRequest', [data], function(result) {
         callApi('apiSubmitPaymentRequest', [result.request_id], function(submitted) {
           renderPaymentRequestSummary('payment-request-result', submitted, 'Zahtev je poslat na odobrenje');
-          loadMyRequests();
+          loadMyRequests(true);
         }, { successMessage: 'Zahtev je poslat na odobrenje.' });
       }, { quiet: true });
     });
@@ -57,19 +56,21 @@
         note: data.note
       })], function(result) {
         renderPaymentExecutionSummary('execute-payment-result', result);
-        loadWaitingOrders();
-        loadDesktopDashboard();
+        loadWaitingOrders(true);
+        refreshDashboardInBackground();
       }, { successMessage: 'Isplata je uspešno izvršena.' });
     });
 
     bindForm('cash-inflow-form', function(data) {
+      data = withUiDefaults(data);
       callApi('apiCreateCashInflow', [data], function(result) {
         renderCashInflowSummary('cash-inflow-result', result);
-        loadDesktopDashboard();
+        refreshDashboardInBackground();
       }, { successMessage: 'Uplata je uspešno knjižena.' });
     });
 
     bindForm('balance-form', function(data) {
+      data = withUiDefaults(data);
       callApi('apiCalculateCashboxBalance', [data.cashbox_id, data.currency], function(result) {
         renderHtml('balance-result', '<div class="record"><div class="record-title">Stanje: ' + escapeHtml(result) + ' ' + escapeHtml(data.currency) + '</div></div>');
       });
@@ -93,9 +94,10 @@
     });
 
     bindForm('open-shift-form', function(data) {
+      data = withUiDefaults(data);
       callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
         renderShiftSummary('shift-result', result, 'Smena je otvorena');
-        loadDesktopDashboard();
+        refreshDashboardInBackground();
       }, { successMessage: 'Smena je otvorena.' });
     });
 
@@ -116,31 +118,33 @@
     bindForm('close-shift-form', function(data) {
       callApi('apiCloseShift', [data.shift_id, data.physical_balance_json, data.note], function(result) {
         renderShiftSummary('shift-result', result, 'Smena je zatvorena');
-        loadDesktopDashboard();
+        refreshDashboardInBackground();
       }, { successMessage: 'Smena je zatvorena.' });
     });
 
     bindForm('daily-preview-form', function(data) {
+      data = withUiDefaults(data);
       callApi('apiPrepareDailyClosing', [data.cashbox_id, data.currency, data.closing_date], function(result) {
         renderDailyClosingSummary('daily-closing-result', result, 'Pregled dnevnog zaključka');
       });
     });
 
     bindForm('daily-close-form', function(data) {
+      data = withUiDefaults(data);
       callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
         renderDailyClosingSummary('daily-closing-result', result, 'Dnevni zaključak je kreiran');
-        loadDesktopDashboard();
+        refreshDashboardInBackground();
       }, { successMessage: 'Dnevni zaključak je kreiran.' });
     });
 
     bindClick('load-daily-closings-btn', function() {
       callApi('apiListDailyClosings', [{}], function(result) {
-        renderRecords('daily-closing-result', result, ['closing_id', 'closing_date', 'cashbox_id', 'currency', 'status', 'difference']);
+        renderRecords('daily-closing-result', result, ['closing_id', 'closing_date', 'currency', 'status', 'difference']);
       });
     });
 
     bindClick('mobile-report-balance-btn', function() {
-      loadReport('apiGetCashboxBalanceReport', 'mobile-report-filters-form', 'mobile-reports-result', ['cashbox_id', 'cashbox_name', 'currency', 'balance']);
+      loadReport('apiGetCashboxBalanceReport', 'mobile-report-filters-form', 'mobile-reports-result', ['cashbox_name', 'currency', 'balance']);
     });
     bindClick('mobile-report-waiting-orders-btn', function() {
       loadReport('apiGetOrdersWaitingPaymentReport', 'mobile-report-filters-form', 'mobile-reports-result', ['order_id', 'pay_to_name', 'remaining_amount', 'currency', 'status']);
@@ -150,6 +154,14 @@
     });
     bindClick('mobile-report-missing-documents-btn', function() {
       loadReport('apiGetMissingDocumentsReport', 'mobile-report-filters-form', 'mobile-reports-result', ['entity_type', 'entity_id', 'date', 'description', 'document_status']);
+    });
+    bindClick('mobile-report-cash-movements-btn', function() {
+      loadReport('apiGetCashMovementsReport', 'mobile-report-filters-form', 'mobile-reports-result', ['event_date', 'event_type', 'direction', 'amount', 'currency', 'partner_name', 'description', 'status']);
+    });
+    bindClick('mobile-report-cash-movements-shortcut', function() {
+      window.setTimeout(function() {
+        loadReport('apiGetCashMovementsReport', 'mobile-report-filters-form', 'mobile-reports-result', ['event_date', 'event_type', 'direction', 'amount', 'currency', 'partner_name', 'description', 'status']);
+      }, 0);
     });
 
     bindDesktop();
@@ -166,26 +178,27 @@
     });
     bindClick('desktop-load-orders-btn', function() {
       callApi('apiListOrdersWaitingForPayment', [], function(result) {
-        renderActionRecords('desktop-table-result-orders', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'cashbox_id', 'status'], waitingOrderActions_);
+        renderActionRecords('desktop-table-result-orders', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'status'], waitingOrderActions_);
       });
     });
     bindClick('desktop-load-shifts-btn', function() {
       callApi('apiGetMyActiveShifts', [], function(result) {
-        renderTable('shift-result', result, ['shift_id', 'cashbox_id', 'opened_by', 'opened_at', 'status']);
+        renderTable('shift-result', result, ['shift_id', 'opened_by', 'opened_at', 'status']);
       });
     });
     bindClick('desktop-load-closings-btn', function() {
       callApi('apiListDailyClosings', [{}], function(result) {
-        renderTable('daily-closing-result', result, ['closing_id', 'closing_date', 'cashbox_id', 'currency', 'status', 'difference']);
+        renderTable('daily-closing-result', result, ['closing_id', 'closing_date', 'currency', 'status', 'difference']);
       });
     });
     bindForm('desktop-balance-form', function(data) {
+      data = withUiDefaults(data);
       callApi('apiCalculateCashboxBalance', [data.cashbox_id, data.currency], function(result) {
         renderHtml('balance-result', '<div class="record"><div class="record-title">Stanje: ' + escapeHtml(result) + ' ' + escapeHtml(data.currency) + '</div></div>');
       });
     });
     bindClick('report-balance-btn', function() {
-      loadReport('apiGetCashboxBalanceReport', 'report-filters-form', 'reports-result', ['cashbox_id', 'cashbox_name', 'currency', 'balance']);
+      loadReport('apiGetCashboxBalanceReport', 'report-filters-form', 'reports-result', ['cashbox_name', 'currency', 'balance']);
     });
     bindClick('report-open-requests-btn', function() {
       loadReport('apiGetOpenPaymentRequestsReport', 'report-filters-form', 'reports-result', ['request_id', 'created_at', 'requested_for_name', 'amount', 'currency', 'priority', 'status', 'document_status']);
@@ -194,22 +207,25 @@
       loadReport('apiGetRequestsForApprovalReport', 'report-filters-form', 'reports-result', ['request_id', 'created_at', 'requested_for_name', 'amount', 'currency', 'priority', 'status']);
     });
     bindClick('report-waiting-orders-btn', function() {
-      loadReport('apiGetOrdersWaitingPaymentReport', 'report-filters-form', 'reports-result', ['order_id', 'cashbox_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'remaining_amount', 'currency', 'status']);
+      loadReport('apiGetOrdersWaitingPaymentReport', 'report-filters-form', 'reports-result', ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'remaining_amount', 'currency', 'status']);
     });
     bindClick('report-executed-payments-btn', function() {
-      loadReport('apiGetExecutedPaymentsReport', 'report-filters-form', 'reports-result', ['event_id', 'event_date', 'cashbox_id', 'currency', 'amount', 'partner_name', 'linked_order_id', 'status']);
+      loadReport('apiGetExecutedPaymentsReport', 'report-filters-form', 'reports-result', ['event_id', 'event_date', 'currency', 'amount', 'partner_name', 'linked_order_id', 'status']);
+    });
+    bindClick('report-cash-movements-btn', function() {
+      loadReport('apiGetCashMovementsReport', 'report-filters-form', 'reports-result', ['event_date', 'event_id', 'event_type', 'direction', 'signed_amount', 'currency', 'partner_name', 'description', 'linked_order_id', 'status']);
     });
     bindClick('report-missing-documents-btn', function() {
       loadReport('apiGetMissingDocumentsReport', 'report-filters-form', 'reports-result', ['entity_type', 'entity_id', 'date', 'description', 'amount', 'currency', 'document_status']);
     });
     bindClick('report-daily-closings-btn', function() {
-      loadReport('apiGetDailyClosingReport', 'report-filters-form', 'reports-result', ['closing_id', 'closing_date', 'cashbox_id', 'currency', 'calculated_balance', 'physical_balance', 'difference', 'status']);
+      loadReport('apiGetDailyClosingReport', 'report-filters-form', 'reports-result', ['closing_id', 'closing_date', 'currency', 'calculated_balance', 'physical_balance', 'difference', 'status']);
     });
     bindClick('report-differences-btn', function() {
-      loadReport('apiGetDifferencesReport', 'report-filters-form', 'reports-result', ['source_type', 'source_id', 'date', 'cashbox_id', 'currency', 'difference', 'status']);
+      loadReport('apiGetDifferencesReport', 'report-filters-form', 'reports-result', ['source_type', 'source_id', 'date', 'currency', 'difference', 'status']);
     });
     bindClick('report-corrections-btn', function() {
-      loadReport('apiGetCorrectionsAndReversalsReport', 'report-filters-form', 'reports-result', ['event_id', 'event_date', 'event_type', 'cashbox_id', 'currency', 'direction', 'amount', 'status']);
+      loadReport('apiGetCorrectionsAndReversalsReport', 'report-filters-form', 'reports-result', ['event_id', 'event_date', 'event_type', 'currency', 'direction', 'amount', 'status']);
     });
     bindClick('report-audit-exceptions-btn', function() {
       loadReport('apiGetAuditExceptionsReport', 'report-filters-form', 'reports-result', ['exception_type', 'entity_type', 'entity_id', 'date', 'description', 'status']);
@@ -241,13 +257,17 @@
       showMessage('Greška: Apps Script okruženje nije dostupno.', 'error');
       return;
     }
-    setLoading(true);
+    if (!options.quiet) {
+      setLoading(true);
+    }
     if (!options.quiet) {
       showMessage(options.loadingMessage || 'Obrađujem zahtev...', 'info');
     }
     var runner = google.script.run
       .withSuccessHandler(function(response) {
-        setLoading(false);
+        if (!options.quiet) {
+          setLoading(false);
+        }
         if (!response || response.ok !== true) {
           showMessage('Greška: ' + (response && response.error ? response.error.message : 'poziv nije uspeo.'), 'error');
           return;
@@ -260,7 +280,9 @@
         }
       })
       .withFailureHandler(function(error) {
-        setLoading(false);
+        if (!options.quiet) {
+          setLoading(false);
+        }
         showMessage('Greška: ' + (error && error.message ? error.message : 'tehnički problem.'), 'error');
       });
     runner[functionName].apply(runner, args || []);
@@ -343,40 +365,49 @@
     }
   }
 
-  function loadMyRequests() {
+  function loadMyRequests(isBackground) {
     callApi('apiListMyPaymentRequests', [], function(result) {
       renderActionRecords('my-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], function(record) {
         return approvedRequestActions_(record, loadMyRequests);
       });
-    });
+    }, { quiet: Boolean(isBackground) });
   }
 
-  function loadApprovalRequests() {
+  function loadApprovalRequests(isBackground) {
     callApi('apiListRequestsForApproval', [], function(result) {
       renderActionRecords('approval-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], requestApprovalActions_);
-    });
+    }, { quiet: Boolean(isBackground) });
   }
 
-  function loadWaitingOrders() {
+  function loadWaitingOrders(isBackground) {
     callApi('apiListOrdersWaitingForPayment', [], function(result) {
-      renderActionRecords('waiting-orders-list', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'purpose', 'cashbox_id'], waitingOrderActions_);
-    });
+      renderActionRecords('waiting-orders-list', result, ['order_id', 'pay_to_name', 'amount_ordered', 'amount_paid', 'currency', 'purpose'], waitingOrderActions_);
+    }, { quiet: Boolean(isBackground) });
   }
 
   function requestApprovalActions_(record) {
     return [
       actionButton('Odobri', function() {
-        callApi('apiApprovePaymentRequest', [record.request_id], loadApprovalRequests);
+        callApi('apiApprovePaymentRequest', [record.request_id], function() {
+          loadApprovalRequests(true);
+          refreshDashboardInBackground();
+        }, { successMessage: 'Zahtev je odobren.' });
       }),
       actionButton('Odobri + kreiraj nalog', function() {
-        callApi('apiApprovePaymentRequest', [record.request_id], function(approved) {
-          createAndIssueOrderFromRequest_(approved || record, loadApprovalRequests);
-        });
+        callApi('apiApproveAndIssuePaymentOrder', [record.request_id, { cashbox_id: getDefaultCashboxId() }], function(issued) {
+          renderOrderSummary('desktop-table-result-orders', issued, 'Zahtev je odobren, nalog je kreiran i izdat');
+          loadApprovalRequests(true);
+          loadWaitingOrders(true);
+          refreshDashboardInBackground();
+        }, { successMessage: 'Zahtev je odobren, nalog je spreman za isplatu.' });
       }),
       actionButton('Odbij', function() {
         var reason = prompt('Razlog odbijanja');
         if (reason) {
-          callApi('apiRejectPaymentRequest', [record.request_id, reason], loadApprovalRequests);
+          callApi('apiRejectPaymentRequest', [record.request_id, reason], function() {
+            loadApprovalRequests(true);
+            refreshDashboardInBackground();
+          }, { successMessage: 'Zahtev je odbijen.' });
         }
       }, 'danger')
     ];
@@ -394,21 +425,15 @@
   }
 
   function createAndIssueOrderFromRequest_(record, reload) {
-    var defaultCashbox = record.preferred_cashbox_id || (uiState.currentUser && uiState.currentUser.default_cashbox_id) || 'CB_MAIN';
-    var cashboxId = prompt('ID blagajne za nalog', defaultCashbox);
-    if (!cashboxId) {
-      return;
-    }
-    callApi('apiCreatePaymentOrderFromRequest', [record.request_id, { cashbox_id: cashboxId }], function(order) {
-      callApi('apiIssuePaymentOrder', [order.order_id], function(issued) {
-        renderOrderSummary('desktop-table-result-orders', issued, 'Nalog je kreiran i izdat');
-        if (reload) {
-          reload();
-        }
-        loadWaitingOrders();
-        loadDesktopDashboard();
-      }, { successMessage: 'Nalog je kreiran i izdat.' });
-    }, { quiet: true });
+    var cashboxId = getDefaultCashboxId();
+    callApi('apiCreateAndIssuePaymentOrderFromRequest', [record.request_id, { cashbox_id: cashboxId }], function(issued) {
+      renderOrderSummary('desktop-table-result-orders', issued, 'Nalog je kreiran i izdat');
+      if (reload) {
+        reload(true);
+      }
+      loadWaitingOrders(true);
+      refreshDashboardInBackground();
+    }, { successMessage: 'Nalog je kreiran i izdat.' });
   }
 
   function waitingOrderActions_(record) {
@@ -419,8 +444,8 @@
         }
         callApi('apiExecutePaymentOrder', [record.order_id, {}], function(result) {
           renderPaymentExecutionSummary('execute-payment-result', result);
-          loadWaitingOrders();
-          loadDesktopDashboard();
+          loadWaitingOrders(true);
+          refreshDashboardInBackground();
         }, { successMessage: 'Isplata je izvršena za nalog ' + record.order_id + '.' });
       }),
       actionButton('Popuni formu', function() {
@@ -438,7 +463,7 @@
 
   function loadMyShifts() {
     callApi('apiGetMyActiveShifts', [], function(result) {
-      renderActionRecords('shift-result', result, ['shift_id', 'cashbox_id', 'opened_at', 'status'], function(record) {
+      renderActionRecords('shift-result', result, ['shift_id', 'opened_at', 'status'], function(record) {
         return [
           actionButton('Presek', function() {
             callApi('apiGetShiftBalance', [record.shift_id], function(balance) {
@@ -451,25 +476,35 @@
   }
 
   function loadDesktopDashboard() {
-    callApi('apiGetCurrentUserContext', [], function(user) {
-      setText('desktop-user-card', (user.full_name || user.email || 'Nepoznat korisnik') + ' · ' + (user.role || ''));
-    }, { quiet: true });
     callApi('apiGetManagementDashboardSummary', [{}], function(summary) {
-      setText('desktop-balance-card', summarizeBalances(summary.balances));
-      setText('desktop-requests-card', String(summary.requestsForApprovalCount || 0));
-      setText('desktop-orders-card', String(summary.ordersWaitingPaymentCount || 0));
-      setText('desktop-missing-documents-card', String(summary.missingDocumentsCount || 0));
-      setText('desktop-shifts-card', String(summary.openShiftsCount || 0));
-      setText('desktop-closings-card', String(summary.dailyClosingsTodayCount || 0));
-      setText('desktop-differences-card', String(summary.differencesCount || 0));
-      setText('desktop-reversals-card', String(summary.reversalsTodayCount || 0));
+      renderDesktopDashboard(summary);
     }, { quiet: true });
   }
 
   function loadReport(apiName, formId, targetId, fields) {
-    callApi(apiName, [serializeForm(formId)], function(result) {
+    callApi(apiName, [withUiDefaults(serializeForm(formId))], function(result) {
       renderTable(targetId, result || [], fields);
     });
+  }
+
+  function refreshDashboardInBackground() {
+    if (document.getElementById('desktop-user-card')) {
+      loadDesktopDashboard();
+    }
+  }
+
+  function renderDesktopDashboard(summary) {
+    var user = uiState.currentUser || {};
+    setText('desktop-user-card', (user.full_name || user.email || 'Nepoznat korisnik') + ' · ' + (user.role || ''));
+    summary = summary || {};
+    setText('desktop-balance-card', summarizeBalances(summary.balances));
+    setText('desktop-requests-card', String(summary.requestsForApprovalCount || 0));
+    setText('desktop-orders-card', String(summary.ordersWaitingPaymentCount || 0));
+    setText('desktop-missing-documents-card', String(summary.missingDocumentsCount || 0));
+    setText('desktop-shifts-card', String(summary.openShiftsCount || 0));
+    setText('desktop-closings-card', String(summary.dailyClosingsTodayCount || 0));
+    setText('desktop-differences-card', String(summary.differencesCount || 0));
+    setText('desktop-reversals-card', String(summary.reversalsTodayCount || 0));
   }
 
   function openPrintView(view, id) {
@@ -530,6 +565,29 @@
     document.querySelectorAll('[data-today]').forEach(function(input) {
       input.value = uiState.config.today || '';
     });
+  }
+
+  function applyDefaultCashboxFields() {
+    document.querySelectorAll('[name="cashbox_id"]').forEach(function(input) {
+      input.value = input.value || getDefaultCashboxId();
+    });
+    document.querySelectorAll('[data-default-cashbox-label]').forEach(function(element) {
+      element.textContent = getDefaultCashboxId();
+    });
+  }
+
+  function withUiDefaults(data) {
+    var result = Object.assign({}, data || {});
+    if (!result.cashbox_id) {
+      result.cashbox_id = getDefaultCashboxId();
+    }
+    return cleanObject(result);
+  }
+
+  function getDefaultCashboxId() {
+    return (uiState.config && uiState.config.defaultCashboxId) ||
+      (uiState.currentUser && uiState.currentUser.default_cashbox_id) ||
+      'CB_MAIN';
   }
 
   function renderCurrentUser(user) {
@@ -618,7 +676,6 @@
       ['ID naloga', order && order.order_id],
       ['Primaoc', order && order.pay_to_name],
       ['Iznos', amountWithCurrency(order && (order.amount_ordered || order.amount), order && order.currency)],
-      ['Blagajna', order && order.cashbox_id],
       ['Status', order && order.status]
     ]);
   }
@@ -630,7 +687,6 @@
       ['ID događaja', event.event_id],
       ['ID naloga', event.linked_order_id || order.order_id],
       ['Iznos', amountWithCurrency(event.amount || order.amount_paid || order.amount_ordered, event.currency || order.currency)],
-      ['Blagajna', event.cashbox_id || order.cashbox_id],
       ['Status', event.status || order.status]
     ]);
   }
@@ -639,7 +695,6 @@
     renderSummaryCard(targetId, 'Uplata je proknjižena', [
       ['ID događaja', event && event.event_id],
       ['Iznos', amountWithCurrency(event && event.amount, event && event.currency)],
-      ['Blagajna', event && event.cashbox_id],
       ['Opis', event && event.description],
       ['Status', event && event.status]
     ]);
@@ -658,7 +713,6 @@
   function renderShiftSummary(targetId, shift, title) {
     renderSummaryCard(targetId, title || 'Smena', [
       ['ID smene', shift && shift.shift_id],
-      ['Blagajna', shift && shift.cashbox_id],
       ['Otvorio', shift && shift.opened_by],
       ['Zatvorio', shift && shift.closed_by],
       ['Status', shift && shift.status]
@@ -668,7 +722,6 @@
   function renderShiftBalanceSummary(targetId, balance) {
     renderSummaryCard(targetId, 'Presek smene', [
       ['ID smene', balance && balance.shift_id],
-      ['Blagajna', balance && balance.cashbox_id],
       ['Stanje', amountWithCurrency(balance && (balance.balance || balance.calculated_balance), balance && balance.currency)],
       ['Status', balance && balance.status]
     ]);
@@ -678,7 +731,6 @@
     renderSummaryCard(targetId, title || 'Dnevni zaključak', [
       ['ID zaključka', closing && closing.closing_id],
       ['Datum', closing && closing.closing_date],
-      ['Blagajna', closing && closing.cashbox_id],
       ['Obračunato', amountWithCurrency(closing && closing.calculated_balance, closing && closing.currency)],
       ['Fizički', amountWithCurrency(closing && closing.physical_balance, closing && closing.currency)],
       ['Razlika', amountWithCurrency(closing && closing.difference, closing && closing.currency)],
