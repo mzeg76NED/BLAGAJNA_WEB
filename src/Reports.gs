@@ -253,16 +253,40 @@ function getCashMovementsReport(filters) {
   const scopedFilters = normalizeReportFilters_(filters);
   const range = getDateRangeFilter_(scopedFilters);
   const limit = Number(scopedFilters.limit || 100);
-
-  return listRecords(SHEET_NAMES.CASH_EVENTS)
+  const userFilter = String(scopedFilters.user || scopedFilters.posted_by || scopedFilters.created_by || '').toLowerCase();
+  const shiftFilter = String(scopedFilters.shift_id || '').trim();
+  const shiftRange = shiftFilter ? getShiftDateRangeForReport_(shiftFilter) : null;
+  const eventsWithBalance = listRecords(SHEET_NAMES.CASH_EVENTS)
     .filter(function(event) {
       return (!scopedFilters.cashbox_id || event.cashbox_id === scopedFilters.cashbox_id) &&
         (!scopedFilters.currency || event.currency === scopedFilters.currency) &&
         (!scopedFilters.status || event.status === scopedFilters.status) &&
-        isDateInRange_(event.event_date || event.created_at, range.dateFrom, range.dateTo);
+        (!userFilter || String(event.posted_by || event.created_by || '').toLowerCase().indexOf(userFilter) !== -1) &&
+        (!shiftRange || (
+          event.cashbox_id === shiftRange.cashbox_id &&
+          isDateTimeInShiftRange_(event.event_date || event.created_at, shiftRange)
+        ));
     })
+    .sort(function(left, right) {
+      return toTime_(left.event_date || left.created_at) - toTime_(right.event_date || right.created_at);
+    });
+  const runningByKey = {};
+
+  return eventsWithBalance
     .map(function(event) {
       const amount = safeNumber_(event.amount);
+      const key = event.cashbox_id + '|' + event.currency;
+      if (!Object.prototype.hasOwnProperty.call(runningByKey, key)) {
+        runningByKey[key] = 0;
+      }
+      if (isCashEventBalanceAffecting(event)) {
+        runningByKey[key] += event.direction === 'OUT' ? -amount : amount;
+      }
+      const isReversal = event.event_type === CASH_EVENT_TYPES.REVERSAL && event.reversal_of_event_id;
+      const displayDirection = isReversal
+        ? (event.direction === 'OUT' ? 'IN' : 'OUT')
+        : event.direction;
+      const displayAmount = isReversal ? -amount : amount;
       return {
         event_date: event.event_date || event.created_at,
         event_id: event.event_id,
@@ -270,16 +294,46 @@ function getCashMovementsReport(filters) {
         direction: event.direction,
         amount: amount,
         signed_amount: event.direction === 'OUT' ? -amount : amount,
+        display_direction: displayDirection,
+        display_amount: displayAmount,
+        running_balance: runningByKey[key],
         currency: event.currency,
         partner_name: event.partner_name,
         description: event.description,
         linked_order_id: event.linked_order_id,
+        reversal_of_event_id: event.reversal_of_event_id,
         status: event.status,
-        document_status: event.document_status
+        document_status: event.document_status,
+        posted_by: event.posted_by,
+        posted_at: event.posted_at,
+        created_by: event.created_by,
+        created_at: event.created_at
       };
+    })
+    .filter(function(event) {
+      return isDateInRange_(event.event_date || event.created_at, range.dateFrom, range.dateTo);
     })
     .sort(sortByEventDateDesc_)
     .slice(0, isFinite(limit) && limit > 0 ? limit : 100);
+}
+
+function getShiftDateRangeForReport_(shiftId) {
+  const match = findRecordById(SHEET_NAMES.SHIFTS, 'shift_id', shiftId);
+  if (!match) {
+    throw new Error('Shift not found: ' + shiftId);
+  }
+  return {
+    cashbox_id: match.record.cashbox_id,
+    opened_at: match.record.opened_at,
+    closed_at: match.record.closed_at || match.record.handover_at || ''
+  };
+}
+
+function isDateTimeInShiftRange_(dateValue, shiftRange) {
+  const eventTime = toTime_(dateValue);
+  const openedTime = toTime_(shiftRange.opened_at);
+  const closedTime = shiftRange.closed_at ? toTime_(shiftRange.closed_at) : Number.MAX_SAFE_INTEGER;
+  return eventTime >= openedTime && eventTime <= closedTime;
 }
 
 function getMissingDocumentsReport(filters) {

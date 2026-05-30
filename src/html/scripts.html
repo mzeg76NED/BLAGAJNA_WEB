@@ -545,11 +545,14 @@
   }
 
   function updateMobileScale_() {
-    if (!document.querySelector('.m-shell')) return;
-    var width = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-    var height = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
-    var scale = Math.min(width / 360, height / 680);
-    scale = Math.max(1.18, Math.min(scale, 1.7));
+    var isMobileShell = Boolean(document.querySelector('.m-shell'));
+    document.documentElement.classList.toggle('mobile-view', isMobileShell);
+    if (!isMobileShell) return;
+    var screenWidth = window.screen && window.screen.width ? window.screen.width : window.innerWidth;
+    var screenHeight = window.screen && window.screen.height ? window.screen.height : window.innerHeight;
+    var shortSide = Math.min(screenWidth, screenHeight);
+    var scale = shortSide / 360;
+    scale = Math.max(1.38, Math.min(scale, 1.9));
     document.documentElement.style.setProperty('--mobile-scale', String(scale.toFixed(3)));
   }
 
@@ -866,20 +869,16 @@
       return;
     }
 
-    var balance = 0;
     var totalIn = 0;
     var totalOut = 0;
-    var rows = events.slice().reverse().map(function(ev, index) {
-      var amount = Number(ev.amount || 0);
-      if (ev.direction === 'OUT') {
-        balance -= amount;
-        totalOut += amount;
-      } else if (ev.direction === 'IN') {
-        balance += amount;
-        totalIn += amount;
-      }
-      return renderKnjigaRow_(ev, index + 1, balance);
-    }).reverse();
+    var rows = events.map(function(ev, index) {
+      var displayDirection = ev.display_direction || ev.direction;
+      var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+      if (displayDirection === 'IN') totalIn += displayAmount;
+      if (displayDirection === 'OUT') totalOut += displayAmount;
+      return renderKnjigaRow_(ev, index + 1, Number(ev.running_balance || 0));
+    });
+    var finalBalance = events.length ? Number(events[0].running_balance || 0) : 0;
 
     target.innerHTML = '<div class="table-wrap"><table class="book-table">' +
       '<thead><tr>' +
@@ -891,7 +890,7 @@
         '<th class="num" style="width:120px">Saldo perioda</th>' +
       '</tr></thead>' +
       '<tbody>' + rows.join('') + '</tbody>' +
-      '<tfoot>' + renderKnjigaTotals_(totalIn, totalOut, balance) + '</tfoot>' +
+      '<tfoot>' + renderKnjigaTotals_(totalIn, totalOut, finalBalance) + '</tfoot>' +
       '</table></div>';
   }
 
@@ -1416,6 +1415,8 @@
   function loadKnjiga_(isBackground) {
     var dateFrom = (document.getElementById('d-date-from') || {}).value || '';
     var dateTo   = (document.getElementById('d-date-to')   || {}).value || '';
+    var userFilter = (document.getElementById('d-user-filter') || {}).value || '';
+    var shiftFilter = (document.getElementById('d-shift-filter') || {}).value || '';
     var tbody = document.getElementById('d-knjiga-tbody') || document.getElementById('m-knjiga-list');
     if (!tbody) return;
 
@@ -1428,7 +1429,9 @@
       cashbox_id: SESSION.cashboxId,
       currency:   SESSION.currency,
       date_from:  dateFrom,
-      date_to:    dateTo
+      date_to:    dateTo,
+      user:       userFilter,
+      shift_id:   shiftFilter
     })], function(events) {
       renderKnjigaTable_(events || []);
       refreshBalance_();
@@ -1450,25 +1453,22 @@
       return;
     }
 
-    var runningBalance = 0;
     var totalIn = 0, totalOut = 0;
     var rows = [];
 
     events.forEach(function(ev, idx) {
-      var isIn  = ev.direction === 'IN';
-      var isOut = ev.direction === 'OUT';
-      var amount = Number(ev.amount) || 0;
-      if (isCashEventBalanceAffecting_(ev)) {
-        if (isIn)  runningBalance += amount;
-        if (isOut) runningBalance -= amount;
-      }
-      if (isIn)  totalIn  += amount;
-      if (isOut) totalOut += amount;
-      rows.push(isMobile ? renderMobileEntry_(ev) : renderKnjigaRow_(ev, idx + 1, runningBalance));
+      var displayDirection = ev.display_direction || ev.direction;
+      var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+      if (displayDirection === 'IN')  totalIn  += displayAmount;
+      if (displayDirection === 'OUT') totalOut += displayAmount;
+      rows.push(isMobile ? renderMobileEntry_(ev) : renderKnjigaRow_(ev, idx + 1, Number(ev.running_balance || 0)));
     });
 
     container.innerHTML = rows.join('');
-    if (tfoot) tfoot.innerHTML = renderKnjigaTotals_(totalIn, totalOut, runningBalance);
+    if (tfoot) {
+      var finalBalance = events.length ? Number(events[0].running_balance || 0) : 0;
+      tfoot.innerHTML = renderKnjigaTotals_(totalIn, totalOut, finalBalance);
+    }
 
     var lbl = document.getElementById('m-knjiga-label');
     if (lbl) lbl.textContent = 'Danas · ' + events.length + ' stavki';
@@ -1483,10 +1483,12 @@
   }
 
   function renderKnjigaRow_(ev, index, balance) {
-    var isIn  = ev.direction === 'IN';
-    var isOut = ev.direction === 'OUT';
+    var displayDirection = ev.display_direction || ev.direction;
+    var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+    var isIn  = displayDirection === 'IN';
+    var isOut = displayDirection === 'OUT';
     var rowClass = isIn ? 'row-in' : isOut ? 'row-out' : 'row-opening';
-    var amtFmt  = formatAmount_(ev.amount);
+    var amtFmt  = formatAmount_(displayAmount);
     var balFmt  = formatAmount_(balance);
     var dateStr = formatDateShort_(ev.event_date || ev.created_at);
     var label   = escapeHtml(ev.partner_name || ev.description || '—');
@@ -1512,10 +1514,12 @@
   }
 
   function renderMobileEntry_(ev) {
-    var isIn   = ev.direction === 'IN';
+    var displayDirection = ev.display_direction || ev.direction;
+    var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+    var isIn   = displayDirection === 'IN';
     var dotBg  = isIn ? 'var(--color-in)'  : 'var(--color-out)';
     var color  = isIn ? 'var(--color-in)'  : 'var(--color-out)';
-    var prefix = isIn ? '+' : '−';
+    var prefix = displayAmount < 0 ? '−' : (isIn ? '+' : '−');
     var label  = escapeHtml(ev.partner_name || ev.description || '—');
     var meta   = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) +
       ' · ' + escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—')) +
@@ -1526,7 +1530,7 @@
         '<div class="m-entry-desc">' + label + '</div>' +
         '<div class="m-entry-meta">' + meta  + '</div>' +
       '</div>' +
-      '<div class="m-entry-amt" style="color:' + color + '">' + prefix + formatAmount_(ev.amount) + '</div>' +
+      '<div class="m-entry-amt" style="color:' + color + '">' + prefix + formatAmount_(Math.abs(displayAmount)) + '</div>' +
     '</div>';
   }
 
@@ -1664,9 +1668,8 @@
 
     google.script.run
       .withSuccessHandler(function(resp) {
-        removeDesktopOptimistic_(tempId);
         if (resp && resp.ok) { resetDesktopQuickForm_(); loadKnjiga_(true); refreshBalance_(); }
-        else { updateTopbarBalance_(type === 'IN' ? -amount : amount); showDesktopMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
+        else { removeDesktopOptimistic_(tempId); updateTopbarBalance_(type === 'IN' ? -amount : amount); showDesktopMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
       })
       .withFailureHandler(function(err) {
         removeDesktopOptimistic_(tempId);
@@ -1718,15 +1721,28 @@
     if (cancel)  cancel.addEventListener('click',  closeSheet_);
     if (overlay) overlay.addEventListener('click', function(e) { if (e.target === overlay) closeSheet_(); });
 
+    renderSheetCurrencyButtons_();
+    bindSheetCurrencyButtons_();
+  }
+
+  function bindSheetCurrencyButtons_() {
     document.querySelectorAll('#sheet-cur-toggle .cur-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var type = currentSheetType_;
         document.querySelectorAll('#sheet-cur-toggle .cur-btn').forEach(function(b) {
           b.className = 'cur-btn' + (b === btn ? ' active ' + (type === 'IN' ? 'in' : 'out') : '');
         });
-        SESSION.currency = btn.dataset.currency || SESSION.currency;
       });
     });
+  }
+
+  function renderSheetCurrencyButtons_() {
+    var container = document.getElementById('sheet-cur-toggle');
+    if (!container) return;
+    var currencies = uiState.config.currencies || [SESSION.currency || 'RSD'];
+    container.innerHTML = currencies.map(function(currency) {
+      return '<button class="cur-btn" data-currency="' + escapeHtml(currency) + '" type="button">' + escapeHtml(currency) + '</button>';
+    }).join('');
   }
 
   function openSheet_(type) {
@@ -1782,9 +1798,8 @@
 
     google.script.run
       .withSuccessHandler(function(resp) {
-        removeMobileOptimistic_(tempId);
         if (resp && resp.ok) { loadKnjiga_(true); refreshBalance_(); }
-        else { updateMobileBalance_(type === 'IN' ? -amount : amount); showMobileMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
+        else { removeMobileOptimistic_(tempId); updateMobileBalance_(type === 'IN' ? -amount : amount); showMobileMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
       })
       .withFailureHandler(function(err) {
         removeMobileOptimistic_(tempId);
@@ -2110,7 +2125,9 @@
     if (!el) return;
     el.textContent = msg;
     el.className   = 'message show ' + (type || 'info');
-    setTimeout(function() { el.className = 'message'; }, 4000);
+    if (type !== 'error') {
+      setTimeout(function() { el.className = 'message'; }, 4000);
+    }
   }
 
   function showMobileMessage_(msg, type) {
@@ -2118,7 +2135,9 @@
     if (!el) return;
     el.textContent = msg;
     el.className   = 'message show ' + (type || 'info');
-    setTimeout(function() { el.className = 'message'; }, 4000);
+    if (type !== 'error') {
+      setTimeout(function() { el.className = 'message'; }, 4000);
+    }
   }
 
   /* ─── Bootstrap: prošireni DOMContentLoaded ──────────────────── */
@@ -2150,6 +2169,10 @@
       uiState.config      = data.config || {};
       uiState.currentUser = data.user   || null;
       initializeSession();
+      if (isMobile) {
+        renderSheetCurrencyButtons_();
+        bindSheetCurrencyButtons_();
+      }
       fillConfigOptions();
       setTodayDefaults();
       renderPhysicalBalanceInputs();
