@@ -77,6 +77,14 @@
         <section id="m-section-smena" class="m-section" data-section>
           <h2>Smena</h2>
 
+          <div class="card shift-status-card">
+            <div class="card-head"><h3>Status smene</h3></div>
+            <div id="m-shift-status" class="shift-status-body"></div>
+            <button id="m-active-shift-balance-btn" type="button">
+              <i class="ti ti-scale" aria-hidden="true"></i> Presek aktivne smene
+            </button>
+          </div>
+
           <div class="card">
             <div class="card-head"><h3>Otvori smenu</h3></div>
             <form id="m-open-shift-form" class="form-grid">
@@ -96,7 +104,7 @@
             <div id="m-shifts-list"></div>
           </div>
 
-          <div class="card">
+          <div class="card optional-handover-card">
             <div class="card-head"><h3>Primopredaja smene</h3></div>
             <form id="m-handover-shift-form" class="form-grid">
               <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>

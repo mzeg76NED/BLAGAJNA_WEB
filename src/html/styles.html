@@ -402,6 +402,46 @@
     padding: 10px 12px;
   }
 
+  .shift-status-body {
+    display: grid;
+    gap: 10px;
+  }
+
+  .shift-state {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    display: grid;
+    gap: 4px;
+    padding: 12px;
+  }
+
+  .shift-state strong {
+    font-size: 16px;
+  }
+
+  .shift-state.active {
+    background: var(--color-in-bg);
+    border-color: var(--color-in-border);
+  }
+
+  .shift-state.empty {
+    background: var(--color-primary-bg);
+  }
+
+  .shift-warning {
+    background: var(--color-out-bg);
+    border: 1px solid var(--color-out-border);
+    border-radius: var(--radius-md);
+    color: var(--color-out);
+    font-weight: 800;
+    margin-top: 8px;
+    padding: 10px 12px;
+  }
+
+  .is-disabled-flow {
+    opacity: 0.55;
+  }
+
   .permission-card p {
     color: var(--color-text-muted);
     font-size: 13px;

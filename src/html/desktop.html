@@ -278,6 +278,15 @@
           <!-- SEKCIJA: SMENA -->
           <section id="d-section-smena" class="d-section">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+              <div class="card shift-status-card" style="grid-column:1 / -1">
+                <div class="card-head"><h3>Status smene</h3></div>
+                <div id="d-shift-status" class="shift-status-body"></div>
+                <div class="actions">
+                  <button id="d-active-shift-balance-btn" type="button">
+                    <i class="ti ti-scale" aria-hidden="true"></i> Presek aktivne smene
+                  </button>
+                </div>
+              </div>
               <div class="card">
                 <div class="card-head"><h3>Otvori smenu</h3></div>
                 <form id="d-open-shift-form" class="form-grid">
@@ -293,7 +302,7 @@
                 </button>
                 <div id="d-shifts-list" class="result-box"></div>
               </div>
-              <div class="card">
+              <div class="card optional-handover-card">
                 <div class="card-head"><h3>Primopredaja smene</h3></div>
                 <form id="d-handover-form" class="form-grid">
                   <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>

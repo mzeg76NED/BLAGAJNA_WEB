@@ -244,7 +244,7 @@
     });
 
     bindForm('close-shift-form', function(data, form) {
-      callApi('apiCloseShift', [data.shift_id, collectPhysicalBalance_(form), data.note], function(result) {
+      callApi('apiCloseActiveShift', [data.cashbox_id || SESSION.cashboxId, collectPhysicalBalance_(form), data.note], function(result) {
         renderShiftSummary('shift-result', result, 'Smena je zatvorena');
         refreshDashboardInBackground();
       }, { successMessage: 'Smena je zatvorena.' });
@@ -899,6 +899,12 @@
     });
   }
 
+  function loadActiveShiftBalanceTo_(targetId) {
+    callApi('apiGetActiveShiftBalance', [SESSION.cashboxId], function(balance) {
+      renderShiftBalanceSummary(targetId, balance);
+    }, { successMessage: 'Presek aktivne smene je učitan.' });
+  }
+
   function loadDesktopDashboard() {
     callApi('apiGetManagementDashboardSummary', [{}], function(summary) {
       renderDesktopDashboard(summary);
@@ -1134,6 +1140,49 @@
       el.textContent = activeShiftLabel_();
     });
     updateKnjigaContext_();
+    renderShiftWorkflowState_();
+  }
+
+  function renderShiftWorkflowState_() {
+    var shift = uiState.activeShift || {};
+    var user = uiState.currentUser || {};
+    var hasShift = Boolean(shift.shift_id);
+    var owner = isCurrentActiveShiftOwner_();
+    var statusHtml = hasShift
+      ? '<div class="shift-state active"><strong>Aktivna smena</strong><span>Otvorio: ' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</span><span>Otvorena: ' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</span><span>Status: ' + escapeHtml(STATUS_LABEL_MAP[shift.status] || shift.status || '') + '</span></div>'
+      : '<div class="shift-state empty"><strong>Nema aktivne smene</strong><span>Prvo otvorite smenu da biste radili direktne uplate i isplate.</span></div>';
+    ['d-shift-status','m-shift-status'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = statusHtml;
+    });
+    document.querySelectorAll('#d-open-shift-form, #m-open-shift-form').forEach(function(form) {
+      setWorkflowFormDisabled_(form, hasShift);
+    });
+    document.querySelectorAll('#d-close-shift-form, #m-close-shift-form').forEach(function(form) {
+      setWorkflowFormDisabled_(form, !hasShift || !owner);
+    });
+    document.querySelectorAll('.optional-handover-card').forEach(function(card) {
+      card.style.display = hasShift && owner ? '' : 'none';
+    });
+    document.querySelectorAll('#d-active-shift-balance-btn, #m-active-shift-balance-btn').forEach(function(btn) {
+      btn.disabled = !hasShift;
+      btn.title = hasShift ? '' : 'Nema aktivne smene.';
+    });
+    if (hasShift && !owner) {
+      ['d-shift-status','m-shift-status'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.insertAdjacentHTML('beforeend', '<div class="shift-warning">Ovu smenu je otvorio drugi korisnik. Možete raditi preko zahteva, ali ne možete direktno knjižiti.</div>');
+      });
+    }
+  }
+
+  function setWorkflowFormDisabled_(form, disabled) {
+    if (!form) return;
+    form.classList.toggle('is-disabled-flow', disabled);
+    Array.prototype.forEach.call(form.querySelectorAll('input, textarea, select, button'), function(el) {
+      if (el.type === 'hidden') return;
+      el.disabled = disabled;
+    });
   }
 
   function loadCashbookFilterOptions_() {
@@ -2416,6 +2465,11 @@
     var loadShiftsBtn = document.getElementById('d-load-shifts-btn');
     if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() { loadMyShiftsTo_('d-shifts-list'); });
 
+    var activeShiftBalanceBtn = document.getElementById('d-active-shift-balance-btn');
+    if (activeShiftBalanceBtn) activeShiftBalanceBtn.addEventListener('click', function() {
+      loadActiveShiftBalanceTo_('d-shift-result');
+    });
+
     var loadAuditBtn = document.getElementById('d-load-audit-btn');
     if (loadAuditBtn) loadAuditBtn.addEventListener('click', function() {
       callApi('apiGetAuditLog', [{}], function(result) {
@@ -2466,7 +2520,7 @@
         showDesktopMessage_('Nema aktivne smene za zatvaranje. Otvorite smenu ili osvežite aplikaciju.', 'error');
         return;
       }
-      callApi('apiCloseShift', [data.shift_id, collectPhysicalBalance_(form), data.note], function(result) {
+      callApi('apiCloseActiveShift', [data.cashbox_id || SESSION.cashboxId, collectPhysicalBalance_(form), data.note], function(result) {
         uiState.activeShift = null;
         uiState.canPostDirectCashEvents = false;
         applyActiveShiftFields_();
@@ -2608,6 +2662,10 @@
     var loadShiftsBtn = document.getElementById('m-load-shifts-btn');
     if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() {
       loadMyShiftsTo_('m-shifts-list');
+    });
+    var activeShiftBalanceBtn = document.getElementById('m-active-shift-balance-btn');
+    if (activeShiftBalanceBtn) activeShiftBalanceBtn.addEventListener('click', function() {
+      loadActiveShiftBalanceTo_('m-shift-result');
     });
     var mobileRefreshBtn = document.getElementById('m-knjiga-refresh');
     if (mobileRefreshBtn) mobileRefreshBtn.addEventListener('click', function() { loadKnjiga_(); });

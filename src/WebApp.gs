@@ -222,6 +222,16 @@ function apiGetShiftBalance(shiftId) {
   });
 }
 
+function apiGetActiveShiftBalance(cashboxId) {
+  return apiWrap_(function() {
+    const activeShift = getActiveShiftForCashbox(cashboxId || getDefaultCashboxIdForCurrentUser_());
+    if (!activeShift) {
+      throw new Error('No active shift for cashbox.');
+    }
+    return getShiftBalance(activeShift.shift_id);
+  });
+}
+
 function apiHandoverShift(shiftId, handoverToUserEmail, physicalBalanceByCurrency, note) {
   return apiWrap_(function() {
     return handoverShift(shiftId, handoverToUserEmail, parseJsonInput_(physicalBalanceByCurrency), note);
@@ -231,6 +241,16 @@ function apiHandoverShift(shiftId, handoverToUserEmail, physicalBalanceByCurrenc
 function apiCloseShift(shiftId, physicalBalanceByCurrency, note) {
   return apiWrap_(function() {
     return closeShift(shiftId, parseJsonInput_(physicalBalanceByCurrency), note);
+  });
+}
+
+function apiCloseActiveShift(cashboxId, physicalBalanceByCurrency, note) {
+  return apiWrap_(function() {
+    const activeShift = getActiveShiftForCashbox(cashboxId || getDefaultCashboxIdForCurrentUser_());
+    if (!activeShift) {
+      throw new Error('No active shift for cashbox.');
+    }
+    return closeShift(activeShift.shift_id, parseJsonInput_(physicalBalanceByCurrency), note);
   });
 }
 
