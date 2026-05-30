@@ -15,6 +15,10 @@
       <!-- HEADER -->
       <header class="m-header">
         <div class="m-header-balance" id="m-balance" data-raw-value="0">— RSD</div>
+        <div class="m-header-clock">
+          <span id="m-current-date">—</span>
+          <strong id="m-current-time">--:--</strong>
+        </div>
         <div class="m-header-meta">
           <span id="m-date"></span>
           &nbsp;·&nbsp;
@@ -169,8 +173,6 @@
         <div class="sheet-title" id="sheet-title"></div>
         <input type="number" id="sheet-amount" class="sheet-amount-input" inputmode="decimal" step="0.01" min="0" placeholder="0,00">
         <div id="sheet-cur-toggle" class="cur-toggle">
-          <button class="cur-btn active in" data-currency="RSD" type="button">RSD</button>
-          <button class="cur-btn" data-currency="EUR" type="button">EUR</button>
         </div>
         <input type="text" id="sheet-partner" placeholder="Primalac / uplatioc (opciono)">
         <input type="text" id="sheet-description" placeholder="Opis / razlog *">

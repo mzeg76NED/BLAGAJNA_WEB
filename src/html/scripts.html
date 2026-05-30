@@ -240,14 +240,17 @@
     });
 
     bindForm('daily-close-form', function(data) {
-      if (!confirm('Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?')) {
-        return;
-      }
       data = withUiDefaults(data);
-      callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
-        renderDailyClosingSummary('daily-closing-result', result, 'Dnevni zaključak je kreiran');
-        refreshDashboardInBackground();
-      }, { successMessage: 'Dnevni zaključak je kreiran.' });
+      appConfirm_({
+        title: 'Dnevni zaključak',
+        message: 'Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?',
+        confirmText: 'Zaključi dan'
+      }, function() {
+        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+          renderDailyClosingSummary('daily-closing-result', result, 'Dnevni zaključak je kreiran');
+          refreshDashboardInBackground();
+        }, { successMessage: 'Dnevni zaključak je kreiran.' });
+      });
     });
 
     bindClick('load-daily-closings-btn', function() {
@@ -552,7 +555,7 @@
     var screenHeight = window.screen && window.screen.height ? window.screen.height : window.innerHeight;
     var shortSide = Math.min(screenWidth, screenHeight);
     var scale = shortSide / 360;
-    scale = Math.max(1.38, Math.min(scale, 1.9));
+    scale = Math.max(1.72, Math.min(scale, 2.25));
     document.documentElement.style.setProperty('--mobile-scale', String(scale.toFixed(3)));
   }
 
@@ -572,12 +575,23 @@
   }
 
   function showMessage(message, type) {
+    if (document.getElementById('d-message')) {
+      showDesktopMessage_(message, type);
+      return;
+    }
+    if (document.getElementById('m-message')) {
+      showMobileMessage_(message, type);
+      return;
+    }
     var box = document.getElementById('message');
     if (!box) {
       return;
     }
     box.textContent = message;
     box.className = 'message show ' + (type || 'info');
+    if (type !== 'error') {
+      setTimeout(function() { box.className = 'message'; }, 4000);
+    }
   }
 
   function setLoading(isLoading) {
@@ -762,13 +776,18 @@
         }, { successMessage: 'Zahtev je odobren, nalog je spreman za isplatu.' });
       }),
       actionButton('Odbij', function() {
-        var reason = prompt('Razlog odbijanja');
-        if (reason) {
+        appPrompt_({
+          title: 'Odbij zahtev',
+          message: 'Unesite razlog odbijanja zahteva ' + record.request_id + '.',
+          label: 'Razlog odbijanja',
+          confirmText: 'Odbij',
+          danger: true
+        }, function(reason) {
           callApi('apiRejectPaymentRequest', [record.request_id, reason], function() {
             loadApprovalRequests(true);
             refreshDashboardInBackground();
           }, { successMessage: 'Zahtev je odbijen.' });
-        }
+        });
       }, 'danger')
     ];
   }
@@ -799,24 +818,32 @@
   function waitingOrderActions_(record) {
     return [
       actionButton('Izvrši odmah', function() {
-        if (!confirm('Izvršiti isplatu za nalog ' + record.order_id + '?')) {
-          return;
-        }
-        callApi('apiExecutePaymentOrder', [record.order_id, {}], function(result) {
-          renderPaymentExecutionSummary('execute-payment-result', result);
-          loadWaitingOrders(true);
-          refreshDashboardInBackground();
-        }, { successMessage: 'Isplata je izvršena za nalog ' + record.order_id + '.' });
+        appConfirm_({
+          title: 'Izvršenje naloga',
+          message: 'Izvršiti isplatu za nalog ' + record.order_id + '?',
+          confirmText: 'Izvrši isplatu'
+        }, function() {
+          callApi('apiExecutePaymentOrder', [record.order_id, {}], function(result) {
+            renderPaymentExecutionSummary('execute-payment-result', result);
+            loadWaitingOrders(true);
+            refreshDashboardInBackground();
+          }, { successMessage: 'Isplata je izvršena za nalog ' + record.order_id + '.' });
+        });
       }),
       actionButton('Popuni formu', function() {
         showSection('execute-payment');
         setInputValue('execute-payment-form', 'order_id', record.order_id);
       }),
       actionButton('Odbij izvršenje', function() {
-        var reason = prompt('Razlog odbijanja izvršenja');
-        if (reason) {
+        appPrompt_({
+          title: 'Odbij izvršenje',
+          message: 'Unesite razlog odbijanja izvršenja naloga ' + record.order_id + '.',
+          label: 'Razlog odbijanja',
+          confirmText: 'Odbij',
+          danger: true
+        }, function(reason) {
           callApi('apiRejectPaymentOrderByCashier', [record.order_id, reason], loadWaitingOrders);
-        }
+        });
       }, 'danger')
     ];
   }
@@ -1492,12 +1519,14 @@
     var balFmt  = formatAmount_(balance);
     var dateStr = formatDateShort_(ev.event_date || ev.created_at);
     var label   = escapeHtml(ev.partner_name || ev.description || '—');
+    var reason  = escapeHtml(ev.description || '—');
     var createdBy = escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—'));
     var timeStr = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date));
+    var trace = ev.reversal_of_event_id ? ' · Veza: ' + escapeHtml(ev.reversal_of_event_id) : '';
     return '<tr class="' + rowClass + '" data-event-id="' + escapeHtml(ev.event_id) + '">' +
       '<td>' + index + '</td>' +
       '<td>' + dateStr + '</td>' +
-      '<td><div class="desc-main">' + label + '</div><div class="desc-sub">' + timeStr + ' · ' + createdBy + ' · ' + escapeHtml(ev.event_id) + '</div></td>' +
+      '<td><div class="desc-main">' + label + '</div><div class="desc-reason">' + reason + '</div><div class="desc-sub">' + timeStr + ' · ' + createdBy + ' · ' + escapeHtml(ev.event_id) + trace + '</div></td>' +
       '<td class="' + (isIn  ? 'cell-in'   : 'cell-dash') + '">' + (isIn  ? amtFmt : '—') + '</td>' +
       '<td class="' + (isOut ? 'cell-out'  : 'cell-dash') + '">' + (isOut ? amtFmt : '—') + '</td>' +
       '<td class="cell-bal">' + balFmt + '</td>' +
@@ -1521,13 +1550,16 @@
     var color  = isIn ? 'var(--color-in)'  : 'var(--color-out)';
     var prefix = displayAmount < 0 ? '−' : (isIn ? '+' : '−');
     var label  = escapeHtml(ev.partner_name || ev.description || '—');
+    var reason = escapeHtml(ev.description || '—');
     var meta   = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) +
       ' · ' + escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—')) +
-      ' · ' + escapeHtml(ev.event_id);
+      ' · ' + escapeHtml(ev.event_id) +
+      (ev.reversal_of_event_id ? ' · Veza: ' + escapeHtml(ev.reversal_of_event_id) : '');
     return '<div class="m-entry" data-event-id="' + escapeHtml(ev.event_id) + '">' +
       '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
       '<div class="m-entry-info">' +
         '<div class="m-entry-desc">' + label + '</div>' +
+        '<div class="m-entry-meta">' + reason + '</div>' +
         '<div class="m-entry-meta">' + meta  + '</div>' +
       '</div>' +
       '<div class="m-entry-amt" style="color:' + color + '">' + prefix + formatAmount_(Math.abs(displayAmount)) + '</div>' +
@@ -1562,6 +1594,9 @@
       ['Vreme',         escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date))],
       ['Uneo',          escapeHtml(ev.posted_by || ev.created_by || '—')]
     ];
+    if (ev.reversal_of_event_id) {
+      rows.push(['Veza storna', escapeHtml(ev.reversal_of_event_id)]);
+    }
 
     body.innerHTML = rows.map(function(r) {
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--color-border-light);font-size:13px">' +
@@ -1577,21 +1612,27 @@
       stornoBtn.title = canReverse ? '' : 'Ova stavka je već storno ili storno događaj.';
       stornoBtn.onclick = function() {
         if (!canReverse) return;
-        var reason = prompt('Razlog storna:');
-        if (!reason) return;
-        var originalText = stornoBtn.textContent;
-        stornoBtn.disabled = true;
-        stornoBtn.textContent = 'Storniram...';
-        callApi('apiReverseCashEvent', [ev.event_id, reason], function() {
-          panel.style.display = 'none';
-          loadKnjiga_(true);
-          refreshBalance_();
-        }, {
-          successMessage: 'Storno je evidentiran.',
-          onComplete: function() {
-            stornoBtn.disabled = false;
-            stornoBtn.textContent = originalText;
-          }
+        appPrompt_({
+          title: 'Storno stavke',
+          message: 'Unesite razlog storna za stavku ' + ev.event_id + '. Sistem će napraviti povezanu storno stavku, bez brisanja originala.',
+          label: 'Razlog storna',
+          confirmText: 'Storniraj',
+          danger: true
+        }, function(reason) {
+          var originalText = stornoBtn.textContent;
+          stornoBtn.disabled = true;
+          stornoBtn.textContent = 'Storniram...';
+          callApi('apiReverseCashEvent', [ev.event_id, reason], function() {
+            panel.style.display = 'none';
+            loadKnjiga_(true);
+            refreshBalance_();
+          }, {
+            successMessage: 'Storno je evidentiran.',
+            onComplete: function() {
+              stornoBtn.disabled = false;
+              stornoBtn.textContent = originalText;
+            }
+          });
         });
       };
     }
@@ -1642,11 +1683,32 @@
       if (label) label.textContent = 'Proknjiti isplatu';
     });
     submit.addEventListener('click', submitDesktopQuickForm_);
+    bindDesktopEnterFlow_();
 
     var btnU = document.getElementById('d-btn-uplata');
     var btnI = document.getElementById('d-btn-isplata');
     if (btnU) btnU.addEventListener('click', function() { btnIn.click(); var a = document.getElementById('d-qf-amount'); if (a) a.focus(); });
     if (btnI) btnI.addEventListener('click', function() { btnOut.click(); var a = document.getElementById('d-qf-amount'); if (a) a.focus(); });
+  }
+
+  function bindDesktopEnterFlow_() {
+    if (window.__blagajnaEnterFlowBound) return;
+    window.__blagajnaEnterFlowBound = true;
+    var amount = document.getElementById('d-qf-amount');
+    var partner = document.getElementById('d-qf-partner');
+    var desc = document.getElementById('d-qf-description');
+    if (amount) amount.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (partner) partner.focus();
+      }
+    });
+    if (partner) partner.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (desc) desc.focus();
+      }
+    });
   }
 
   function submitDesktopQuickForm_() {
@@ -1967,20 +2029,30 @@
       });
     });
     bindForm('d-daily-close-form', function(data) {
-      if (!confirm('Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?')) return;
       data = withUiDefaults(data);
-      callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
-        renderDailyClosingSummary('d-daily-result', result, 'Dnevni zaključak je kreiran');
-        refreshBalance_();
-      }, { successMessage: 'Dnevni zaključak je kreiran.' });
+      appConfirm_({
+        title: 'Dnevni zaključak',
+        message: 'Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?',
+        confirmText: 'Zaključi dan'
+      }, function() {
+        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+          renderDailyClosingSummary('d-daily-result', result, 'Dnevni zaključak je kreiran');
+          refreshBalance_();
+        }, { successMessage: 'Dnevni zaključak je kreiran.' });
+      });
     });
     bindForm('m-daily-close-form', function(data) {
-      if (!confirm('Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?')) return;
       data = withUiDefaults(data);
-      callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
-        renderDailyClosingSummary('m-daily-result', result, 'Dnevni zaključak je kreiran');
-        refreshBalance_();
-      }, { successMessage: 'Dnevni zaključak je kreiran.' });
+      appConfirm_({
+        title: 'Dnevni zaključak',
+        message: 'Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?',
+        confirmText: 'Zaključi dan'
+      }, function() {
+        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+          renderDailyClosingSummary('m-daily-result', result, 'Dnevni zaključak je kreiran');
+          refreshBalance_();
+        }, { successMessage: 'Dnevni zaključak je kreiran.' });
+      });
     });
   }
 
@@ -2099,12 +2171,17 @@
   }
 
   function executeOrderDirect_(orderId) {
-    if (!confirm('Izvršiti isplatu za nalog ' + orderId + '?')) return;
-    callApi('apiExecutePaymentOrder', [orderId, {}], function() {
-      loadMobileNalozi_();
-      loadKnjiga_(true);
-      refreshBalance_();
-    }, { successMessage: 'Isplata je izvršena.' });
+    appConfirm_({
+      title: 'Izvršenje naloga',
+      message: 'Izvršiti isplatu za nalog ' + orderId + '?',
+      confirmText: 'Izvrši isplatu'
+    }, function() {
+      callApi('apiExecutePaymentOrder', [orderId, {}], function() {
+        loadMobileNalozi_();
+        loadKnjiga_(true);
+        refreshBalance_();
+      }, { successMessage: 'Isplata je izvršena.' });
+    });
   }
 
   function loadDesktopNavBadges_() {
@@ -2140,6 +2217,101 @@
     }
   }
 
+  function appPrompt_(options, onConfirm) {
+    options = options || {};
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>' + escapeHtml(options.title || 'Potvrda') + '</h3>' +
+        '<p>' + escapeHtml(options.message || '') + '</p>' +
+        '<textarea rows="4" data-dialog-input placeholder="' + escapeHtml(options.placeholder || options.label || '') + '"></textarea>' +
+        '<div class="app-dialog-actions">' +
+          '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
+          '<button type="button" class="' + (options.danger ? 'btn-out' : 'btn-primary') + '" data-dialog-ok>' + escapeHtml(options.confirmText || 'Potvrdi') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var input = overlay.querySelector('[data-dialog-input]');
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-dialog-ok]').addEventListener('click', function() {
+      var value = (input.value || '').trim();
+      if (!value) {
+        input.focus();
+        showMessage('Unesite razlog pre potvrde.', 'error');
+        return;
+      }
+      close();
+      onConfirm(value);
+    });
+    window.setTimeout(function() { input.focus(); }, 50);
+  }
+
+  function appConfirm_(options, onConfirm) {
+    options = options || {};
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>' + escapeHtml(options.title || 'Potvrda') + '</h3>' +
+        '<p>' + escapeHtml(options.message || 'Da li želite da nastavite?') + '</p>' +
+        '<div class="app-dialog-actions">' +
+          '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
+          '<button type="button" class="' + (options.danger ? 'btn-out' : 'btn-primary') + '" data-dialog-ok>' + escapeHtml(options.confirmText || 'Potvrdi') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-dialog-ok]').addEventListener('click', function() {
+      close();
+      onConfirm();
+    });
+  }
+
+  function updateHeaderClock_() {
+    var now = new Date();
+    var dateText = now.toLocaleDateString('sr-RS', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    var timeText = now.toLocaleTimeString('sr-RS', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    var dDate = document.getElementById('d-current-date');
+    var dTime = document.getElementById('d-current-time');
+    var mDate = document.getElementById('m-current-date');
+    var mTime = document.getElementById('m-current-time');
+    if (dDate) dDate.textContent = dateText;
+    if (dTime) dTime.textContent = timeText;
+    if (mDate) mDate.textContent = dateText;
+    if (mTime) mTime.textContent = timeText;
+  }
+
+  function startHeaderClock_() {
+    updateHeaderClock_();
+    if (window.__blagajnaClockTimer) return;
+    window.__blagajnaClockTimer = window.setInterval(updateHeaderClock_, 1000);
+  }
+
+  function startLiveRefresh_(isDesktop, isMobile) {
+    if (window.__blagajnaLiveRefreshTimer) {
+      window.clearInterval(window.__blagajnaLiveRefreshTimer);
+    }
+    window.__blagajnaLiveRefreshTimer = window.setInterval(function() {
+      if (document.hidden) return;
+      refreshBalance_();
+      loadKnjiga_(true);
+      if (isMobile) loadMobileNalozi_();
+      if (isDesktop) loadDesktopNavBadges_();
+    }, 15000);
+  }
+
   /* ─── Bootstrap: prošireni DOMContentLoaded ──────────────────── */
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -2149,6 +2321,7 @@
     if (isMobile)  { bindMobileNav_();  bindMobileSheet_(); }
     if (isDesktop) { bindDesktopNav_(); bindDesktopQuickForm_(); }
     if (isMobile)  { bindModernShellForms_(); }
+    startHeaderClock_();
 
     // Današnji datum u date inputima
     var today = new Date().toISOString().split('T')[0];
@@ -2194,6 +2367,7 @@
 
       if (isMobile)  { refreshUrgentAlert(); loadMobileNalozi_(); }
       if (isDesktop) loadDesktopNavBadges_();
+      startLiveRefresh_(isDesktop, isMobile);
     }, { quiet: true });
   });
 

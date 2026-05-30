@@ -172,10 +172,12 @@
   <body>
     <? var data = printData || {}; var header = data.printHeader || {}; var event = data.event || {}; var cashbox = data.cashbox || {}; var order = data.linkedOrder || {}; var request = data.linkedRequest || {}; var documents = data.documents || []; ?>
     <? var isInflow = (event.direction === 'IN'); ?>
+    <? var amountDisplay = Number(event.amount || 0).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); ?>
     <? var copyLabels = ['Primerak za arhivu / potpis', 'Primerak za korisnika']; ?>
 
     <div class="no-print print-actions">
-      <button type="button" onclick="window.print()">Štampaj / Sačuvaj kao PDF</button>
+      <button type="button" onclick="safePrint()">Štampaj / Sačuvaj kao PDF</button>
+      <span style="color:#667085;font-size:11px;margin-left:8px">Ako browser blokira automatsku štampu, kliknite ovo dugme.</span>
     </div>
 
     <main class="a4-sheet">
@@ -201,7 +203,7 @@
             <span>Datum: <strong><?= event.event_date || event.created_at ?></strong></span>
             <span>Status: <strong><?= event.status ?></strong></span>
           </div>
-          <div class="amount-box"><?= event.amount ?> <?= event.currency ?></div>
+          <div class="amount-box"><?= amountDisplay ?> <?= event.currency ?></div>
           <div class="amount-words">Slovima: &nbsp;</div>
         </div>
 
@@ -258,10 +260,15 @@
       <? }); ?>
     </main>
     <script>
+      function safePrint() {
+        window.focus();
+        window.print();
+      }
+
       window.addEventListener('load', function() {
         window.setTimeout(function() {
-          window.print();
-        }, 250);
+          safePrint();
+        }, 1000);
       });
     </script>
   </body>

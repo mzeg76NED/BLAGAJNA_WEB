@@ -103,6 +103,27 @@
     background: #eef3f8;
   }
 
+  input,
+  select,
+  textarea {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+  }
+
+  :root[data-theme="dark"] input,
+  :root[data-theme="dark"] select,
+  :root[data-theme="dark"] textarea {
+    background: #111821;
+    color: var(--color-text);
+    color-scheme: dark;
+  }
+
+  :root[data-theme="dark"] select option {
+    background: #171c24;
+    color: #f2f5f9;
+  }
+
   :root[data-theme="dark"] button:hover,
   :root[data-theme="dark"] a.button-link:hover {
     background: #202938;
@@ -305,6 +326,7 @@
   }
 
   .desc-main { font-weight: 600; }
+  .desc-reason { color: var(--color-text); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
   .desc-sub  { color: var(--color-text-muted); font-size: 11px; margin-top: 2px; }
 
   .table-wrap { overflow-x: auto; }
@@ -642,6 +664,8 @@
     display: flex;
     gap: 8px;
     justify-content: center;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 
   .cur-btn {
@@ -789,6 +813,31 @@
 
   .topbar-balance-value {
     color: var(--color-in);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .topbar-clock {
+    align-items: flex-start;
+    border-left: 1px solid var(--color-border-light);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding-left: 12px;
+  }
+
+  .topbar-clock span {
+    color: var(--color-text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .topbar-clock strong {
+    color: var(--color-text);
     font-size: 20px;
     font-variant-numeric: tabular-nums;
     font-weight: 800;
@@ -1041,7 +1090,22 @@
   }
 
   html.mobile-view .m-header-balance {
-    font-size: calc(29px * var(--mobile-scale));
+    font-size: calc(34px * var(--mobile-scale));
+  }
+
+  html.mobile-view .m-header-clock {
+    display: flex;
+    align-items: baseline;
+    gap: calc(8px * var(--mobile-scale));
+    margin-top: calc(4px * var(--mobile-scale));
+  }
+
+  html.mobile-view .m-header-clock span,
+  html.mobile-view .m-header-clock strong {
+    font-size: calc(34px * var(--mobile-scale));
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    line-height: 1;
   }
 
   html.mobile-view .m-header-meta,
@@ -1057,8 +1121,8 @@
   }
 
   html.mobile-view .btn-lg {
-    font-size: calc(17px * var(--mobile-scale));
-    min-height: calc(58px * var(--mobile-scale));
+    font-size: calc(19px * var(--mobile-scale));
+    min-height: calc(64px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry {
@@ -1072,15 +1136,15 @@
   }
 
   html.mobile-view .m-entry-desc {
-    font-size: calc(15px * var(--mobile-scale));
+    font-size: calc(17px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-meta {
-    font-size: calc(12px * var(--mobile-scale));
+    font-size: calc(13px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-amt {
-    font-size: calc(16px * var(--mobile-scale));
+    font-size: calc(18px * var(--mobile-scale));
   }
 
   html.mobile-view .m-tab {
@@ -1099,7 +1163,53 @@
   }
 
   html.mobile-view .sheet-amount-input {
-    font-size: calc(36px * var(--mobile-scale)) !important;
+    font-size: calc(44px * var(--mobile-scale)) !important;
+  }
+
+  .app-dialog-overlay {
+    align-items: center;
+    background: rgba(15, 19, 25, 0.55);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: 18px;
+    position: fixed;
+    z-index: 500;
+  }
+
+  .app-dialog {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+    color: var(--color-text);
+    max-width: 440px;
+    padding: 18px;
+    width: min(100%, 440px);
+  }
+
+  .app-dialog h3 {
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+
+  .app-dialog p {
+    color: var(--color-text-muted);
+    margin-bottom: 12px;
+  }
+
+  .app-dialog textarea,
+  .app-dialog input {
+    font-size: 16px;
+    margin-bottom: 12px;
+    min-height: 46px;
+    width: 100%;
+  }
+
+  .app-dialog-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
   }
 
   @media (max-width: 768px) {
