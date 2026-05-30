@@ -66,7 +66,6 @@ function assertMandatoryReason(reason) {
 
 function assertActiveCurrency(currency) {
   assertNonEmptyString(currency, 'currency');
-  assertAllowedValue(currency, SUPPORTED_CURRENCIES, 'currency');
 
   const existing = findRecordById(SHEET_NAMES.CURRENCIES, 'currency_code', currency);
   if (!existing) {

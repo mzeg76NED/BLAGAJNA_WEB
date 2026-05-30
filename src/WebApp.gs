@@ -237,6 +237,23 @@ function apiGetUiBootstrap(includeDashboard) {
   });
 }
 
+function apiGetAuditLog(filters) {
+  return apiWrap_(function() {
+    assertUserHasRole([
+      USER_ROLES.ADMIN,
+      USER_ROLES.DIRECTOR,
+      USER_ROLES.FINANCE,
+      USER_ROLES.CASHIER_SUPERVISOR
+    ]);
+    const limit = Number((filters || {}).limit || 100);
+    return listRecords(SHEET_NAMES.AUDIT_LOG)
+      .sort(function(left, right) {
+        return toTime_(right.timestamp) - toTime_(left.timestamp);
+      })
+      .slice(0, isFinite(limit) && limit > 0 ? limit : 100);
+  });
+}
+
 function apiGetCashboxBalanceReport(filters) {
   return apiWrap_(function() {
     return getCashboxBalanceReport(filters || {});
@@ -386,12 +403,13 @@ function buildAppConfigForUi_(currentUser) {
   return {
     appName: APP_CONFIG.APP_NAME,
     version: APP_CONFIG.VERSION,
-    currencies: SUPPORTED_CURRENCIES,
+    currencies: listSupportedCurrencies(),
     cashboxes: cashboxes,
     requestPriorities: objectValues_(REQUEST_PRIORITIES),
     entityTypes: objectValues_(ENTITY_TYPES),
     defaultCashboxId: defaultCashboxId,
     defaultCashboxName: defaultCashbox.name || defaultCashbox.cashbox_id,
+    defaultCurrency: getDefaultCurrencyCode(),
     today: Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Europe/Belgrade', 'yyyy-MM-dd')
   };
 }

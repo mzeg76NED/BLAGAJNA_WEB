@@ -427,7 +427,8 @@ function getOppositeDirection_(direction) {
 function isCashEventBalanceAffecting(event) {
   return Boolean(event) && (
     event.status === CASH_EVENT_STATUSES.POSTED ||
-    event.status === CASH_EVENT_STATUSES.LOCKED
+    event.status === CASH_EVENT_STATUSES.LOCKED ||
+    event.status === CASH_EVENT_STATUSES.REVERSED
   );
 }
 

@@ -12,6 +12,7 @@
   };
 
   var AUTOLOAD_MAP = {};
+  var CURRENT_SELECTED_EVENT_ID = '';
 
   var STATUS_BADGE_MAP = {
     'DRAFT': 'badge-draft',
@@ -547,8 +548,8 @@
     if (!document.querySelector('.m-shell')) return;
     var width = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
     var height = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
-    var scale = Math.min(width / 390, height / 760);
-    scale = Math.max(1, Math.min(scale, 1.32));
+    var scale = Math.min(width / 360, height / 680);
+    scale = Math.max(1.18, Math.min(scale, 1.7));
     document.documentElement.style.setProperty('--mobile-scale', String(scale.toFixed(3)));
   }
 
@@ -638,16 +639,24 @@
   }
 
   function loadMyRequests(isBackground) {
+    loadMyRequestsTo_('my-requests-list', isBackground);
+  }
+
+  function loadMyRequestsTo_(targetId, isBackground) {
     callApi('apiListMyPaymentRequests', [], function(result) {
-      renderActionRecords('my-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], function(record) {
+      renderActionRecords(targetId, result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], function(record) {
         return approvedRequestActions_(record, loadMyRequests);
       });
     }, { quiet: Boolean(isBackground) });
   }
 
   function loadApprovalRequests(isBackground) {
+    loadApprovalRequestsTo_('approval-requests-list', isBackground);
+  }
+
+  function loadApprovalRequestsTo_(targetId, isBackground) {
     callApi('apiListRequestsForApproval', [], function(result) {
-      renderActionRecords('approval-requests-list', result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], requestApprovalActions_);
+      renderActionRecords(targetId, result, ['request_id', 'requested_for_name', 'amount', 'currency', 'purpose', 'status'], requestApprovalActions_);
       updateTabCounts_(result.length, null);
     }, { quiet: Boolean(isBackground) });
   }
@@ -810,12 +819,16 @@
   }
 
   function loadMyShifts() {
+    loadMyShiftsTo_('shift-result');
+  }
+
+  function loadMyShiftsTo_(targetId) {
     callApi('apiGetMyActiveShifts', [], function(result) {
-      renderActionRecords('shift-result', result, ['shift_id', 'opened_at', 'status'], function(record) {
+      renderActionRecords(targetId, result, ['shift_id', 'opened_at', 'status'], function(record) {
         return [
           actionButton('Presek', function() {
             callApi('apiGetShiftBalance', [record.shift_id], function(balance) {
-              renderShiftBalanceSummary('shift-result', balance);
+              renderShiftBalanceSummary(targetId, balance);
             });
           })
         ];
@@ -837,6 +850,49 @@
         renderTable(targetId, result || [], fields);
       }
     });
+  }
+
+  function loadCashMovementsReport_(targetId, formId) {
+    callApi('apiGetCashMovementsReport', [withUiDefaults(serializeForm(formId))], function(result) {
+      renderCashMovementsBook_(targetId, result || []);
+    });
+  }
+
+  function renderCashMovementsBook_(targetId, events) {
+    var target = document.getElementById(targetId);
+    if (!target) return;
+    if (!events.length) {
+      target.innerHTML = renderEmptyState_('Nema kretanja blagajne za izabrane filtere.');
+      return;
+    }
+
+    var balance = 0;
+    var totalIn = 0;
+    var totalOut = 0;
+    var rows = events.slice().reverse().map(function(ev, index) {
+      var amount = Number(ev.amount || 0);
+      if (ev.direction === 'OUT') {
+        balance -= amount;
+        totalOut += amount;
+      } else if (ev.direction === 'IN') {
+        balance += amount;
+        totalIn += amount;
+      }
+      return renderKnjigaRow_(ev, index + 1, balance);
+    }).reverse();
+
+    target.innerHTML = '<div class="table-wrap"><table class="book-table">' +
+      '<thead><tr>' +
+        '<th style="width:36px">Rb.</th>' +
+        '<th style="width:72px">Datum</th>' +
+        '<th>Opis / Primalac</th>' +
+        '<th class="num" style="width:110px">Uplata</th>' +
+        '<th class="num" style="width:110px">Isplata</th>' +
+        '<th class="num" style="width:120px">Saldo perioda</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows.join('') + '</tbody>' +
+      '<tfoot>' + renderKnjigaTotals_(totalIn, totalOut, balance) + '</tfoot>' +
+      '</table></div>';
   }
 
   function refreshDashboardInBackground() {
@@ -1481,6 +1537,11 @@
     var title = document.getElementById('d-detail-title');
     var body  = document.getElementById('d-detail-body');
     if (!panel || !title || !body) return;
+    CURRENT_SELECTED_EVENT_ID = ev.event_id || '';
+    var printEventInput = document.querySelector('#print-tools-form [name="cash_event_id"]');
+    if (printEventInput && CURRENT_SELECTED_EVENT_ID) {
+      printEventInput.value = CURRENT_SELECTED_EVENT_ID;
+    }
 
     var isIn     = ev.direction === 'IN';
     var dirLabel = isIn ? '↓ UPLATA' : '↑ ISPLATA';
@@ -1804,7 +1865,7 @@
         });
         if (target === 'knjiga')  { loadKnjiga_(true); }
         if (target === 'nalozi')  { loadDesktopNalozi_(); }
-        if (target === 'zahtevi') { loadApprovalRequests(true); }
+        if (target === 'zahtevi') { loadApprovalRequestsTo_('d-zahtevi-list', true); }
       });
     });
 
@@ -1821,19 +1882,148 @@
     if (loadNaloziBtn) loadNaloziBtn.addEventListener('click', loadDesktopNalozi_);
 
     var loadApprBtn = document.getElementById('d-load-approval-btn');
-    if (loadApprBtn) loadApprBtn.addEventListener('click', function() { loadApprovalRequests(false); });
+    if (loadApprBtn) loadApprBtn.addEventListener('click', function() { loadApprovalRequestsTo_('d-zahtevi-list', false); });
 
     var loadMyReqBtn = document.getElementById('d-load-my-requests-btn');
-    if (loadMyReqBtn) loadMyReqBtn.addEventListener('click', function() { loadMyRequests(false); });
+    if (loadMyReqBtn) loadMyReqBtn.addEventListener('click', function() { loadMyRequestsTo_('d-zahtevi-list', false); });
 
     var loadShiftsBtn = document.getElementById('d-load-shifts-btn');
-    if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() { loadMyShifts(); });
+    if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() { loadMyShiftsTo_('d-shifts-list'); });
 
     var loadAuditBtn = document.getElementById('d-load-audit-btn');
     if (loadAuditBtn) loadAuditBtn.addEventListener('click', function() {
       callApi('apiGetAuditLog', [{}], function(result) {
         renderTable('d-audit-list', result || [], ['timestamp','user','action','entity_type','entity_id','comment']);
       });
+    });
+
+    bindModernShellForms_();
+    bindModernReportButtons_();
+    bindModernPrintButtons_();
+  }
+
+  function bindModernShellForms_() {
+    bindForm('d-open-shift-form', function(data) {
+      data = withUiDefaults(data);
+      callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
+        renderShiftSummary('d-shift-result', result, 'Smena je otvorena');
+        refreshBalance_();
+      }, { successMessage: 'Smena je otvorena.' });
+    });
+    bindForm('m-open-shift-form', function(data) {
+      data = withUiDefaults(data);
+      callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
+        renderShiftSummary('m-shift-result', result, 'Smena je otvorena');
+        refreshBalance_();
+      }, { successMessage: 'Smena je otvorena.' });
+    });
+    bindForm('d-handover-form', function(data, form) {
+      callApi('apiHandoverShift', [data.shift_id, data.handover_to, collectPhysicalBalance_(form), data.note], function(result) {
+        renderShiftSummary('d-shift-result', result, 'Primopredaja je evidentirana');
+      }, { successMessage: 'Primopredaja je evidentirana.' });
+    });
+    bindForm('m-handover-shift-form', function(data, form) {
+      callApi('apiHandoverShift', [data.shift_id, data.handover_to, collectPhysicalBalance_(form), data.note], function(result) {
+        renderShiftSummary('m-shift-result', result, 'Primopredaja je evidentirana');
+      }, { successMessage: 'Primopredaja je evidentirana.' });
+    });
+    bindForm('d-close-shift-form', function(data, form) {
+      callApi('apiCloseShift', [data.shift_id, collectPhysicalBalance_(form), data.note], function(result) {
+        renderShiftSummary('d-shift-result', result, 'Smena je zatvorena');
+        refreshBalance_();
+      }, { successMessage: 'Smena je zatvorena.' });
+    });
+    bindForm('m-close-shift-form', function(data, form) {
+      callApi('apiCloseShift', [data.shift_id, collectPhysicalBalance_(form), data.note], function(result) {
+        renderShiftSummary('m-shift-result', result, 'Smena je zatvorena');
+        refreshBalance_();
+      }, { successMessage: 'Smena je zatvorena.' });
+    });
+    bindForm('d-daily-preview-form', function(data) {
+      data = withUiDefaults(data);
+      callApi('apiPrepareDailyClosing', [data.cashbox_id, data.currency, data.closing_date], function(result) {
+        renderDailyClosingSummary('d-daily-result', result, 'Pregled dnevnog zaključka');
+      });
+    });
+    bindForm('m-daily-preview-form', function(data) {
+      data = withUiDefaults(data);
+      callApi('apiPrepareDailyClosing', [data.cashbox_id, data.currency, data.closing_date], function(result) {
+        renderDailyClosingSummary('m-daily-result', result, 'Pregled dnevnog zaključka');
+      });
+    });
+    bindForm('d-daily-close-form', function(data) {
+      if (!confirm('Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?')) return;
+      data = withUiDefaults(data);
+      callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+        renderDailyClosingSummary('d-daily-result', result, 'Dnevni zaključak je kreiran');
+        refreshBalance_();
+      }, { successMessage: 'Dnevni zaključak je kreiran.' });
+    });
+    bindForm('m-daily-close-form', function(data) {
+      if (!confirm('Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?')) return;
+      data = withUiDefaults(data);
+      callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+        renderDailyClosingSummary('m-daily-result', result, 'Dnevni zaključak je kreiran');
+        refreshBalance_();
+      }, { successMessage: 'Dnevni zaključak je kreiran.' });
+    });
+  }
+
+  function bindModernReportButtons_() {
+    bindClick('report-balance-btn', function() {
+      loadReport('apiGetCashboxBalanceReport', 'report-filters-form', 'reports-result', ['cashbox_name', 'currency', 'balance']);
+    });
+    bindClick('report-open-requests-btn', function() {
+      loadReport('apiGetOpenPaymentRequestsReport', 'report-filters-form', 'reports-result', ['request_id', 'created_at', 'requested_for_name', 'amount', 'currency', 'priority', 'status', 'document_status']);
+    });
+    bindClick('report-approval-requests-btn', function() {
+      loadReport('apiGetRequestsForApprovalReport', 'report-filters-form', 'reports-result', ['request_id', 'created_at', 'requested_for_name', 'amount', 'currency', 'priority', 'status']);
+    });
+    bindClick('report-waiting-orders-btn', function() {
+      loadReport('apiGetOrdersWaitingPaymentReport', 'report-filters-form', 'reports-result', ['order_id', 'pay_to_name', 'remaining_amount', 'currency', 'status']);
+    });
+    bindClick('report-cash-movements-btn', function() {
+      loadCashMovementsReport_('reports-result', 'report-filters-form');
+    });
+    bindClick('report-executed-payments-btn', function() {
+      loadReport('apiGetExecutedPaymentsReport', 'report-filters-form', 'reports-result', ['event_id', 'event_date', 'currency', 'amount', 'partner_name', 'linked_order_id', 'status']);
+    });
+    bindClick('report-missing-documents-btn', function() {
+      loadReport('apiGetMissingDocumentsReport', 'report-filters-form', 'reports-result', ['entity_type', 'entity_id', 'date', 'description', 'amount', 'currency', 'document_status']);
+    });
+    bindClick('report-daily-closings-btn', function() {
+      loadReport('apiGetDailyClosingReport', 'report-filters-form', 'reports-result', ['closing_id', 'closing_date', 'currency', 'calculated_balance', 'physical_balance', 'difference', 'status']);
+    });
+    bindClick('report-differences-btn', function() {
+      loadReport('apiGetDifferencesReport', 'report-filters-form', 'reports-result', ['source_type', 'source_id', 'date', 'currency', 'difference', 'status']);
+    });
+    bindClick('report-corrections-btn', function() {
+      loadReport('apiGetCorrectionsAndReversalsReport', 'report-filters-form', 'reports-result', ['event_id', 'event_date', 'event_type', 'currency', 'direction', 'amount', 'status']);
+    });
+    bindClick('report-audit-exceptions-btn', function() {
+      loadReport('apiGetAuditExceptionsReport', 'report-filters-form', 'reports-result', ['exception_type', 'entity_type', 'entity_id', 'date', 'description', 'status']);
+    });
+  }
+
+  function bindModernPrintButtons_() {
+    bindClick('print-payment-request-btn', function() {
+      openPrintView('print-payment-request', getPrintInputValue_('payment_request_id'));
+    });
+    bindClick('print-payment-order-btn', function() {
+      openPrintView('print-payment-order', getPrintInputValue_('payment_order_id'));
+    });
+    bindClick('print-cash-event-btn', function() {
+      openPrintView('print-cash-event', getPrintInputValue_('cash_event_id') || CURRENT_SELECTED_EVENT_ID);
+    });
+    bindClick('print-shift-btn', function() {
+      openPrintView('print-shift-handover', getPrintInputValue_('shift_id'));
+    });
+    bindClick('print-daily-closing-btn', function() {
+      openPrintView('print-daily-closing', getPrintInputValue_('daily_closing_id'));
+    });
+    bindClick('print-report-btn', function() {
+      var reportTypeSelect = document.getElementById('print-report-type');
+      openPrintReport(reportTypeSelect ? reportTypeSelect.value : 'missing-documents');
     });
   }
 
@@ -1852,6 +2042,11 @@
         if (target === 'm-section-knjiga') loadKnjiga_(true);
         if (target === 'm-section-nalozi') loadMobileNalozi_();
       });
+    });
+
+    var loadShiftsBtn = document.getElementById('m-load-shifts-btn');
+    if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() {
+      loadMyShiftsTo_('m-shifts-list');
     });
   }
 
@@ -1934,6 +2129,7 @@
 
     if (isMobile)  { bindMobileNav_();  bindMobileSheet_(); }
     if (isDesktop) { bindDesktopNav_(); bindDesktopQuickForm_(); }
+    if (isMobile)  { bindModernShellForms_(); }
 
     // Današnji datum u date inputima
     var today = new Date().toISOString().split('T')[0];

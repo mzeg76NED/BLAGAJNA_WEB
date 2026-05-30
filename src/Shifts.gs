@@ -233,7 +233,7 @@ function calculateBalanceBySupportedCurrencies_(cashboxId) {
   assertNonEmptyString(cashboxId, 'cashboxId');
   assertActiveCashbox(cashboxId);
 
-  return SUPPORTED_CURRENCIES.reduce(function(result, currency) {
+  return listSupportedCurrencies().reduce(function(result, currency) {
     assertActiveCurrency(currency);
     result[currency] = calculateCashboxBalance(cashboxId, currency);
     return result;
