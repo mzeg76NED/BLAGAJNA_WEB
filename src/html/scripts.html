@@ -416,6 +416,7 @@
           SESSION.cashboxId = select.value || SESSION.cashboxId;
           SESSION.cashboxName = selected ? (selected.name || selected.cashbox_id) : SESSION.cashboxId;
           applyDefaultCashboxFields();
+          refreshActiveShiftState_({ enforce: false });
           refreshBalance_();
           if (typeof loadKnjiga_ === 'function') {
             loadKnjiga_(true);
@@ -1290,6 +1291,27 @@
         btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'smena');
       });
     }
+  }
+
+  function refreshActiveShiftState_(options) {
+    options = options || {};
+    if (!SESSION.cashboxId) return;
+    callApi('apiGetActiveShiftState', [SESSION.cashboxId], function(result) {
+      var previousId = uiState.activeShift && uiState.activeShift.shift_id || '';
+      var nextShift = result && result.activeShift || null;
+      var nextId = nextShift && nextShift.shift_id || '';
+      uiState.activeShift = nextShift;
+      uiState.canPostDirectCashEvents = result && result.canPostDirectCashEvents === true;
+      applyActiveShiftFields_();
+      applyDirectCashPermission_();
+      if (previousId !== nextId) {
+        loadCashbookFilterOptions_();
+        if (options.refreshKnjiga !== false) loadKnjiga_(true);
+      }
+      if (options.enforce && !nextId) {
+        enforceShiftStartup_(Boolean(document.querySelector('.d-shell')), Boolean(document.querySelector('.m-shell')));
+      }
+    }, { quiet: true });
   }
 
   function bindBalanceOverviewButtons_() {
@@ -2865,6 +2887,7 @@
     }
     window.__blagajnaLiveRefreshTimer = window.setInterval(function() {
       if (document.hidden) return;
+      refreshActiveShiftState_({ enforce: false, refreshKnjiga: false });
       refreshBalance_();
       loadKnjiga_(true);
       if (isMobile) loadMobileNalozi_();

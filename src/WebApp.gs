@@ -232,6 +232,18 @@ function apiGetActiveShiftBalance(cashboxId) {
   });
 }
 
+function apiGetActiveShiftState(cashboxId) {
+  return apiWrap_(function() {
+    const user = assertCurrentUserActive();
+    const targetCashboxId = cashboxId || getDefaultCashboxIdForCurrentUser_();
+    const activeShift = getActiveShiftForCashbox(targetCashboxId);
+    return {
+      activeShift: activeShift,
+      canPostDirectCashEvents: !!(activeShift && activeShift.opened_by === user.email)
+    };
+  });
+}
+
 function apiHandoverShift(shiftId, handoverToUserEmail, physicalBalanceByCurrency, note) {
   return apiWrap_(function() {
     return handoverShift(shiftId, handoverToUserEmail, parseJsonInput_(physicalBalanceByCurrency), note);
