@@ -284,6 +284,12 @@
     z-index: 3;
   }
 
+  .book-table .total-row-top td {
+    position: sticky;
+    top: 33px;
+    z-index: 3;
+  }
+
   :root[data-theme="dark"] .book-table th {
     background: #202733;
   }
@@ -322,6 +328,7 @@
     border-top: 2px solid var(--color-border);
     font-size: 12px;
     font-weight: 800;
+    padding: 10px 12px;
   }
 
   :root[data-theme="dark"] .total-row td {
@@ -361,7 +368,8 @@
     font-weight: 700;
   }
 
-  .knjiga-total-strip {
+  .knjiga-total-strip,
+  .m-traffic-summary {
     align-items: center;
     background: var(--color-surface-muted);
     border: 1px solid var(--color-border-light);
@@ -373,7 +381,8 @@
     padding: 8px 10px;
   }
 
-  .knjiga-total-strip span {
+  .knjiga-total-strip span,
+  .m-traffic-summary span {
     display: inline-flex;
     gap: 6px;
     white-space: nowrap;
@@ -588,30 +597,20 @@
     display: flex;
   }
 
-  #m-section-knjiga .m-section-label,
-  #m-section-knjiga .knjiga-context,
-  #m-section-knjiga .m-book-filters,
-  #m-section-knjiga .knjiga-total-strip {
+  .m-book-tools {
     background: var(--color-bg);
-    position: sticky;
-    z-index: 4;
-  }
-
-  #m-section-knjiga .m-section-label { top: 0; }
-  #m-section-knjiga .knjiga-context { top: 32px; }
-  #m-section-knjiga .m-book-filters { top: 62px; }
-  #m-section-knjiga .knjiga-total-strip { top: 112px; }
-
-  .m-book-filters {
     display: grid;
     gap: 8px;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-    padding: 6px 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0 0 8px;
   }
 
-  .m-book-filters input,
-  .m-book-filters button {
-    min-height: 44px;
+  .m-book-tools button {
+    min-height: 48px;
+  }
+
+  .m-traffic-summary {
+    margin-bottom: 10px;
   }
 
   .m-section-actions {
@@ -1411,6 +1410,42 @@
     justify-content: flex-end;
   }
 
+  html.mobile-view .card,
+  html.mobile-view .record,
+  html.mobile-view .result-box,
+  html.mobile-view label,
+  html.mobile-view .summary-label,
+  html.mobile-view .detail-key,
+  html.mobile-view .detail-row,
+  html.mobile-view .message {
+    font-size: calc(17px * var(--mobile-scale));
+  }
+
+  html.mobile-view .card-head h3,
+  html.mobile-view .m-section h2 {
+    font-size: calc(22px * var(--mobile-scale));
+  }
+
+  html.mobile-view .app-dialog {
+    max-width: none;
+    padding: calc(22px * var(--mobile-scale));
+  }
+
+  html.mobile-view .app-dialog h3 {
+    font-size: calc(24px * var(--mobile-scale));
+  }
+
+  html.mobile-view .app-dialog p,
+  html.mobile-view .app-dialog textarea,
+  html.mobile-view .app-dialog input {
+    font-size: calc(19px * var(--mobile-scale));
+  }
+
+  html.mobile-view .app-dialog button {
+    font-size: calc(18px * var(--mobile-scale));
+    min-height: calc(52px * var(--mobile-scale));
+  }
+
   @media (max-width: 768px) {
     html, body {
       font-size: calc(16px * var(--mobile-scale));
@@ -1437,16 +1472,18 @@
     }
 
     .m-header {
-      padding: calc(12px * var(--mobile-scale)) calc(16px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
-      padding-top: max(calc(12px * var(--mobile-scale)), env(safe-area-inset-top));
+      padding: calc(14px * var(--mobile-scale)) calc(16px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
+      padding-top: max(calc(14px * var(--mobile-scale)), env(safe-area-inset-top));
     }
 
     .m-header-balance {
-      font-size: calc(25px * var(--mobile-scale));
+      font-size: calc(34px * var(--mobile-scale));
     }
 
-    .m-header-meta {
-      font-size: calc(12px * var(--mobile-scale));
+    .m-header-meta,
+    .m-header-clock span,
+    .m-header-clock strong {
+      font-size: calc(22px * var(--mobile-scale));
     }
 
     .m-header-chips {
@@ -1456,7 +1493,7 @@
 
     .m-chip,
     .m-chip select {
-      font-size: calc(12px * var(--mobile-scale));
+      font-size: calc(14px * var(--mobile-scale));
     }
 
     .m-chip {
@@ -1464,9 +1501,9 @@
     }
 
     .m-section {
-      gap: calc(12px * var(--mobile-scale));
-      padding: calc(14px * var(--mobile-scale));
-      padding-bottom: calc(16px * var(--mobile-scale) + env(safe-area-inset-bottom));
+      gap: calc(14px * var(--mobile-scale));
+      padding: calc(16px * var(--mobile-scale));
+      padding-bottom: calc(126px + env(safe-area-inset-bottom));
     }
 
     .m-section-actions {
@@ -1488,25 +1525,25 @@
     }
 
     .m-entry-desc {
-      font-size: calc(20px * var(--mobile-scale));
+      font-size: calc(24px * var(--mobile-scale));
     }
 
     .m-entry-meta {
-      font-size: calc(16px * var(--mobile-scale));
+      font-size: calc(19px * var(--mobile-scale));
     }
 
     .m-entry-amt {
-      font-size: calc(22px * var(--mobile-scale));
+      font-size: calc(26px * var(--mobile-scale));
     }
 
     .m-tab {
-      font-size: calc(13px * var(--mobile-scale));
+      font-size: calc(16px * var(--mobile-scale));
       gap: calc(2px * var(--mobile-scale));
-      padding: calc(9px * var(--mobile-scale)) 4px;
+      padding: calc(12px * var(--mobile-scale)) 4px;
     }
 
     .m-tab i {
-      font-size: calc(30px * var(--mobile-scale));
+      font-size: calc(36px * var(--mobile-scale));
     }
 
     .sheet {
@@ -1516,7 +1553,7 @@
     }
 
     .sheet-title {
-      font-size: calc(17px * var(--mobile-scale));
+      font-size: calc(28px * var(--mobile-scale));
     }
 
     .sheet-amount-input {

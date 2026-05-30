@@ -17,6 +17,12 @@
   var OPTIMISTIC_REFRESH_DELAY_MS = 1800;
   var LAST_KNJIGA_EVENTS = [];
   var REPORT_CACHE = {};
+  var LAST_KNJIGA_TOTALS = {
+    totalIn: 0,
+    totalOut: 0,
+    finalBalance: 0,
+    count: 0
+  };
 
   var STATUS_BADGE_MAP = {
     'DRAFT': 'badge-draft',
@@ -120,8 +126,10 @@
       renderCurrentUser(uiState.currentUser);
       applyActiveShiftFields_();
       applyDirectCashPermission_();
+      loadCashbookFilterOptions_();
       bindBalanceOverviewButtons_();
       bindAmountFormatting_();
+      enforceShiftStartup_(Boolean(document.querySelector('.d-shell')), Boolean(document.querySelector('.m-shell')));
       applyRoleBasedHomeMobile_(uiState.currentUser && uiState.currentUser.role);
       refreshUrgentAlert();
       if (data.dashboard) {
@@ -1128,6 +1136,44 @@
     updateKnjigaContext_();
   }
 
+  function loadCashbookFilterOptions_() {
+    if (!document.getElementById('d-user-filter') && !document.getElementById('d-shift-filter')) return;
+    callApi('apiGetCashbookFilterOptions', [SESSION.cashboxId], function(result) {
+      renderCashbookUserFilter_(result && result.users || []);
+      renderCashbookShiftFilter_(result && result.shifts || []);
+    }, { quiet: true });
+  }
+
+  function renderCashbookUserFilter_(users) {
+    var select = document.getElementById('d-user-filter');
+    if (!select) return;
+    var currentEmail = uiState.currentUser && uiState.currentUser.email || '';
+    var options = [
+      '<option value="">Svi korisnici</option>',
+      currentEmail ? '<option value="' + escapeHtml(currentEmail) + '">Trenutni korisnik</option>' : ''
+    ];
+    (users || []).forEach(function(user) {
+      var label = (user.full_name || shortUserLabel_(user.email)) + ' - ' + user.email + (user.role ? ' - ' + user.role : '');
+      options.push('<option value="' + escapeHtml(user.email) + '">' + escapeHtml(label) + '</option>');
+    });
+    select.innerHTML = options.join('');
+  }
+
+  function renderCashbookShiftFilter_(shifts) {
+    var select = document.getElementById('d-shift-filter');
+    if (!select) return;
+    var activeShift = uiState.activeShift || {};
+    var options = [
+      '<option value="">Sve smene</option>',
+      activeShift.shift_id ? '<option value="' + escapeHtml(activeShift.shift_id) + '">Aktivna smena - ' + escapeHtml(shortUserLabel_(activeShift.opened_by || '')) + ' - ' + escapeHtml(formatDateTimeShort_(activeShift.opened_at)) + '</option>' : ''
+    ];
+    (shifts || []).forEach(function(shift) {
+      var label = shortUserLabel_(shift.opened_by || '') + ' - ' + formatDateTimeShort_(shift.opened_at) + ' - ' + (STATUS_LABEL_MAP[shift.status] || shift.status || '');
+      options.push('<option value="' + escapeHtml(shift.shift_id) + '">' + escapeHtml(label) + '</option>');
+    });
+    select.innerHTML = options.join('');
+  }
+
   function applyDirectCashPermission_() {
     var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
     ['d-btn-uplata','d-btn-isplata','d-quick-form-card','m-direct-actions'].forEach(function(id) {
@@ -1157,6 +1203,43 @@
     }
     if (!canPost) {
       showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i isplate može knjižiti samo korisnik koji je otvorio aktivnu smenu.', 'info');
+    }
+    updateMobileDirectActionsVisibility_();
+  }
+
+  function updateMobileDirectActionsVisibility_() {
+    var actions = document.getElementById('m-direct-actions');
+    if (!actions) return;
+    var activeTabIsBook = Boolean(document.querySelector('#m-section-knjiga.active'));
+    var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
+    if (activeTabIsBook && canPost) {
+      actions.removeAttribute('hidden');
+      actions.style.display = '';
+    } else {
+      actions.setAttribute('hidden', 'hidden');
+      actions.style.display = 'none';
+    }
+  }
+
+  function enforceShiftStartup_(isDesktop, isMobile) {
+    if (uiState.activeShift && uiState.activeShift.shift_id) return;
+    showMessage('Prvo otvorite smenu. Direktne uplate i isplate nisu dostupne dok smena nije otvorena.', 'info');
+    if (isMobile) {
+      document.querySelectorAll('.m-section').forEach(function(section) {
+        section.classList.toggle('active', section.id === 'm-section-smena');
+      });
+      document.querySelectorAll('[data-m-nav]').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-m-nav') === 'm-section-smena');
+      });
+      updateMobileDirectActionsVisibility_();
+    }
+    if (isDesktop) {
+      document.querySelectorAll('.d-section').forEach(function(section) {
+        section.classList.toggle('active', section.id === 'd-section-smena');
+      });
+      document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'smena');
+      });
     }
   }
 
@@ -1602,8 +1685,8 @@
   function loadKnjiga_(isBackground) {
     var dateFrom = (document.getElementById('d-date-from') || {}).value || '';
     var dateTo   = (document.getElementById('d-date-to')   || {}).value || '';
-    var userFilter = ((document.getElementById('d-user-filter') || document.getElementById('m-user-filter')) || {}).value || '';
-    var shiftFilter = ((document.getElementById('d-shift-filter') || document.getElementById('m-shift-filter')) || {}).value || '';
+    var userFilter = (document.getElementById('d-user-filter') || {}).value || '';
+    var shiftFilter = (document.getElementById('d-shift-filter') || {}).value || '';
     var tbody = document.getElementById('d-knjiga-tbody') || document.getElementById('m-knjiga-list');
     if (!tbody) return;
 
@@ -1651,9 +1734,7 @@
       var empty = '<div class="empty-state"><i class="ti ti-inbox-off" aria-hidden="true"></i><p>Nema transakcija za izabrani period.</p></div>';
       container.innerHTML = isMobile ? empty : '<tr><td colspan="6">' + empty + '</td></tr>';
       if (tfoot) tfoot.innerHTML = '';
-      updateKnjigaTotals_(0, 0, 0);
-      var lbl = document.getElementById('m-knjiga-label');
-      if (lbl) lbl.textContent = 'Danas · 0 stavki';
+      updateKnjigaTotals_(0, 0, 0, 0);
       return;
     }
 
@@ -1671,10 +1752,7 @@
 
     container.innerHTML = rows.join('');
     if (tfoot) tfoot.innerHTML = '';
-    updateKnjigaTotals_(totalIn, totalOut, events.length ? Number(events[0].running_balance || 0) : 0);
-
-    var lbl = document.getElementById('m-knjiga-label');
-    if (lbl) lbl.textContent = 'Danas · ' + events.length + ' stavki';
+    updateKnjigaTotals_(totalIn, totalOut, events.length ? Number(events[0].running_balance || 0) : 0, events.length);
 
     container.querySelectorAll('[data-event-id]').forEach(function(row) {
       row.addEventListener('click', function() {
@@ -1787,12 +1865,29 @@
       '<span><strong>Stanje</strong> <b class="cell-bal">' + formatAmount_(finalBalance) + ' ' + escapeHtml(SESSION.currency || '') + '</b></span>';
   }
 
-  function updateKnjigaTotals_(totalIn, totalOut, finalBalance) {
+  function updateKnjigaTotals_(totalIn, totalOut, finalBalance, count) {
+    LAST_KNJIGA_TOTALS = {
+      totalIn: totalIn,
+      totalOut: totalOut,
+      finalBalance: finalBalance,
+      count: count || 0
+    };
     var html = renderKnjigaTotalsHtml_(totalIn, totalOut, finalBalance);
-    ['d-knjiga-total-strip','m-knjiga-total-strip'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.innerHTML = html;
-    });
+    var row = document.getElementById('d-knjiga-total-row');
+    if (row) {
+      row.innerHTML = '<td colspan="3">UKUPNO</td>' +
+        '<td class="cell-in">' + formatAmount_(totalIn) + '</td>' +
+        '<td class="cell-out">' + formatAmount_(totalOut) + '</td>' +
+        '<td class="cell-bal">' + formatAmount_(finalBalance) + '</td>';
+    }
+    renderMobileTrafficSummary_();
+  }
+
+  function renderMobileTrafficSummary_() {
+    var box = document.getElementById('m-traffic-summary');
+    if (!box) return;
+    box.innerHTML = renderKnjigaTotalsHtml_(LAST_KNJIGA_TOTALS.totalIn, LAST_KNJIGA_TOTALS.totalOut, LAST_KNJIGA_TOTALS.finalBalance) +
+      '<span><strong>Stavki</strong> <b>' + LAST_KNJIGA_TOTALS.count + '</b></span>';
   }
 
   function renderMobileEntry_(ev, index) {
@@ -2302,6 +2397,10 @@
 
     var refreshBtn = document.getElementById('d-knjiga-refresh');
     if (refreshBtn) refreshBtn.addEventListener('click', function() { loadKnjiga_(); });
+    ['d-user-filter','d-shift-filter','d-date-from','d-date-to'].forEach(function(id) {
+      var filter = document.getElementById(id);
+      if (filter) filter.addEventListener('change', function() { loadKnjiga_(); });
+    });
     var mobileRefreshBtn = document.getElementById('m-knjiga-refresh');
     if (mobileRefreshBtn) mobileRefreshBtn.addEventListener('click', function() { loadKnjiga_(); });
 
@@ -2502,6 +2601,7 @@
         });
         if (target === 'm-section-knjiga') loadKnjiga_(true);
         if (target === 'm-section-nalozi') loadMobileNalozi_();
+        updateMobileDirectActionsVisibility_();
       });
     });
 
@@ -2511,6 +2611,14 @@
     });
     var mobileRefreshBtn = document.getElementById('m-knjiga-refresh');
     if (mobileRefreshBtn) mobileRefreshBtn.addEventListener('click', function() { loadKnjiga_(); });
+    var trafficBtn = document.getElementById('m-traffic-summary-btn');
+    if (trafficBtn) trafficBtn.addEventListener('click', function() {
+      var box = document.getElementById('m-traffic-summary');
+      if (!box) return;
+      renderMobileTrafficSummary_();
+      box.hidden = !box.hidden;
+    });
+    updateMobileDirectActionsVisibility_();
   }
 
   /* ─── Nalozi helpers ─────────────────────────────────────────── */
@@ -2751,8 +2859,10 @@
       renderCurrentUser(uiState.currentUser);
       applyActiveShiftFields_();
       applyDirectCashPermission_();
+      loadCashbookFilterOptions_();
       bindBalanceOverviewButtons_();
       bindAmountFormatting_();
+      enforceShiftStartup_(isDesktop, isMobile);
 
       // Ažuriraj korisnika u sidebar-u
       var navUser = document.querySelector('[data-nav-user]');

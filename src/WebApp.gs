@@ -178,6 +178,44 @@ function apiGetMyActiveShifts() {
   });
 }
 
+function apiGetCashbookFilterOptions(cashboxId) {
+  return apiWrap_(function() {
+    assertCurrentUserActive();
+    const targetCashboxId = cashboxId || getDefaultCashboxIdForCurrentUser_();
+    const users = listRecords(SHEET_NAMES.USERS)
+      .filter(function(user) {
+        return String(user.status || '').toUpperCase() !== 'INACTIVE';
+      })
+      .map(function(user) {
+        return {
+          email: user.email || user.user_email || '',
+          full_name: user.full_name || user.name || '',
+          role: user.role || ''
+        };
+      })
+      .filter(function(user) {
+        return user.email;
+      });
+    const shifts = listRecords(SHEET_NAMES.SHIFTS)
+      .filter(function(shift) {
+        return !targetCashboxId || shift.cashbox_id === targetCashboxId;
+      })
+      .map(function(shift) {
+        return {
+          shift_id: shift.shift_id,
+          opened_by: shift.opened_by || '',
+          opened_at: shift.opened_at || '',
+          closed_at: shift.closed_at || '',
+          status: shift.status || ''
+        };
+      });
+    return {
+      users: users,
+      shifts: shifts
+    };
+  });
+}
+
 function apiGetShiftBalance(shiftId) {
   return apiWrap_(function() {
     return getShiftBalance(shiftId);

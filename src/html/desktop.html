@@ -115,13 +115,12 @@
                   <input type="date" id="d-date-from" style="width:130px;min-height:32px;font-size:12px">
                   <span style="color:var(--color-text-muted)">—</span>
                   <input type="date" id="d-date-to" style="width:130px;min-height:32px;font-size:12px">
-                  <input type="text" id="d-user-filter" placeholder="Korisnik / email" title="Filter po korisniku" style="width:150px;min-height:32px;font-size:12px">
-                  <input type="text" id="d-shift-filter" placeholder="Smena" title="Filter po smeni" style="width:120px;min-height:32px;font-size:12px">
+                  <select id="d-user-filter" title="Filter po korisniku" style="width:190px;min-height:32px;font-size:12px"></select>
+                  <select id="d-shift-filter" title="Filter po smeni" style="width:190px;min-height:32px;font-size:12px"></select>
                   <button id="d-knjiga-refresh" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">
                     <i class="ti ti-refresh" aria-hidden="true"></i>
                   </button>
                   <div class="knjiga-context" id="d-knjiga-context"></div>
-                  <div class="knjiga-total-strip" id="d-knjiga-total-strip"></div>
                 </div>
                 <div class="table-wrap">
                   <table class="book-table">
@@ -133,6 +132,12 @@
                         <th class="num" style="width:110px">Uplata</th>
                         <th class="num" style="width:110px">Isplata</th>
                         <th class="num" style="width:120px">Stanje</th>
+                      </tr>
+                      <tr class="total-row total-row-top" id="d-knjiga-total-row">
+                        <td colspan="3">UKUPNO</td>
+                        <td class="cell-in">0,00</td>
+                        <td class="cell-out">0,00</td>
+                        <td class="cell-bal">0,00</td>
                       </tr>
                     </thead>
                     <tbody id="d-knjiga-tbody"></tbody>

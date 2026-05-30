@@ -52,16 +52,15 @@
 
         <!-- KNJIGA -->
         <section id="m-section-knjiga" class="m-section active" data-section>
-          <div class="m-section-label" id="m-knjiga-label">Danas · 0 stavki</div>
-          <div class="knjiga-context" id="m-knjiga-context"></div>
-          <div class="m-book-filters">
-            <input type="text" id="m-user-filter" placeholder="Korisnik">
-            <input type="text" id="m-shift-filter" placeholder="Smena">
+          <div class="m-book-tools">
+            <button id="m-traffic-summary-btn" type="button">
+              <i class="ti ti-chart-arrows-vertical" aria-hidden="true"></i> Pregled prometa
+            </button>
             <button id="m-knjiga-refresh" type="button" aria-label="Osveži knjigu">
               <i class="ti ti-refresh" aria-hidden="true"></i>
             </button>
           </div>
-          <div class="knjiga-total-strip" id="m-knjiga-total-strip"></div>
+          <div class="m-traffic-summary" id="m-traffic-summary" hidden></div>
           <div id="m-knjiga-list"></div>
         </section>
 
