@@ -21,9 +21,10 @@
 
       .a4-sheet {
         display: grid;
-        gap: 6mm;
-        grid-template-rows: 1fr 1fr;
-        min-height: 277mm;
+        gap: 4mm;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        height: 277mm;
+        overflow: hidden;
       }
 
       .voucher-copy {
@@ -31,7 +32,9 @@
         border-radius: 6px;
         display: flex;
         flex-direction: column;
-        padding: 7mm;
+        min-height: 0;
+        overflow: hidden;
+        padding: 5mm;
         page-break-inside: avoid;
       }
 
@@ -40,7 +43,7 @@
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.08em;
-        margin-bottom: 4mm;
+        margin-bottom: 2mm;
         text-align: right;
         text-transform: uppercase;
       }
@@ -51,7 +54,7 @@
         display: flex;
         font-size: 11px;
         justify-content: space-between;
-        margin-bottom: 4mm;
+        margin-bottom: 2mm;
       }
 
       .company-name {
@@ -62,8 +65,8 @@
 
       .doc-header {
         border-radius: 6px;
-        margin-bottom: 4mm;
-        padding: 4mm;
+        margin-bottom: 3mm;
+        padding: 3mm;
       }
 
       .doc-header.inflow {
@@ -79,7 +82,7 @@
       }
 
       .doc-header-title {
-        font-size: 17px;
+        font-size: 15px;
         font-weight: 900;
         letter-spacing: 0.02em;
         text-transform: uppercase;
@@ -94,7 +97,7 @@
       }
 
       .amount-box {
-        font-size: 26px;
+        font-size: 22px;
         font-weight: 900;
         line-height: 1.05;
         margin-top: 3mm;
@@ -112,8 +115,8 @@
         border: 1px solid #d6dde6;
         border-radius: 6px;
         display: grid;
-        gap: 2mm;
-        padding: 4mm;
+        gap: 1.5mm;
+        padding: 3mm;
       }
 
       .field-row {
@@ -136,10 +139,10 @@
 
       .signature-row {
         display: grid;
-        gap: 12mm;
+        gap: 10mm;
         grid-template-columns: 1fr 1fr;
         margin-top: auto;
-        padding-top: 9mm;
+        padding-top: 5mm;
       }
 
       .sig-line {
@@ -154,7 +157,7 @@
         border-top: 1px solid #e5e9ef;
         color: #9aa3b0;
         font-size: 9px;
-        margin-top: 4mm;
+        margin-top: 2mm;
         padding-top: 2mm;
         text-align: center;
       }
@@ -165,7 +168,7 @@
 
       @media print {
         .no-print { display: none !important; }
-        .a4-sheet { min-height: 277mm; }
+        .a4-sheet { height: 277mm; }
       }
     </style>
   </head>

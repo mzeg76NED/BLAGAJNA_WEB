@@ -115,11 +115,13 @@
                   <input type="date" id="d-date-from" style="width:130px;min-height:32px;font-size:12px">
                   <span style="color:var(--color-text-muted)">—</span>
                   <input type="date" id="d-date-to" style="width:130px;min-height:32px;font-size:12px">
-                  <input type="text" id="d-user-filter" placeholder="Korisnik" style="width:150px;min-height:32px;font-size:12px">
-                  <input type="text" id="d-shift-filter" placeholder="Smena" style="width:120px;min-height:32px;font-size:12px">
+                  <input type="text" id="d-user-filter" placeholder="Korisnik / email" title="Filter po korisniku" style="width:150px;min-height:32px;font-size:12px">
+                  <input type="text" id="d-shift-filter" placeholder="Smena" title="Filter po smeni" style="width:120px;min-height:32px;font-size:12px">
                   <button id="d-knjiga-refresh" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">
                     <i class="ti ti-refresh" aria-hidden="true"></i>
                   </button>
+                  <div class="knjiga-context" id="d-knjiga-context"></div>
+                  <div class="knjiga-total-strip" id="d-knjiga-total-strip"></div>
                 </div>
                 <div class="table-wrap">
                   <table class="book-table">
@@ -140,6 +142,11 @@
               </div>
 
               <div class="knjiga-side">
+                <div class="card permission-card" id="d-direct-permission-card" hidden>
+                  <div class="card-head"><h3>Direktan rad blagajne</h3></div>
+                  <p id="d-direct-permission-text">Direktne uplate i isplate može knjižiti samo korisnik koji je otvorio aktivnu smenu.</p>
+                  <button class="btn-primary" type="button" data-d-nav="smena">Otvori / proveri smenu</button>
+                </div>
                 <!-- Quick form card -->
                 <div class="card" id="d-quick-form-card" hidden>
                   <div class="card-head"><h3>Nova transakcija</h3></div>
@@ -284,7 +291,8 @@
               <div class="card">
                 <div class="card-head"><h3>Primopredaja smene</h3></div>
                 <form id="d-handover-form" class="form-grid">
-                  <label>ID smene <input name="shift_id" required></label>
+                  <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>
+                  <input name="shift_id" type="hidden" required>
                   <label>Email primaoca <input name="handover_to" type="email" required></label>
                   <div data-physical-balance-inputs></div>
                   <label>Napomena <textarea name="note"></textarea></label>
@@ -294,7 +302,8 @@
               <div class="card">
                 <div class="card-head"><h3>Zatvori smenu</h3></div>
                 <form id="d-close-shift-form" class="form-grid">
-                  <label>ID smene <input name="shift_id" required></label>
+                  <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>
+                  <input name="shift_id" type="hidden" required>
                   <div data-physical-balance-inputs></div>
                   <label>Napomena <textarea name="note"></textarea></label>
                   <button class="btn-primary" type="submit">Zatvori smenu</button>
@@ -322,7 +331,7 @@
                   <input name="cashbox_id" type="hidden">
                   <label>Valuta <select name="currency" data-currency-options></select></label>
                   <label>Datum <input name="closing_date" type="date" data-today required></label>
-                  <label>Fizičko stanje <input name="physical_balance" type="number" step="0.01" required></label>
+                  <label>Fizičko stanje <input name="physical_balance" type="text" inputmode="decimal" placeholder="0,00" required></label>
                   <label>Napomena <textarea name="note"></textarea></label>
                   <button class="btn-primary" type="submit">Zaključi dan</button>
                 </form>

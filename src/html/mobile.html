@@ -27,6 +27,7 @@
           &nbsp;·&nbsp;
           <span data-current-user>...</span>
         </div>
+        <div id="m-message" class="message m-message"></div>
         <div class="m-header-chips">
           <span class="m-chip">
             <i class="ti ti-building-bank" aria-hidden="true"></i>
@@ -52,6 +53,15 @@
         <!-- KNJIGA -->
         <section id="m-section-knjiga" class="m-section active" data-section>
           <div class="m-section-label" id="m-knjiga-label">Danas · 0 stavki</div>
+          <div class="knjiga-context" id="m-knjiga-context"></div>
+          <div class="m-book-filters">
+            <input type="text" id="m-user-filter" placeholder="Korisnik">
+            <input type="text" id="m-shift-filter" placeholder="Smena">
+            <button id="m-knjiga-refresh" type="button" aria-label="Osveži knjigu">
+              <i class="ti ti-refresh" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="knjiga-total-strip" id="m-knjiga-total-strip"></div>
           <div id="m-knjiga-list"></div>
         </section>
 
@@ -90,7 +100,8 @@
           <div class="card">
             <div class="card-head"><h3>Primopredaja smene</h3></div>
             <form id="m-handover-shift-form" class="form-grid">
-              <label>ID smene <input name="shift_id" required></label>
+              <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>
+              <input name="shift_id" type="hidden" required>
               <label>Email primaoca <input name="handover_to" type="email" required></label>
               <div data-physical-balance-inputs></div>
               <label>Napomena <textarea name="note"></textarea></label>
@@ -101,7 +112,8 @@
           <div class="card">
             <div class="card-head"><h3>Zatvori smenu</h3></div>
             <form id="m-close-shift-form" class="form-grid">
-              <label>ID smene <input name="shift_id" required></label>
+              <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>
+              <input name="shift_id" type="hidden" required>
               <div data-physical-balance-inputs></div>
               <label>Napomena <textarea name="note"></textarea></label>
               <button class="btn-primary" type="submit">Zatvori smenu</button>
@@ -131,7 +143,7 @@
               <input name="cashbox_id" type="hidden">
               <label>Valuta <select name="currency" data-currency-options></select></label>
               <label>Datum <input name="closing_date" type="date" data-today required></label>
-              <label>Fizičko stanje <input name="physical_balance" type="number" step="0.01" required></label>
+              <label>Fizičko stanje <input name="physical_balance" type="text" inputmode="decimal" placeholder="0,00" required></label>
               <label>Napomena <textarea name="note"></textarea></label>
               <button class="btn-primary" type="submit">Zaključi dan</button>
             </form>

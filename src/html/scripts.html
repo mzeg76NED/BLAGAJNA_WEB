@@ -16,6 +16,7 @@
   var PENDING_OPTIMISTIC_EVENTS = [];
   var OPTIMISTIC_REFRESH_DELAY_MS = 1800;
   var LAST_KNJIGA_EVENTS = [];
+  var REPORT_CACHE = {};
 
   var STATUS_BADGE_MAP = {
     'DRAFT': 'badge-draft',
@@ -117,6 +118,7 @@
       renderPhysicalBalanceInputs();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
+      applyActiveShiftFields_();
       applyDirectCashPermission_();
       bindBalanceOverviewButtons_();
       bindAmountFormatting_();
@@ -464,6 +466,20 @@
     return result;
   }
 
+  function humanizeError_(message) {
+    var text = String(message || '').trim();
+    if (/insufficient|nedovolj|raspolo|negative|balance would|stanje blagajne|maksimum/i.test(text)) {
+      return 'Nedozvoljena akcija: pokušaj isplate preko raspoloživog stanja blagajne. Proverite stanje po valuti i unesite manji iznos.';
+    }
+    if (/already has an open shift|open shift|otvorena smena/i.test(text)) {
+      return 'Smena je već otvorena za ovu blagajnu. Direktno knjiženje može da radi samo korisnik koji je otvorio tu smenu.';
+    }
+    if (/shift_id|ID smene/i.test(text)) {
+      return 'Aktivna smena nije pronađena. Otvorite smenu ili osvežite aplikaciju pre nastavka.';
+    }
+    return text || 'Poziv nije uspeo.';
+  }
+
   function callApi(functionName, args, onSuccess, options) {
     options = options || {};
     if (!window.google || !google.script || !google.script.run) {
@@ -485,7 +501,7 @@
           setLoading(false);
         }
         if (!response || response.ok !== true) {
-          showMessage('Greška: ' + (response && response.error ? response.error.message : 'poziv nije uspeo.'), 'error');
+          showMessage('Greška: ' + humanizeError_(response && response.error ? response.error.message : 'poziv nije uspeo.'), 'error');
           if (options.onComplete) {
             options.onComplete(response);
           }
@@ -505,7 +521,7 @@
         if (!options.quiet) {
           setLoading(false);
         }
-        showMessage('Greška: ' + (error && error.message ? error.message : 'tehnički problem.'), 'error');
+        showMessage('Greška: ' + humanizeError_(error && error.message ? error.message : 'tehnički problem.'), 'error');
         if (options.onComplete) {
           options.onComplete(error);
         }
@@ -882,19 +898,35 @@
   }
 
   function loadReport(apiName, formId, targetId, fields) {
-    callApi(apiName, [withUiDefaults(serializeForm(formId))], function(result) {
+    var filters = withUiDefaults(serializeForm(formId));
+    var cacheKey = apiName + '|' + targetId + '|' + JSON.stringify(filters) + '|' + fields.join(',');
+    if (REPORT_CACHE[cacheKey]) {
+      if (targetId === 'mobile-reports-result') {
+        renderRecords(targetId, REPORT_CACHE[cacheKey] || [], fields);
+      } else {
+        renderTable(targetId, REPORT_CACHE[cacheKey] || [], fields);
+      }
+    }
+    callApi(apiName, [filters], function(result) {
+      REPORT_CACHE[cacheKey] = result || [];
       if (targetId === 'mobile-reports-result') {
         renderRecords(targetId, result || [], fields);
       } else {
         renderTable(targetId, result || [], fields);
       }
-    });
+    }, { quiet: Boolean(REPORT_CACHE[cacheKey]) || true });
   }
 
   function loadCashMovementsReport_(targetId, formId) {
-    callApi('apiGetCashMovementsReport', [withUiDefaults(serializeForm(formId))], function(result) {
+    var filters = withUiDefaults(serializeForm(formId));
+    var cacheKey = 'apiGetCashMovementsReport|' + targetId + '|' + JSON.stringify(filters);
+    if (REPORT_CACHE[cacheKey]) {
+      renderCashMovementsBook_(targetId, REPORT_CACHE[cacheKey] || []);
+    }
+    callApi('apiGetCashMovementsReport', [filters], function(result) {
+      REPORT_CACHE[cacheKey] = result || [];
       renderCashMovementsBook_(targetId, result || []);
-    });
+    }, { quiet: true });
   }
 
   function renderCashMovementsBook_(targetId, events) {
@@ -916,7 +948,8 @@
     });
     var finalBalance = events.length ? Number(events[0].running_balance || 0) : 0;
 
-    target.innerHTML = '<div class="table-wrap"><table class="book-table">' +
+    target.innerHTML = '<div class="knjiga-total-strip report-total-strip">' + renderKnjigaTotalsHtml_(totalIn, totalOut, finalBalance) + '</div>' +
+      '<div class="table-wrap"><table class="book-table">' +
       '<thead><tr>' +
         '<th style="width:36px">Rb.</th>' +
         '<th style="width:72px">Datum</th>' +
@@ -926,7 +959,6 @@
         '<th class="num" style="width:120px">Saldo perioda</th>' +
       '</tr></thead>' +
       '<tbody>' + rows.join('') + '</tbody>' +
-      '<tfoot>' + renderKnjigaTotals_(totalIn, totalOut, finalBalance) + '</tfoot>' +
       '</table></div>';
   }
 
@@ -1071,8 +1103,33 @@
     });
   }
 
+  function isCurrentActiveShiftOwner_() {
+    var shift = uiState.activeShift || {};
+    var user = uiState.currentUser || {};
+    return Boolean(shift.shift_id && user.email && String(shift.opened_by || '').toLowerCase() === String(user.email).toLowerCase());
+  }
+
+  function activeShiftLabel_() {
+    var shift = uiState.activeShift || {};
+    if (!shift.shift_id) {
+      return 'Nema otvorene smene za ovu blagajnu.';
+    }
+    return 'Aktivna smena: ' + shortUserLabel_(shift.opened_by || '') + ' · otvorena ' + formatDateTimeShort_(shift.opened_at) + ' · ' + shift.shift_id;
+  }
+
+  function applyActiveShiftFields_() {
+    var shift = uiState.activeShift || {};
+    document.querySelectorAll('input[name="shift_id"]').forEach(function(input) {
+      input.value = shift.shift_id || '';
+    });
+    document.querySelectorAll('[data-active-shift-label]').forEach(function(el) {
+      el.textContent = activeShiftLabel_();
+    });
+    updateKnjigaContext_();
+  }
+
   function applyDirectCashPermission_() {
-    var canPost = uiState.canPostDirectCashEvents === true;
+    var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
     ['d-btn-uplata','d-btn-isplata','d-quick-form-card','m-direct-actions'].forEach(function(id) {
       var el = document.getElementById(id);
       if (!el) return;
@@ -1084,8 +1141,22 @@
         el.style.display = 'none';
       }
     });
+    var permissionCard = document.getElementById('d-direct-permission-card');
+    var permissionText = document.getElementById('d-direct-permission-text');
+    if (permissionCard) {
+      if (canPost) {
+        permissionCard.setAttribute('hidden', 'hidden');
+      } else {
+        permissionCard.removeAttribute('hidden');
+      }
+    }
+    if (permissionText) {
+      permissionText.textContent = uiState.activeShift && uiState.activeShift.shift_id
+        ? 'Aktivnu smenu je otvorio ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '. Direktno knjiženje može da radi samo taj korisnik. Ostali korisnici rade preko zahteva.'
+        : 'Nema otvorene smene. Otvorite smenu da biste mogli da knjižite direktne uplate i isplate.';
+    }
     if (!canPost) {
-      showMessage('Direktne uplate i isplate može knjižiti samo korisnik koji je otvorio aktivnu smenu. Ostali korisnici rade preko zahteva.', 'info');
+      showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i isplate može knjižiti samo korisnik koji je otvorio aktivnu smenu.', 'info');
     }
   }
 
@@ -1511,6 +1582,11 @@
     return d.getDate() + '.' + (d.getMonth() + 1) + '.';
   }
 
+  function formatDateTimeShort_(value) {
+    if (!value) return '—';
+    return formatDateShort_(value) + ' ' + formatTimeShort_(value);
+  }
+
   function renderStatusBadge_(status) {
     var cls = STATUS_BADGE_MAP[status] || 'badge-draft';
     var lbl = STATUS_LABEL_MAP[status] || status;
@@ -1526,8 +1602,8 @@
   function loadKnjiga_(isBackground) {
     var dateFrom = (document.getElementById('d-date-from') || {}).value || '';
     var dateTo   = (document.getElementById('d-date-to')   || {}).value || '';
-    var userFilter = (document.getElementById('d-user-filter') || {}).value || '';
-    var shiftFilter = (document.getElementById('d-shift-filter') || {}).value || '';
+    var userFilter = ((document.getElementById('d-user-filter') || document.getElementById('m-user-filter')) || {}).value || '';
+    var shiftFilter = ((document.getElementById('d-shift-filter') || document.getElementById('m-shift-filter')) || {}).value || '';
     var tbody = document.getElementById('d-knjiga-tbody') || document.getElementById('m-knjiga-list');
     if (!tbody) return;
 
@@ -1550,17 +1626,32 @@
     }, { quiet: true });
   }
 
+  function updateKnjigaContext_() {
+    var user = uiState.currentUser || {};
+    var shift = uiState.activeShift || {};
+    var userText = user.email ? shortUserLabel_(user.email) : 'Korisnik nije učitan';
+    var shiftText = shift.shift_id
+      ? 'Aktivna smena: ' + shortUserLabel_(shift.opened_by || '') + ' · ' + formatDateTimeShort_(shift.opened_at)
+      : 'Nema aktivne smene za direktan rad';
+    ['d-knjiga-context','m-knjiga-context'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = 'Korisnik: ' + userText + ' · ' + shiftText;
+    });
+  }
+
   function renderKnjigaTable_(events) {
     var isMobile = Boolean(document.getElementById('m-knjiga-list'));
     var container = document.getElementById(isMobile ? 'm-knjiga-list' : 'd-knjiga-tbody');
     var tfoot     = document.getElementById('d-knjiga-tfoot');
     if (!container) return;
     events = mergeOptimisticEvents_(events || []);
+    updateKnjigaContext_();
 
     if (!events.length) {
       var empty = '<div class="empty-state"><i class="ti ti-inbox-off" aria-hidden="true"></i><p>Nema transakcija za izabrani period.</p></div>';
       container.innerHTML = isMobile ? empty : '<tr><td colspan="6">' + empty + '</td></tr>';
       if (tfoot) tfoot.innerHTML = '';
+      updateKnjigaTotals_(0, 0, 0);
       var lbl = document.getElementById('m-knjiga-label');
       if (lbl) lbl.textContent = 'Danas · 0 stavki';
       return;
@@ -1579,10 +1670,8 @@
     });
 
     container.innerHTML = rows.join('');
-    if (tfoot) {
-      var finalBalance = events.length ? Number(events[0].running_balance || 0) : 0;
-      tfoot.innerHTML = renderKnjigaTotals_(totalIn, totalOut, finalBalance);
-    }
+    if (tfoot) tfoot.innerHTML = '';
+    updateKnjigaTotals_(totalIn, totalOut, events.length ? Number(events[0].running_balance || 0) : 0);
 
     var lbl = document.getElementById('m-knjiga-label');
     if (lbl) lbl.textContent = 'Danas · ' + events.length + ' stavki';
@@ -1690,6 +1779,20 @@
       '<td class="cell-out">' + formatAmount_(totalOut)     + '</td>' +
       '<td class="cell-bal">' + formatAmount_(finalBalance) + '</td>' +
     '</tr>';
+  }
+
+  function renderKnjigaTotalsHtml_(totalIn, totalOut, finalBalance) {
+    return '<span><strong>Ukupno uplata</strong> <b class="cell-in">' + formatAmount_(totalIn) + '</b></span>' +
+      '<span><strong>Ukupno isplata</strong> <b class="cell-out">' + formatAmount_(totalOut) + '</b></span>' +
+      '<span><strong>Stanje</strong> <b class="cell-bal">' + formatAmount_(finalBalance) + ' ' + escapeHtml(SESSION.currency || '') + '</b></span>';
+  }
+
+  function updateKnjigaTotals_(totalIn, totalOut, finalBalance) {
+    var html = renderKnjigaTotalsHtml_(totalIn, totalOut, finalBalance);
+    ['d-knjiga-total-strip','m-knjiga-total-strip'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    });
   }
 
   function renderMobileEntry_(ev, index) {
@@ -1932,7 +2035,9 @@
     var tempId = 'OPT-' + Date.now();
     rememberOptimisticEvent_(buildOptimisticEvent_(tempId, type, amount, cur, partner, desc, 'KNJIŽENJE'));
     renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
-    updateTopbarBalance_(type === 'IN' ? amount : -amount);
+    if (cur === SESSION.currency) {
+      updateTopbarBalance_(type === 'IN' ? amount : -amount);
+    }
 
     var data = { cashbox_id: SESSION.cashboxId, currency: cur, amount: amount, partner_name: partner, description: desc || partner };
     var fn   = type === 'IN' ? 'apiCreateCashInflow' : 'apiCreateDirectCashOutflow';
@@ -1950,13 +2055,18 @@
           renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
           scheduleKnjigaRefresh_();
         }
-        else { removeOptimisticEvent_(tempId); renderKnjigaTable_(LAST_KNJIGA_EVENTS || []); updateTopbarBalance_(type === 'IN' ? -amount : amount); showDesktopMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
+        else {
+          removeOptimisticEvent_(tempId);
+          renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
+          if (cur === SESSION.currency) updateTopbarBalance_(type === 'IN' ? -amount : amount);
+          showDesktopMessage_('Greška: ' + humanizeError_(resp && resp.error ? resp.error.message : 'problem.'), 'error');
+        }
       })
       .withFailureHandler(function(err) {
         removeOptimisticEvent_(tempId);
         renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
-        updateTopbarBalance_(type === 'IN' ? -amount : amount);
-        showDesktopMessage_('Greška: ' + (err && err.message ? err.message : 'tehnički problem.'), 'error');
+        if (cur === SESSION.currency) updateTopbarBalance_(type === 'IN' ? -amount : amount);
+        showDesktopMessage_('Greška: ' + humanizeError_(err && err.message ? err.message : 'tehnički problem.'), 'error');
       })
       [fn](data);
   }
@@ -2074,7 +2184,9 @@
     var tempId = 'OPT-' + Date.now();
     rememberOptimisticEvent_(buildOptimisticEvent_(tempId, type, amount, cur, partner, desc, 'KNJIŽENJE'));
     renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
-    updateMobileBalance_(type === 'IN' ? amount : -amount);
+    if (cur === SESSION.currency) {
+      updateMobileBalance_(type === 'IN' ? amount : -amount);
+    }
 
     var data = { cashbox_id: SESSION.cashboxId, currency: cur, amount: amount, partner_name: partner, description: desc || partner };
     var fn   = type === 'IN' ? 'apiCreateCashInflow' : 'apiCreateDirectCashOutflow';
@@ -2091,13 +2203,18 @@
           renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
           scheduleKnjigaRefresh_();
         }
-        else { removeOptimisticEvent_(tempId); renderKnjigaTable_(LAST_KNJIGA_EVENTS || []); updateMobileBalance_(type === 'IN' ? -amount : amount); showMobileMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
+        else {
+          removeOptimisticEvent_(tempId);
+          renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
+          if (cur === SESSION.currency) updateMobileBalance_(type === 'IN' ? -amount : amount);
+          showMobileMessage_('Greška: ' + humanizeError_(resp && resp.error ? resp.error.message : 'problem.'), 'error');
+        }
       })
       .withFailureHandler(function(err) {
         removeOptimisticEvent_(tempId);
         renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
-        updateMobileBalance_(type === 'IN' ? -amount : amount);
-        showMobileMessage_('Greška: ' + (err && err.message ? err.message : 'problem.'), 'error');
+        if (cur === SESSION.currency) updateMobileBalance_(type === 'IN' ? -amount : amount);
+        showMobileMessage_('Greška: ' + humanizeError_(err && err.message ? err.message : 'problem.'), 'error');
       })
       [fn](data);
   }
@@ -2185,6 +2302,8 @@
 
     var refreshBtn = document.getElementById('d-knjiga-refresh');
     if (refreshBtn) refreshBtn.addEventListener('click', function() { loadKnjiga_(); });
+    var mobileRefreshBtn = document.getElementById('m-knjiga-refresh');
+    if (mobileRefreshBtn) mobileRefreshBtn.addEventListener('click', function() { loadKnjiga_(); });
 
     var loadNaloziBtn = document.getElementById('d-load-nalozi-btn');
     if (loadNaloziBtn) loadNaloziBtn.addEventListener('click', loadDesktopNalozi_);
@@ -2214,6 +2333,10 @@
     bindForm('d-open-shift-form', function(data) {
       data = withUiDefaults(data);
       callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
+        uiState.activeShift = result || null;
+        uiState.canPostDirectCashEvents = true;
+        applyActiveShiftFields_();
+        applyDirectCashPermission_();
         renderShiftSummary('d-shift-result', result, 'Smena je otvorena');
         refreshBalance_();
       }, { successMessage: 'Smena je otvorena.' });
@@ -2221,6 +2344,10 @@
     bindForm('m-open-shift-form', function(data) {
       data = withUiDefaults(data);
       callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
+        uiState.activeShift = result || null;
+        uiState.canPostDirectCashEvents = true;
+        applyActiveShiftFields_();
+        applyDirectCashPermission_();
         renderShiftSummary('m-shift-result', result, 'Smena je otvorena');
         refreshBalance_();
       }, { successMessage: 'Smena je otvorena.' });
@@ -2236,13 +2363,29 @@
       }, { successMessage: 'Primopredaja je evidentirana.' });
     });
     bindForm('d-close-shift-form', function(data, form) {
+      if (!data.shift_id) {
+        showDesktopMessage_('Nema aktivne smene za zatvaranje. Otvorite smenu ili osvežite aplikaciju.', 'error');
+        return;
+      }
       callApi('apiCloseShift', [data.shift_id, collectPhysicalBalance_(form), data.note], function(result) {
+        uiState.activeShift = null;
+        uiState.canPostDirectCashEvents = false;
+        applyActiveShiftFields_();
+        applyDirectCashPermission_();
         renderShiftSummary('d-shift-result', result, 'Smena je zatvorena');
         refreshBalance_();
       }, { successMessage: 'Smena je zatvorena.' });
     });
     bindForm('m-close-shift-form', function(data, form) {
+      if (!data.shift_id) {
+        showMobileMessage_('Nema aktivne smene za zatvaranje. Otvorite smenu ili osvežite aplikaciju.', 'error');
+        return;
+      }
       callApi('apiCloseShift', [data.shift_id, collectPhysicalBalance_(form), data.note], function(result) {
+        uiState.activeShift = null;
+        uiState.canPostDirectCashEvents = false;
+        applyActiveShiftFields_();
+        applyDirectCashPermission_();
         renderShiftSummary('m-shift-result', result, 'Smena je zatvorena');
         refreshBalance_();
       }, { successMessage: 'Smena je zatvorena.' });
@@ -2366,6 +2509,8 @@
     if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() {
       loadMyShiftsTo_('m-shifts-list');
     });
+    var mobileRefreshBtn = document.getElementById('m-knjiga-refresh');
+    if (mobileRefreshBtn) mobileRefreshBtn.addEventListener('click', function() { loadKnjiga_(); });
   }
 
   /* ─── Nalozi helpers ─────────────────────────────────────────── */
@@ -2604,6 +2749,7 @@
       renderPhysicalBalanceInputs();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
+      applyActiveShiftFields_();
       applyDirectCashPermission_();
       bindBalanceOverviewButtons_();
       bindAmountFormatting_();
