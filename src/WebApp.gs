@@ -148,6 +148,18 @@ function apiCreateDirectCashOutflow(data) {
   });
 }
 
+function apiPrepareCashCount(cashboxId, currency, countType) {
+  return apiWrap_(function() {
+    return prepareCashCount(cashboxId || getDefaultCashboxIdForCurrentUser_(), currency, countType);
+  });
+}
+
+function apiCreateCashCount(data) {
+  return apiWrap_(function() {
+    return createCashCount(withDefaultCashbox_(data || {}));
+  });
+}
+
 function apiCalculateCashboxBalance(cashboxId, currency) {
   return apiWrap_(function() {
     return calculateCashboxBalance(cashboxId || getDefaultCashboxIdForCurrentUser_(), currency);

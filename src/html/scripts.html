@@ -122,6 +122,7 @@
       fillConfigOptions();
       setTodayDefaults();
       renderPhysicalBalanceInputs();
+      renderDenominationInputs_();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
       applyActiveShiftFields_();
@@ -464,6 +465,64 @@
       }).join('');
     });
     bindAmountFormatting_();
+  }
+
+  function renderDenominationInputs_() {
+    document.querySelectorAll('form[id$="cash-count-form"]').forEach(function(form) {
+      var currencySelect = form.querySelector('[name="currency"]');
+      var container = form.querySelector('[data-denomination-inputs]');
+      if (!container) return;
+      var currency = currencySelect ? currencySelect.value || SESSION.currency : SESSION.currency;
+      var denominations = getClientDenominations_(currency);
+      container.innerHTML = denominations.map(function(value) {
+        return '<label class="denomination-row"><span>' + escapeHtml(value) + ' ' + escapeHtml(currency) + '</span>' +
+          '<input name="denom_' + escapeHtml(value) + '" type="number" min="0" step="1" inputmode="numeric" value="0"></label>';
+      }).join('');
+      bindCashCountTotal_(form);
+    });
+  }
+
+  function getClientDenominations_(currency) {
+    if (currency === 'EUR') return [500, 200, 100, 50, 20, 10, 5, 2, 1];
+    return [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
+  }
+
+  function bindCashCountTotal_(form) {
+    if (!form || form.dataset.cashCountBound === '1') {
+      updateCashCountTotal_(form);
+      return;
+    }
+    form.dataset.cashCountBound = '1';
+    form.addEventListener('input', function() { updateCashCountTotal_(form); });
+    var currencySelect = form.querySelector('[name="currency"]');
+    if (currencySelect) {
+      currencySelect.addEventListener('change', function() {
+        renderDenominationInputs_();
+      });
+    }
+    updateCashCountTotal_(form);
+  }
+
+  function updateCashCountTotal_(form) {
+    if (!form) return;
+    var total = collectDenominations_(form).reduce(function(sum, row) {
+      return sum + row.denomination * row.quantity;
+    }, 0);
+    total += parseAmountInput_((form.querySelector('[name="check_total"]') || {}).value || '');
+    var target = form.querySelector('[data-cash-count-total]');
+    var currency = (form.querySelector('[name="currency"]') || {}).value || SESSION.currency;
+    if (target) target.textContent = 'Popisano: ' + formatAmount_(total) + ' ' + currency;
+  }
+
+  function collectDenominations_(form) {
+    var rows = [];
+    Array.prototype.forEach.call(form.querySelectorAll('[name^="denom_"]'), function(input) {
+      rows.push({
+        denomination: Number(input.name.replace('denom_', '')),
+        quantity: Number(input.value || 0)
+      });
+    });
+    return rows;
   }
 
   function collectPhysicalBalance_(form) {
@@ -2565,6 +2624,38 @@
         refreshBalance_();
       }, { successMessage: 'Smena je zatvorena.' });
     });
+    bindForm('d-cash-count-form', function(data, form) {
+      data = withUiDefaults(data);
+      data.denominations = collectDenominations_(form);
+      data.check_count = Number(data.check_count || 0);
+      data.check_total = parseAmountInput_(data.check_total);
+      callApi('apiCreateCashCount', [data], function(result) {
+        renderSummaryCard('d-shift-result', 'Presek blagajne je sačuvan', [
+          ['ID', result.count_id],
+          ['Valuta', result.currency],
+          ['Popisan gotov novac', amountWithCurrency(result.counted_cash_total, result.currency)],
+          ['Čekovi', amountWithCurrency(result.check_total, result.currency)],
+          ['Obračunato pre popisa', amountWithCurrency(result.calculated_balance_before, result.currency)],
+          ['Razlika', amountWithCurrency(result.difference, result.currency)]
+        ]);
+      }, { successMessage: 'Presek blagajne je sačuvan.' });
+    });
+    bindForm('m-cash-count-form', function(data, form) {
+      data = withUiDefaults(data);
+      data.denominations = collectDenominations_(form);
+      data.check_count = Number(data.check_count || 0);
+      data.check_total = parseAmountInput_(data.check_total);
+      callApi('apiCreateCashCount', [data], function(result) {
+        renderSummaryCard('m-shift-result', 'Presek blagajne je sačuvan', [
+          ['ID', result.count_id],
+          ['Valuta', result.currency],
+          ['Popisan gotov novac', amountWithCurrency(result.counted_cash_total, result.currency)],
+          ['Čekovi', amountWithCurrency(result.check_total, result.currency)],
+          ['Obračunato pre popisa', amountWithCurrency(result.calculated_balance_before, result.currency)],
+          ['Razlika', amountWithCurrency(result.difference, result.currency)]
+        ]);
+      }, { successMessage: 'Presek blagajne je sačuvan.' });
+    });
     bindForm('d-daily-preview-form', function(data) {
       data = withUiDefaults(data);
       callApi('apiPrepareDailyClosing', [data.cashbox_id, data.currency, data.closing_date], function(result) {
@@ -2936,6 +3027,7 @@
       fillConfigOptions();
       setTodayDefaults();
       renderPhysicalBalanceInputs();
+      renderDenominationInputs_();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
       applyActiveShiftFields_();

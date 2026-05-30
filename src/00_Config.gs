@@ -37,9 +37,11 @@ const SHEET_NAMES = Object.freeze({
   PAYMENT_REQUESTS: 'PAYMENT_REQUESTS',
   PAYMENT_ORDERS: 'PAYMENT_ORDERS',
   CASH_EVENTS: 'CASH_EVENTS',
+  CASH_COUNTS: 'CASH_COUNTS',
   DOCUMENTS: 'DOCUMENTS',
   SHIFTS: 'SHIFTS',
   DAILY_CLOSING: 'DAILY_CLOSING',
+  CASH_COUNT: 'CASH_COUNT',
   AUDIT_LOG: 'AUDIT_LOG'
 });
 
@@ -130,6 +132,10 @@ const ENTITY_TABLE_MAP = Object.freeze({
   DAILY_CLOSING: Object.freeze({
     sheetName: SHEET_NAMES.DAILY_CLOSING,
     idField: 'closing_id'
+  }),
+  CASH_COUNT: Object.freeze({
+    sheetName: SHEET_NAMES.CASH_COUNTS,
+    idField: 'count_id'
   })
 });
 
@@ -156,6 +162,19 @@ const DAILY_CLOSING_STATUSES = Object.freeze({
   CLOSED: 'CLOSED',
   CLOSED_WITH_DIFFERENCE: 'CLOSED_WITH_DIFFERENCE',
   LOCKED: 'LOCKED',
+  CANCELLED: 'CANCELLED'
+});
+
+const CASH_COUNT_TYPES = Object.freeze({
+  SHIFT_OPENING: 'SHIFT_OPENING',
+  CASHBOX_COUNT: 'CASHBOX_COUNT',
+  SHIFT_CLOSING: 'SHIFT_CLOSING',
+  DAILY_CLOSING_COUNT: 'DAILY_CLOSING_COUNT'
+});
+
+const CASH_COUNT_STATUSES = Object.freeze({
+  DRAFT: 'DRAFT',
+  POSTED: 'POSTED',
   CANCELLED: 'CANCELLED'
 });
 
@@ -268,6 +287,26 @@ const TABLE_HEADERS = Object.freeze({
     'locked_by',
     'locked_at',
     'reversal_of_event_id',
+    'updated_at'
+  ]),
+  CASH_COUNTS: Object.freeze([
+    'count_id',
+    'created_at',
+    'created_by',
+    'count_type',
+    'cashbox_id',
+    'shift_id',
+    'currency',
+    'counted_cash_total',
+    'check_count',
+    'check_total',
+    'calculated_balance_before',
+    'difference',
+    'denominations_json',
+    'note',
+    'status',
+    'posted_by',
+    'posted_at',
     'updated_at'
   ]),
   DOCUMENTS: Object.freeze([
