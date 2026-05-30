@@ -5,6 +5,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <?!= include('html/styles'); ?>
+    <script>
+      window.BLAGAJNA_WEB_APP_URL = '<?= ScriptApp.getService().getUrl() ?>';
+    </script>
   </head>
   <body>
     <div class="d-shell">
@@ -83,10 +86,13 @@
               <i class="ti ti-moon" aria-hidden="true"></i>
               <span data-theme-label>Tamna</span>
             </button>
-            <button class="btn-in" id="d-btn-uplata" type="button">
+            <button class="btn-ghost" id="d-all-balances-btn" type="button">
+              <i class="ti ti-coins" aria-hidden="true"></i> Sve valute
+            </button>
+            <button class="btn-in" id="d-btn-uplata" type="button" hidden>
               <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
             </button>
-            <button class="btn-out" id="d-btn-isplata" type="button">
+            <button class="btn-out" id="d-btn-isplata" type="button" hidden>
               <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Isplata
             </button>
           </div>
@@ -135,7 +141,7 @@
 
               <div class="knjiga-side">
                 <!-- Quick form card -->
-                <div class="card" id="d-quick-form-card">
+                <div class="card" id="d-quick-form-card" hidden>
                   <div class="card-head"><h3>Nova transakcija</h3></div>
                   <div class="type-toggle">
                     <button class="type-btn type-btn-in active" id="d-qf-type-in" type="button">
@@ -146,7 +152,7 @@
                     </button>
                   </div>
                   <div class="form-row-2">
-                    <input type="number" id="d-qf-amount" step="0.01" min="0" placeholder="Iznos">
+                    <input type="text" id="d-qf-amount" inputmode="decimal" placeholder="Iznos">
                     <select id="d-qf-currency" data-currency-options></select>
                   </div>
                   <input type="text" id="d-qf-partner" placeholder="Primalac / uplatioc">

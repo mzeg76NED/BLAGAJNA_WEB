@@ -273,7 +273,7 @@ function getCashMovementsReport(filters) {
   const runningByKey = {};
 
   return eventsWithBalance
-    .map(function(event) {
+    .map(function(event, index) {
       const amount = safeNumber_(event.amount);
       const key = event.cashbox_id + '|' + event.currency;
       if (!Object.prototype.hasOwnProperty.call(runningByKey, key)) {
@@ -290,6 +290,7 @@ function getCashMovementsReport(filters) {
       return {
         event_date: event.event_date || event.created_at,
         event_id: event.event_id,
+        entry_number: index + 1,
         event_type: event.event_type,
         direction: event.direction,
         amount: amount,

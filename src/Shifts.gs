@@ -304,6 +304,19 @@ function assertShiftViewPermission_(shift) {
   assertUserHasRole(SHIFT_VIEW_ROLES_);
 }
 
+function assertCurrentUserOwnsOpenShiftForCashbox_(cashboxId) {
+  const currentUser = getCurrentUser();
+  assertCurrentUserActive();
+  const activeShift = getActiveShiftForCashbox(cashboxId);
+  if (!activeShift) {
+    throw new Error('Direktna uplata/isplata nije dozvoljena bez otvorene smene za blagajnu.');
+  }
+  if (activeShift.opened_by !== currentUser.email) {
+    throw new Error('Direktnu uplatu/isplatu može knjižiti samo korisnik koji je otvorio aktivnu smenu.');
+  }
+  return activeShift;
+}
+
 function updateShiftWithAudit_(shiftId, updates, action, comment) {
   const beforeMatch = getShiftMatchOrThrow_(shiftId);
   const updated = updateRecordById(

@@ -482,6 +482,7 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(108px + env(safe-area-inset-bottom));
   }
 
   .m-section {
@@ -545,6 +546,12 @@
     white-space: nowrap;
   }
 
+  .m-entry-no {
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+  }
+
   .m-entry-meta {
     color: var(--color-text-muted);
     font-size: 11px;
@@ -565,8 +572,8 @@
     display: grid;
     flex-shrink: 0;
     grid-template-columns: repeat(4, 1fr);
-    padding-bottom: max(6px, env(safe-area-inset-bottom));
-    padding-top: 4px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-top: 6px;
   }
 
   .m-tab {
@@ -577,15 +584,68 @@
     color: var(--color-text-muted);
     display: flex;
     flex-direction: column;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 700;
     gap: 2px;
     min-height: 0;
-    padding: 6px 4px;
+    padding: 8px 4px;
     position: relative;
   }
 
-  .m-tab i { font-size: 22px; }
+  .m-tab i { font-size: 26px; }
+
+  .m-fixed-actions {
+    background: linear-gradient(180deg, rgba(244, 246, 248, 0), var(--color-bg) 20%);
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr 1fr;
+    left: 0;
+    padding: 12px 12px 10px;
+    position: fixed;
+    right: 0;
+    z-index: 90;
+  }
+
+  :root[data-theme="dark"] .m-fixed-actions {
+    background: linear-gradient(180deg, rgba(15, 19, 25, 0), var(--color-bg) 20%);
+  }
+
+  .m-fixed-actions[hidden] {
+    display: none;
+  }
+
+  .m-detail-overlay {
+    align-items: flex-end;
+    background: rgba(0, 0, 0, 0.45);
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    left: 0;
+    position: fixed;
+    right: 0;
+    top: 0;
+    z-index: 160;
+  }
+
+  .m-detail-sheet {
+    animation: slideUp 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    display: grid;
+    gap: 10px;
+    max-height: 82dvh;
+    overflow-y: auto;
+    padding: 16px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    width: 100%;
+  }
+
+  .m-detail-actions {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr 1fr;
+  }
 
   .m-tab.active { color: var(--color-primary); }
 
@@ -1117,7 +1177,7 @@
   html.mobile-view .m-section {
     gap: calc(14px * var(--mobile-scale));
     padding: calc(16px * var(--mobile-scale));
-    padding-bottom: calc(18px * var(--mobile-scale) + env(safe-area-inset-bottom));
+    padding-bottom: calc(126px + env(safe-area-inset-bottom));
   }
 
   html.mobile-view .btn-lg {
@@ -1127,7 +1187,7 @@
 
   html.mobile-view .m-entry {
     gap: calc(12px * var(--mobile-scale));
-    padding: calc(14px * var(--mobile-scale)) calc(14px * var(--mobile-scale));
+    padding: calc(16px * var(--mobile-scale)) calc(14px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-dot {
@@ -1136,24 +1196,30 @@
   }
 
   html.mobile-view .m-entry-desc {
-    font-size: calc(17px * var(--mobile-scale));
+    font-size: calc(20px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-meta {
-    font-size: calc(13px * var(--mobile-scale));
+    font-size: calc(16px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-amt {
-    font-size: calc(18px * var(--mobile-scale));
+    font-size: calc(22px * var(--mobile-scale));
   }
 
   html.mobile-view .m-tab {
-    font-size: calc(11px * var(--mobile-scale));
-    padding: calc(8px * var(--mobile-scale)) 4px;
+    font-size: calc(13px * var(--mobile-scale));
+    padding: calc(9px * var(--mobile-scale)) 4px;
   }
 
   html.mobile-view .m-tab i {
-    font-size: calc(25px * var(--mobile-scale));
+    font-size: calc(30px * var(--mobile-scale));
+  }
+
+  html.mobile-view .m-fixed-actions {
+    bottom: calc(82px + env(safe-area-inset-bottom));
+    gap: calc(10px * var(--mobile-scale));
+    padding: calc(12px * var(--mobile-scale)) calc(12px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
   }
 
   html.mobile-view .sheet {
@@ -1233,8 +1299,8 @@
     }
 
     .btn-lg {
-      font-size: calc(16px * var(--mobile-scale));
-      min-height: calc(52px * var(--mobile-scale));
+      font-size: calc(19px * var(--mobile-scale));
+      min-height: calc(64px * var(--mobile-scale));
     }
 
     .m-header {
@@ -1280,7 +1346,7 @@
 
     .m-entry {
       gap: calc(10px * var(--mobile-scale));
-      padding: calc(11px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
+      padding: calc(16px * var(--mobile-scale)) calc(14px * var(--mobile-scale));
     }
 
     .m-entry-dot {
@@ -1289,25 +1355,25 @@
     }
 
     .m-entry-desc {
-      font-size: calc(14px * var(--mobile-scale));
+      font-size: calc(20px * var(--mobile-scale));
     }
 
     .m-entry-meta {
-      font-size: calc(11px * var(--mobile-scale));
+      font-size: calc(16px * var(--mobile-scale));
     }
 
     .m-entry-amt {
-      font-size: calc(15px * var(--mobile-scale));
+      font-size: calc(22px * var(--mobile-scale));
     }
 
     .m-tab {
-      font-size: calc(10px * var(--mobile-scale));
+      font-size: calc(13px * var(--mobile-scale));
       gap: calc(2px * var(--mobile-scale));
-      padding: calc(7px * var(--mobile-scale)) 4px;
+      padding: calc(9px * var(--mobile-scale)) 4px;
     }
 
     .m-tab i {
-      font-size: calc(22px * var(--mobile-scale));
+      font-size: calc(30px * var(--mobile-scale));
     }
 
     .sheet {
@@ -1321,7 +1387,7 @@
     }
 
     .sheet-amount-input {
-      font-size: calc(30px * var(--mobile-scale)) !important;
+      font-size: calc(44px * var(--mobile-scale)) !important;
     }
 
     .cur-btn {

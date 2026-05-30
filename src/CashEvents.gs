@@ -162,6 +162,7 @@ function createCashInflow(data) {
   assertActiveCashbox(inflowData.cashbox_id);
   assertCashboxAccess(inflowData.cashbox_id);
   assertActiveCurrency(inflowData.currency);
+  assertCurrentUserOwnsOpenShiftForCashbox_(inflowData.cashbox_id);
 
   const now = getCurrentTimestamp_();
   const cashEvent = {
@@ -500,6 +501,7 @@ function createDirectCashOutflow(data) {
     assertActiveCashbox(d.cashbox_id);
     assertCashboxAccess(d.cashbox_id);
     assertActiveCurrency(d.currency);
+    assertCurrentUserOwnsOpenShiftForCashbox_(d.cashbox_id);
 
     const previousBalance = calculateCashboxBalance(d.cashbox_id, d.currency);
     assertSufficientBalance(previousBalance, d.amount, d.cashbox_id, d.currency);

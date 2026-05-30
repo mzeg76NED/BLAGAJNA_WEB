@@ -8,6 +8,9 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <?!= include('html/styles'); ?>
+    <script>
+      window.BLAGAJNA_WEB_APP_URL = '<?= ScriptApp.getService().getUrl() ?>';
+    </script>
   </head>
   <body>
     <div class="m-shell">
@@ -36,6 +39,10 @@
           <button class="m-chip theme-toggle" data-theme-toggle type="button" aria-label="Promeni temu">
             <i class="ti ti-moon" aria-hidden="true"></i>
           </button>
+          <button class="m-chip" id="m-all-balances-btn" type="button">
+            <i class="ti ti-coins" aria-hidden="true"></i>
+            Sve valute
+          </button>
         </div>
       </header>
 
@@ -44,14 +51,6 @@
 
         <!-- KNJIGA -->
         <section id="m-section-knjiga" class="m-section active" data-section>
-          <div class="m-section-actions">
-            <button class="btn-in btn-lg" id="m-btn-uplata" type="button">
-              <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> UPLATA
-            </button>
-            <button class="btn-out btn-lg" id="m-btn-isplata" type="button">
-              <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> ISPLATA
-            </button>
-          </div>
           <div class="m-section-label" id="m-knjiga-label">Danas · 0 stavki</div>
           <div id="m-knjiga-list"></div>
         </section>
@@ -166,12 +165,42 @@
 
     </div><!-- /m-shell -->
 
+    <div class="m-fixed-actions" id="m-direct-actions" hidden>
+      <button class="btn-in btn-lg" id="m-btn-uplata" type="button">
+        <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> UPLATA
+      </button>
+      <button class="btn-out btn-lg" id="m-btn-isplata" type="button">
+        <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> ISPLATA
+      </button>
+    </div>
+
+    <div id="m-detail-overlay" class="m-detail-overlay" style="display:none" role="dialog" aria-modal="true">
+      <div class="m-detail-sheet">
+        <div class="sheet-handle"></div>
+        <div class="card-head">
+          <h3 id="m-detail-title" style="flex:1">Detalji transakcije</h3>
+          <button class="btn-ghost small" id="m-detail-close" type="button" aria-label="Zatvori">
+            <i class="ti ti-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div id="m-detail-body"></div>
+        <div class="m-detail-actions">
+          <button id="m-detail-print" type="button">
+            <i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list
+          </button>
+          <button class="btn-out" id="m-detail-storno" type="button">
+            <i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- BOTTOM SHEET -->
     <div id="sheet-overlay" class="sheet-overlay" style="display:none" role="dialog" aria-modal="true">
       <div class="sheet" id="sheet">
         <div class="sheet-handle"></div>
         <div class="sheet-title" id="sheet-title"></div>
-        <input type="number" id="sheet-amount" class="sheet-amount-input" inputmode="decimal" step="0.01" min="0" placeholder="0,00">
+        <input type="text" id="sheet-amount" class="sheet-amount-input" inputmode="decimal" placeholder="0,00">
         <div id="sheet-cur-toggle" class="cur-toggle">
         </div>
         <input type="text" id="sheet-partner" placeholder="Primalac / uplatioc (opciono)">

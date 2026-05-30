@@ -13,6 +13,9 @@
 
   var AUTOLOAD_MAP = {};
   var CURRENT_SELECTED_EVENT_ID = '';
+  var PENDING_OPTIMISTIC_EVENTS = [];
+  var OPTIMISTIC_REFRESH_DELAY_MS = 1800;
+  var LAST_KNJIGA_EVENTS = [];
 
   var STATUS_BADGE_MAP = {
     'DRAFT': 'badge-draft',
@@ -106,12 +109,17 @@
     callApi('apiGetUiBootstrap', [Boolean(document.getElementById('desktop-user-card'))], function(data) {
       uiState.config = data.config || {};
       uiState.currentUser = data.user || null;
+      uiState.activeShift = data.activeShift || null;
+      uiState.canPostDirectCashEvents = data.canPostDirectCashEvents === true;
       initializeSession();
       fillConfigOptions();
       setTodayDefaults();
       renderPhysicalBalanceInputs();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
+      applyDirectCashPermission_();
+      bindBalanceOverviewButtons_();
+      bindAmountFormatting_();
       applyRoleBasedHomeMobile_(uiState.currentUser && uiState.currentUser.role);
       refreshUrgentAlert();
       if (data.dashboard) {
@@ -246,7 +254,7 @@
         message: 'Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?',
         confirmText: 'Zaključi dan'
       }, function() {
-        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, parseAmountInput_(data.physical_balance), data.note], function(result) {
           renderDailyClosingSummary('daily-closing-result', result, 'Dnevni zaključak je kreiran');
           refreshDashboardInBackground();
         }, { successMessage: 'Dnevni zaključak je kreiran.' });
@@ -441,16 +449,17 @@
     document.querySelectorAll('[data-physical-balance-inputs]').forEach(function(container) {
       container.innerHTML = currencies.map(function(currency) {
         return '<label>Fizičko stanje - ' + escapeHtml(currency) +
-          '<input name="physical_' + escapeHtml(currency) + '" type="number" step="0.01" min="0" placeholder="0.00"></label>';
+          '<input name="physical_' + escapeHtml(currency) + '" type="text" inputmode="decimal" placeholder="0,00"></label>';
       }).join('');
     });
+    bindAmountFormatting_();
   }
 
   function collectPhysicalBalance_(form) {
     var result = {};
     Array.prototype.forEach.call(form.querySelectorAll('[name^="physical_"]'), function(input) {
       var currency = input.name.replace('physical_', '');
-      result[currency] = parseFloat(input.value) || 0;
+      result[currency] = parseAmountInput_(input.value);
     });
     return result;
   }
@@ -984,7 +993,7 @@
   }
 
   function getBasePrintUrl_() {
-    return window.location.href.split('?')[0];
+    return window.BLAGAJNA_WEB_APP_URL || window.location.href.split('?')[0];
   }
 
   function getPrintInputValue_(name) {
@@ -1060,6 +1069,51 @@
     document.querySelectorAll('[data-current-user]').forEach(function(element) {
       element.textContent = user && user.email ? user.email + ' · ' + user.role : 'Korisnik nije učitan';
     });
+  }
+
+  function applyDirectCashPermission_() {
+    var canPost = uiState.canPostDirectCashEvents === true;
+    ['d-btn-uplata','d-btn-isplata','d-quick-form-card','m-direct-actions'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (canPost) {
+        el.removeAttribute('hidden');
+        el.style.display = '';
+      } else {
+        el.setAttribute('hidden', 'hidden');
+        el.style.display = 'none';
+      }
+    });
+    if (!canPost) {
+      showMessage('Direktne uplate i isplate može knjižiti samo korisnik koji je otvorio aktivnu smenu. Ostali korisnici rade preko zahteva.', 'info');
+    }
+  }
+
+  function bindBalanceOverviewButtons_() {
+    ['d-all-balances-btn','m-all-balances-btn'].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (!btn || btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', showAllCurrencyBalances_);
+    });
+  }
+
+  function showAllCurrencyBalances_() {
+    callApi('apiGetCashboxBalanceReport', [{ cashbox_id: SESSION.cashboxId }], function(rows) {
+      var filtered = (rows || []).filter(function(row) {
+        return row.cashbox_id === SESSION.cashboxId;
+      });
+      var html = filtered.length ? filtered.map(function(row) {
+        return '<div class="detail-row" style="border-bottom:1px solid var(--color-border-light);padding:10px 0">' +
+          '<span class="detail-key">' + escapeHtml(row.currency) + '</span>' +
+          '<strong>' + formatAmount_(row.balance) + '</strong></div>';
+      }).join('') : '<p>Nema podataka za blagajnu.</p>';
+      appHtmlDialog_({
+        title: 'Stanje po valutama',
+        html: html,
+        confirmText: 'Zatvori'
+      });
+    }, { quiet: true });
   }
 
   function applyRoleBasedHomeMobile_(role) {
@@ -1420,6 +1474,36 @@
     return num.toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  function parseAmountInput_(value) {
+    var text = String(value || '').trim();
+    if (!text) return 0;
+    text = text.replace(/\s/g, '');
+    if (text.indexOf(',') !== -1) {
+      text = text.replace(/\./g, '').replace(',', '.');
+    } else {
+      var parts = text.split('.');
+      if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+        text = parts.join('');
+      }
+    }
+    return parseFloat(text) || 0;
+  }
+
+  function bindAmountFormatting_() {
+    document.querySelectorAll('#d-qf-amount,#sheet-amount,input[name="physical_balance"],[name^="physical_"]').forEach(function(input) {
+      if (input.dataset.amountFormattingBound === '1') return;
+      input.dataset.amountFormattingBound = '1';
+      input.addEventListener('focus', function() {
+        var amount = parseAmountInput_(input.value);
+        input.value = amount ? String(amount).replace('.', ',') : '';
+      });
+      input.addEventListener('blur', function() {
+        var amount = parseAmountInput_(input.value);
+        input.value = amount ? formatAmount_(amount) : '';
+      });
+    });
+  }
+
   function formatDateShort_(value) {
     if (!value) return '—';
     var d = value instanceof Date ? value : new Date(value);
@@ -1460,6 +1544,7 @@
       user:       userFilter,
       shift_id:   shiftFilter
     })], function(events) {
+      LAST_KNJIGA_EVENTS = events || [];
       renderKnjigaTable_(events || []);
       refreshBalance_();
     }, { quiet: true });
@@ -1470,6 +1555,7 @@
     var container = document.getElementById(isMobile ? 'm-knjiga-list' : 'd-knjiga-tbody');
     var tfoot     = document.getElementById('d-knjiga-tfoot');
     if (!container) return;
+    events = mergeOptimisticEvents_(events || []);
 
     if (!events.length) {
       var empty = '<div class="empty-state"><i class="ti ti-inbox-off" aria-hidden="true"></i><p>Nema transakcija za izabrani period.</p></div>';
@@ -1488,7 +1574,8 @@
       var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
       if (displayDirection === 'IN')  totalIn  += displayAmount;
       if (displayDirection === 'OUT') totalOut += displayAmount;
-      rows.push(isMobile ? renderMobileEntry_(ev) : renderKnjigaRow_(ev, idx + 1, Number(ev.running_balance || 0)));
+      var rowNumber = ev.entry_number || (events.length - idx);
+      rows.push(isMobile ? renderMobileEntry_(ev, rowNumber) : renderKnjigaRow_(ev, rowNumber, Number(ev.running_balance || 0)));
     });
 
     container.innerHTML = rows.join('');
@@ -1509,12 +1596,74 @@
     });
   }
 
+  function mergeOptimisticEvents_(events) {
+    var realIds = events.reduce(function(index, ev) {
+      if (ev.event_id) index[ev.event_id] = true;
+      return index;
+    }, {});
+    PENDING_OPTIMISTIC_EVENTS = PENDING_OPTIMISTIC_EVENTS.filter(function(ev) {
+      return !ev.event_id || !realIds[ev.event_id];
+    });
+    var visiblePending = PENDING_OPTIMISTIC_EVENTS.filter(function(ev) {
+      return (!SESSION.cashboxId || ev.cashbox_id === SESSION.cashboxId) &&
+        (!SESSION.currency || ev.currency === SESSION.currency);
+    });
+    return visiblePending.concat(events);
+  }
+
+  function scheduleKnjigaRefresh_() {
+    window.setTimeout(function() {
+      loadKnjiga_(true);
+      refreshBalance_();
+    }, OPTIMISTIC_REFRESH_DELAY_MS);
+  }
+
+  function rememberOptimisticEvent_(ev) {
+    PENDING_OPTIMISTIC_EVENTS = PENDING_OPTIMISTIC_EVENTS.filter(function(item) {
+      return item.optimistic_id !== ev.optimistic_id && item.event_id !== ev.event_id;
+    });
+    PENDING_OPTIMISTIC_EVENTS.unshift(ev);
+    if (PENDING_OPTIMISTIC_EVENTS.length > 8) {
+      PENDING_OPTIMISTIC_EVENTS = PENDING_OPTIMISTIC_EVENTS.slice(0, 8);
+    }
+  }
+
+  function removeOptimisticEvent_(tempId) {
+    PENDING_OPTIMISTIC_EVENTS = PENDING_OPTIMISTIC_EVENTS.filter(function(item) {
+      return item.optimistic_id !== tempId && item.event_id !== tempId;
+    });
+  }
+
+  function buildOptimisticEvent_(tempId, direction, amount, currency, partner, desc, statusText) {
+    var now = new Date();
+    return {
+      optimistic_id: tempId,
+      event_id: tempId,
+      event_date: now.toISOString(),
+      created_at: now.toISOString(),
+      created_by: uiState.currentUser && uiState.currentUser.email || '',
+      posted_at: now.toISOString(),
+      posted_by: uiState.currentUser && uiState.currentUser.email || '',
+      event_type: direction === 'IN' ? 'CASH_INFLOW' : 'CASH_OUTFLOW',
+      cashbox_id: SESSION.cashboxId,
+      currency: currency,
+      direction: direction,
+      amount: amount,
+      display_direction: direction,
+      display_amount: amount,
+      partner_name: partner || '',
+      description: desc || partner || '',
+      status: statusText || 'KNJIŽENJE',
+      running_balance: 0
+    };
+  }
+
   function renderKnjigaRow_(ev, index, balance) {
     var displayDirection = ev.display_direction || ev.direction;
     var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
     var isIn  = displayDirection === 'IN';
     var isOut = displayDirection === 'OUT';
-    var rowClass = isIn ? 'row-in' : isOut ? 'row-out' : 'row-opening';
+    var rowClass = (isIn ? 'row-in' : isOut ? 'row-out' : 'row-opening') + (ev.optimistic_id ? ' optimistic' : '');
     var amtFmt  = formatAmount_(displayAmount);
     var balFmt  = formatAmount_(balance);
     var dateStr = formatDateShort_(ev.event_date || ev.created_at);
@@ -1523,10 +1672,11 @@
     var createdBy = escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—'));
     var timeStr = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date));
     var trace = ev.reversal_of_event_id ? ' · Veza: ' + escapeHtml(ev.reversal_of_event_id) : '';
+    var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     return '<tr class="' + rowClass + '" data-event-id="' + escapeHtml(ev.event_id) + '">' +
       '<td>' + index + '</td>' +
       '<td>' + dateStr + '</td>' +
-      '<td><div class="desc-main">' + label + '</div><div class="desc-reason">' + reason + '</div><div class="desc-sub">' + timeStr + ' · ' + createdBy + ' · ' + escapeHtml(ev.event_id) + trace + '</div></td>' +
+      '<td><div class="desc-main">' + label + '</div><div class="desc-reason">' + reason + '</div><div class="desc-sub">' + timeStr + ' · ' + createdBy + ' · ' + escapeHtml(ev.event_id) + trace + statusHint + '</div></td>' +
       '<td class="' + (isIn  ? 'cell-in'   : 'cell-dash') + '">' + (isIn  ? amtFmt : '—') + '</td>' +
       '<td class="' + (isOut ? 'cell-out'  : 'cell-dash') + '">' + (isOut ? amtFmt : '—') + '</td>' +
       '<td class="cell-bal">' + balFmt + '</td>' +
@@ -1542,7 +1692,7 @@
     '</tr>';
   }
 
-  function renderMobileEntry_(ev) {
+  function renderMobileEntry_(ev, index) {
     var displayDirection = ev.display_direction || ev.direction;
     var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
     var isIn   = displayDirection === 'IN';
@@ -1555,12 +1705,13 @@
       ' · ' + escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—')) +
       ' · ' + escapeHtml(ev.event_id) +
       (ev.reversal_of_event_id ? ' · Veza: ' + escapeHtml(ev.reversal_of_event_id) : '');
-    return '<div class="m-entry" data-event-id="' + escapeHtml(ev.event_id) + '">' +
+    var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
+    return '<div class="m-entry' + (ev.optimistic_id ? ' optimistic' : '') + '" data-event-id="' + escapeHtml(ev.event_id) + '">' +
       '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
       '<div class="m-entry-info">' +
-        '<div class="m-entry-desc">' + label + '</div>' +
+        '<div class="m-entry-desc"><span class="m-entry-no">' + index + '.</span> ' + label + '</div>' +
         '<div class="m-entry-meta">' + reason + '</div>' +
-        '<div class="m-entry-meta">' + meta  + '</div>' +
+        '<div class="m-entry-meta">' + meta + statusHint + '</div>' +
       '</div>' +
       '<div class="m-entry-amt" style="color:' + color + '">' + prefix + formatAmount_(Math.abs(displayAmount)) + '</div>' +
     '</div>';
@@ -1572,7 +1723,10 @@
     var panel = document.getElementById('d-detail-panel');
     var title = document.getElementById('d-detail-title');
     var body  = document.getElementById('d-detail-body');
-    if (!panel || !title || !body) return;
+    if (!panel || !title || !body) {
+      openMobileDetailPanel_(ev);
+      return;
+    }
     CURRENT_SELECTED_EVENT_ID = ev.event_id || '';
     var printEventInput = document.querySelector('#print-tools-form [name="cash_event_id"]');
     if (printEventInput && CURRENT_SELECTED_EVENT_ID) {
@@ -1641,6 +1795,60 @@
     document.querySelectorAll('#d-knjiga-tbody tr').forEach(function(r) {
       r.classList.toggle('selected', r.getAttribute('data-event-id') === ev.event_id);
     });
+  }
+
+  function openMobileDetailPanel_(ev) {
+    var overlay = document.getElementById('m-detail-overlay');
+    var title = document.getElementById('m-detail-title');
+    var body = document.getElementById('m-detail-body');
+    if (!overlay || !title || !body) return;
+    var isIn = ev.direction === 'IN';
+    var dirColor = isIn ? 'var(--color-in)' : 'var(--color-out)';
+    title.innerHTML = '<span style="color:' + dirColor + '">' + (isIn ? 'UPLATA' : 'ISPLATA') + '</span>';
+    var rows = [
+      ['ID', escapeHtml(ev.event_id || '—')],
+      ['Iznos', '<strong style="color:' + dirColor + '">' + formatAmount_(ev.amount) + ' ' + escapeHtml(ev.currency || SESSION.currency) + '</strong>'],
+      ['Datum', formatDateShort_(ev.event_date || ev.created_at)],
+      ['Primalac/uplatioc', escapeHtml(ev.partner_name || '—')],
+      ['Opis', escapeHtml(ev.description || '—')],
+      ['Status', renderStatusBadge_(ev.status)],
+      ['Vreme', escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date))],
+      ['Uneo', escapeHtml(ev.posted_by || ev.created_by || '—')]
+    ];
+    if (ev.reversal_of_event_id) {
+      rows.push(['Veza storna', escapeHtml(ev.reversal_of_event_id)]);
+    }
+    body.innerHTML = rows.map(function(r) {
+      return '<div class="detail-row" style="border-bottom:1px solid var(--color-border-light);padding:9px 0">' +
+        '<span class="detail-key">' + r[0] + '</span><span style="text-align:right;overflow-wrap:anywhere">' + r[1] + '</span></div>';
+    }).join('');
+    var closeBtn = document.getElementById('m-detail-close');
+    var printBtn = document.getElementById('m-detail-print');
+    var stornoBtn = document.getElementById('m-detail-storno');
+    if (closeBtn) closeBtn.onclick = function() { overlay.style.display = 'none'; };
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.style.display = 'none'; };
+    if (printBtn) printBtn.onclick = function() { openPrintView('print-cash-event', ev.event_id); };
+    if (stornoBtn) {
+      var canReverse = ev.status !== 'REVERSED' && ev.event_type !== 'REVERSAL' && !ev.optimistic_id;
+      stornoBtn.disabled = !canReverse;
+      stornoBtn.onclick = function() {
+        if (!canReverse) return;
+        appPrompt_({
+          title: 'Storno stavke',
+          message: 'Unesite razlog storna za stavku ' + ev.event_id + '.',
+          label: 'Razlog storna',
+          confirmText: 'Storniraj',
+          danger: true
+        }, function(reason) {
+          callApi('apiReverseCashEvent', [ev.event_id, reason], function() {
+            overlay.style.display = 'none';
+            loadKnjiga_(true);
+            refreshBalance_();
+          }, { successMessage: 'Storno je evidentiran.' });
+        });
+      };
+    }
+    overlay.style.display = 'flex';
   }
 
   function formatTimeShort_(value) {
@@ -1713,7 +1921,7 @@
 
   function submitDesktopQuickForm_() {
     var type    = currentQuickFormType_;
-    var amount  = parseFloat((document.getElementById('d-qf-amount')       || {}).value);
+    var amount  = parseAmountInput_((document.getElementById('d-qf-amount') || {}).value);
     var cur     = (document.getElementById('d-qf-currency')    || {}).value || SESSION.currency;
     var partner = ((document.getElementById('d-qf-partner')    || {}).value || '').trim();
     var desc    = ((document.getElementById('d-qf-description') || {}).value || '').trim();
@@ -1722,7 +1930,8 @@
     if (!desc && !partner)      { var d2 = document.getElementById('d-qf-description'); if (d2) d2.focus(); return; }
 
     var tempId = 'OPT-' + Date.now();
-    prependDesktopOptimistic_(tempId, type, amount, cur, partner || desc);
+    rememberOptimisticEvent_(buildOptimisticEvent_(tempId, type, amount, cur, partner, desc, 'KNJIŽENJE'));
+    renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
     updateTopbarBalance_(type === 'IN' ? amount : -amount);
 
     var data = { cashbox_id: SESSION.cashboxId, currency: cur, amount: amount, partner_name: partner, description: desc || partner };
@@ -1730,11 +1939,22 @@
 
     google.script.run
       .withSuccessHandler(function(resp) {
-        if (resp && resp.ok) { resetDesktopQuickForm_(); loadKnjiga_(true); refreshBalance_(); }
-        else { removeDesktopOptimistic_(tempId); updateTopbarBalance_(type === 'IN' ? -amount : amount); showDesktopMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
+        if (resp && resp.ok) {
+          removeOptimisticEvent_(tempId);
+          var realEvent = resp.data || resp;
+          if (realEvent && realEvent.event_id) {
+            realEvent.optimistic_id = realEvent.event_id;
+            rememberOptimisticEvent_(realEvent);
+          }
+          resetDesktopQuickForm_();
+          renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
+          scheduleKnjigaRefresh_();
+        }
+        else { removeOptimisticEvent_(tempId); renderKnjigaTable_(LAST_KNJIGA_EVENTS || []); updateTopbarBalance_(type === 'IN' ? -amount : amount); showDesktopMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
       })
       .withFailureHandler(function(err) {
-        removeDesktopOptimistic_(tempId);
+        removeOptimisticEvent_(tempId);
+        renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
         updateTopbarBalance_(type === 'IN' ? -amount : amount);
         showDesktopMessage_('Greška: ' + (err && err.message ? err.message : 'tehnički problem.'), 'error');
       })
@@ -1837,7 +2057,7 @@
   }
 
   function submitSheet_() {
-    var amount  = parseFloat((document.getElementById('sheet-amount')      || {}).value);
+    var amount  = parseAmountInput_((document.getElementById('sheet-amount') || {}).value);
     var partner = ((document.getElementById('sheet-partner')               || {}).value || '').trim();
     var desc    = ((document.getElementById('sheet-description')           || {}).value || '').trim();
     var type    = currentSheetType_;
@@ -1852,7 +2072,8 @@
     closeSheet_();
 
     var tempId = 'OPT-' + Date.now();
-    prependMobileOptimistic_(tempId, type, amount, cur, partner || desc);
+    rememberOptimisticEvent_(buildOptimisticEvent_(tempId, type, amount, cur, partner, desc, 'KNJIŽENJE'));
+    renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
     updateMobileBalance_(type === 'IN' ? amount : -amount);
 
     var data = { cashbox_id: SESSION.cashboxId, currency: cur, amount: amount, partner_name: partner, description: desc || partner };
@@ -1860,11 +2081,21 @@
 
     google.script.run
       .withSuccessHandler(function(resp) {
-        if (resp && resp.ok) { loadKnjiga_(true); refreshBalance_(); }
-        else { removeMobileOptimistic_(tempId); updateMobileBalance_(type === 'IN' ? -amount : amount); showMobileMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
+        if (resp && resp.ok) {
+          removeOptimisticEvent_(tempId);
+          var realEvent = resp.data || resp;
+          if (realEvent && realEvent.event_id) {
+            realEvent.optimistic_id = realEvent.event_id;
+            rememberOptimisticEvent_(realEvent);
+          }
+          renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
+          scheduleKnjigaRefresh_();
+        }
+        else { removeOptimisticEvent_(tempId); renderKnjigaTable_(LAST_KNJIGA_EVENTS || []); updateMobileBalance_(type === 'IN' ? -amount : amount); showMobileMessage_('Greška: ' + (resp && resp.error ? resp.error.message : 'problem.'), 'error'); }
       })
       .withFailureHandler(function(err) {
-        removeMobileOptimistic_(tempId);
+        removeOptimisticEvent_(tempId);
+        renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
         updateMobileBalance_(type === 'IN' ? -amount : amount);
         showMobileMessage_('Greška: ' + (err && err.message ? err.message : 'problem.'), 'error');
       })
@@ -2035,7 +2266,7 @@
         message: 'Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?',
         confirmText: 'Zaključi dan'
       }, function() {
-        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, parseAmountInput_(data.physical_balance), data.note], function(result) {
           renderDailyClosingSummary('d-daily-result', result, 'Dnevni zaključak je kreiran');
           refreshBalance_();
         }, { successMessage: 'Dnevni zaključak je kreiran.' });
@@ -2048,7 +2279,7 @@
         message: 'Dnevni zaključak će zaključati uključena kretanja blagajne. Nastaviti?',
         confirmText: 'Zaključi dan'
       }, function() {
-        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, data.physical_balance, data.note], function(result) {
+        callApi('apiCloseDailyCashbox', [data.cashbox_id, data.currency, data.closing_date, parseAmountInput_(data.physical_balance), data.note], function(result) {
           renderDailyClosingSummary('m-daily-result', result, 'Dnevni zaključak je kreiran');
           refreshBalance_();
         }, { successMessage: 'Dnevni zaključak je kreiran.' });
@@ -2272,6 +2503,24 @@
     });
   }
 
+  function appHtmlDialog_(options) {
+    options = options || {};
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>' + escapeHtml(options.title || 'Pregled') + '</h3>' +
+        '<div>' + (options.html || '') + '</div>' +
+        '<div class="app-dialog-actions" style="margin-top:12px">' +
+          '<button type="button" class="btn-primary" data-dialog-ok>' + escapeHtml(options.confirmText || 'Zatvori') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-dialog-ok]').addEventListener('click', close);
+  }
+
   function updateHeaderClock_() {
     var now = new Date();
     var dateText = now.toLocaleDateString('sr-RS', {
@@ -2321,6 +2570,8 @@
     if (isMobile)  { bindMobileNav_();  bindMobileSheet_(); }
     if (isDesktop) { bindDesktopNav_(); bindDesktopQuickForm_(); }
     if (isMobile)  { bindModernShellForms_(); }
+    bindBalanceOverviewButtons_();
+    bindAmountFormatting_();
     startHeaderClock_();
 
     // Današnji datum u date inputima
@@ -2341,6 +2592,8 @@
     callApi('apiGetUiBootstrap', [isDesktop], function(data) {
       uiState.config      = data.config || {};
       uiState.currentUser = data.user   || null;
+      uiState.activeShift = data.activeShift || null;
+      uiState.canPostDirectCashEvents = data.canPostDirectCashEvents === true;
       initializeSession();
       if (isMobile) {
         renderSheetCurrencyButtons_();
@@ -2351,6 +2604,9 @@
       renderPhysicalBalanceInputs();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
+      applyDirectCashPermission_();
+      bindBalanceOverviewButtons_();
+      bindAmountFormatting_();
 
       // Ažuriraj korisnika u sidebar-u
       var navUser = document.querySelector('[data-nav-user]');

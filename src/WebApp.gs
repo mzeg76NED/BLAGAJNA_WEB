@@ -224,9 +224,12 @@ function apiGetUiBootstrap(includeDashboard) {
   return apiWrap_(function() {
     const user = getCurrentUser();
     const config = buildAppConfigForUi_(user);
+    const activeShift = getActiveShiftForCashbox(config.defaultCashboxId || getDefaultCashboxIdForUser_(user));
     const data = {
       config: config,
-      user: user
+      user: user,
+      activeShift: activeShift,
+      canPostDirectCashEvents: !!(activeShift && activeShift.opened_by === user.email)
     };
     if (includeDashboard === true) {
       data.dashboard = getManagementDashboardSummary({
