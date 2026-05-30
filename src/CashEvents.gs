@@ -480,8 +480,66 @@ function buildReversalDescription_(originalEvent, reason) {
   return prefix + 'Reversal of ' + originalEvent.event_id + '. Reason: ' + reason;
 }
 
-function buildCorrectionDescription_(correctionType, description, reason) {
-  return 'Correction type: ' + correctionType + '. ' +
-    String(description).trim() +
-    '\nReason: ' + String(reason).trim();
+/**
+ * Creates a direct (no payment order) cash outflow for ad-hoc expenses.
+ * Called from quick entry UI on mobile and desktop.
+ * Payment Request and Payment Order are NOT required for this flow.
+ */
+function createDirectCashOutflow(data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    const currentUser = requireActiveUserWithRole_(CASH_EVENT_POSTER_ROLES_);
+    const d = data || {};
+
+    assertRequiredFields(d, ['cashbox_id', 'currency', 'amount', 'description']);
+    assertNonEmptyString(d.description, 'description');
+    assertPositiveAmount(d.amount);
+    assertActiveCashbox(d.cashbox_id);
+    assertCashboxAccess(d.cashbox_id);
+    assertActiveCurrency(d.currency);
+
+    const previousBalance = calculateCashboxBalance(d.cashbox_id, d.currency);
+    assertSufficientBalance(previousBalance, d.amount, d.cashbox_id, d.currency);
+
+    const now = getCurrentTimestamp_();
+    const cashEvent = {
+      event_id:             generateId_('CEV'),
+      created_at:           now,
+      created_by:           currentUser.email,
+      event_date:           d.event_date || now,
+      event_type:           CASH_EVENT_TYPES.CASH_OUTFLOW,
+      cashbox_id:           d.cashbox_id,
+      currency:             d.currency,
+      direction:            'OUT',
+      amount:               Number(d.amount),
+      linked_request_id:    '',
+      linked_order_id:      '',
+      partner_name:         d.partner_name || '',
+      description:          String(d.description).trim(),
+      document_status:      DOCUMENT_STATUSES.NONE,
+      status:               CASH_EVENT_STATUSES.POSTED,
+      posted_by:            currentUser.email,
+      posted_at:            now,
+      locked_by:            '',
+      locked_at:            '',
+      reversal_of_event_id: '',
+      updated_at:           ''
+    };
+
+    appendRecord(SHEET_NAMES.CASH_EVENTS, cashEvent);
+    writeAuditLog(
+      AUDIT_ACTIONS.POST,
+      SHEET_NAMES.CASH_EVENTS,
+      cashEvent.event_id,
+      null,
+      cashEvent,
+      'Direct cash outflow posted without payment order.'
+    );
+
+    return cashEvent;
+  } finally {
+    lock.releaseLock();
+  }
 }

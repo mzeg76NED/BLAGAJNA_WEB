@@ -1,56 +1,261 @@
 <!DOCTYPE html>
-<html>
+<html lang="sr">
   <head>
     <base target="_top">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <?!= include('html/print-styles'); ?>
+    <style>
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+
+      body {
+        background: #ffffff;
+        color: #172033;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        font-size: 12px;
+        margin: 0;
+      }
+
+      .a4-sheet {
+        display: grid;
+        gap: 6mm;
+        grid-template-rows: 1fr 1fr;
+        min-height: 277mm;
+      }
+
+      .voucher-copy {
+        border: 1px dashed #c9d1dc;
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        padding: 7mm;
+        page-break-inside: avoid;
+      }
+
+      .copy-label {
+        color: #667085;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        margin-bottom: 4mm;
+        text-align: right;
+        text-transform: uppercase;
+      }
+
+      .company-header {
+        align-items: flex-start;
+        color: #667085;
+        display: flex;
+        font-size: 11px;
+        justify-content: space-between;
+        margin-bottom: 4mm;
+      }
+
+      .company-name {
+        color: #172033;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .doc-header {
+        border-radius: 6px;
+        margin-bottom: 4mm;
+        padding: 4mm;
+      }
+
+      .doc-header.inflow {
+        background: #e9f8ef;
+        border: 2px solid #a8dfb8;
+        color: #176332;
+      }
+
+      .doc-header.outflow {
+        background: #fff0f0;
+        border: 2px solid #e6b8b8;
+        color: #9f1d1d;
+      }
+
+      .doc-header-title {
+        font-size: 17px;
+        font-weight: 900;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+
+      .doc-header-meta {
+        display: flex;
+        flex-wrap: wrap;
+        font-size: 11px;
+        gap: 4mm;
+        margin-top: 2mm;
+      }
+
+      .amount-box {
+        font-size: 26px;
+        font-weight: 900;
+        line-height: 1.05;
+        margin-top: 3mm;
+      }
+
+      .amount-words {
+        border-bottom: 1px solid currentColor;
+        font-size: 12px;
+        margin-top: 2mm;
+        min-height: 6mm;
+        opacity: 0.75;
+      }
+
+      .field-section {
+        border: 1px solid #d6dde6;
+        border-radius: 6px;
+        display: grid;
+        gap: 2mm;
+        padding: 4mm;
+      }
+
+      .field-row {
+        align-items: baseline;
+        display: flex;
+        gap: 4mm;
+      }
+
+      .field-label {
+        color: #667085;
+        flex: 0 0 34mm;
+        font-weight: 800;
+      }
+
+      .field-value {
+        color: #172033;
+        flex: 1;
+        overflow-wrap: anywhere;
+      }
+
+      .signature-row {
+        display: grid;
+        gap: 12mm;
+        grid-template-columns: 1fr 1fr;
+        margin-top: auto;
+        padding-top: 9mm;
+      }
+
+      .sig-line {
+        border-top: 1px solid #aeb8c6;
+        color: #667085;
+        font-size: 10px;
+        padding-top: 2mm;
+        text-align: center;
+      }
+
+      .print-footer {
+        border-top: 1px solid #e5e9ef;
+        color: #9aa3b0;
+        font-size: 9px;
+        margin-top: 4mm;
+        padding-top: 2mm;
+        text-align: center;
+      }
+
+      .print-actions {
+        margin-bottom: 8px;
+      }
+
+      @media print {
+        .no-print { display: none !important; }
+        .a4-sheet { min-height: 277mm; }
+      }
+    </style>
   </head>
   <body>
     <? var data = printData || {}; var header = data.printHeader || {}; var event = data.event || {}; var cashbox = data.cashbox || {}; var order = data.linkedOrder || {}; var request = data.linkedRequest || {}; var documents = data.documents || []; ?>
-    <main class="print-page">
-      <div class="print-actions no-print">
-        <button type="button" onclick="window.print()">Štampaj / Sačuvaj kao PDF</button>
-      </div>
-      <header class="print-header">
-        <div class="brand"><?= header.appName ?></div>
-        <div><?= header.subtitle ?></div>
-        <div class="muted"><?= header.companyName ?></div>
-      </header>
+    <? var isInflow = (event.direction === 'IN'); ?>
+    <? var copyLabels = ['Primerak za arhivu / potpis', 'Primerak za korisnika']; ?>
 
-      <h1>Blagajnički događaj</h1>
-      <section class="field-grid">
-        <div class="field"><span class="label">ID događaja</span><?= event.event_id ?></div>
-        <div class="field"><span class="label">Status</span><?= event.status ?></div>
-        <div class="field"><span class="label">Datum</span><?= event.event_date ?></div>
-        <div class="field"><span class="label">Tip</span><?= event.event_type ?></div>
-        <div class="field"><span class="label">Blagajna</span><?= cashbox.name || event.cashbox_id ?></div>
-        <div class="field"><span class="label">Smer</span><?= event.direction ?></div>
-        <div class="field"><span class="label">Iznos</span><?= event.amount ?> <?= event.currency ?></div>
-        <div class="field"><span class="label">Partner</span><?= event.partner_name ?></div>
-        <div class="field"><span class="label">Nalog</span><?= order.order_id || event.linked_order_id ?></div>
-        <div class="field"><span class="label">Zahtev</span><?= request.request_id || event.linked_request_id ?></div>
-        <div class="field"><span class="label">Knjižio</span><?= event.posted_by ?></div>
-        <div class="field"><span class="label">Knjiženo</span><?= event.posted_at ?></div>
+    <div class="no-print print-actions">
+      <button type="button" onclick="window.print()">Štampaj / Sačuvaj kao PDF</button>
+    </div>
+
+    <main class="a4-sheet">
+      <? copyLabels.forEach(function(copyLabel) { ?>
+      <section class="voucher-copy">
+        <div class="copy-label"><?= copyLabel ?></div>
+
+        <div class="company-header">
+          <div>
+            <div class="company-name"><?= header.companyName || header.appName || 'Blagajna' ?></div>
+            <div><?= header.subtitle || '' ?></div>
+          </div>
+          <div style="text-align:right">
+            <div><?= cashbox.name || event.cashbox_id || '' ?></div>
+            <div><?= event.currency || '' ?></div>
+          </div>
+        </div>
+
+        <div class="doc-header <?= isInflow ? 'inflow' : 'outflow' ?>">
+          <div class="doc-header-title">Blagajnički <?= isInflow ? 'uplatni' : 'isplatni' ?> list</div>
+          <div class="doc-header-meta">
+            <span>Broj: <strong><?= event.event_id ?></strong></span>
+            <span>Datum: <strong><?= event.event_date || event.created_at ?></strong></span>
+            <span>Status: <strong><?= event.status ?></strong></span>
+          </div>
+          <div class="amount-box"><?= event.amount ?> <?= event.currency ?></div>
+          <div class="amount-words">Slovima: &nbsp;</div>
+        </div>
+
+        <div class="field-section">
+          <div class="field-row">
+            <span class="field-label"><?= isInflow ? 'Uplatio' : 'Isplaćeno' ?>:</span>
+            <span class="field-value"><strong><?= event.partner_name || '—' ?></strong></span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Svrha / opis:</span>
+            <span class="field-value"><?= event.description || '—' ?></span>
+          </div>
+          <? if (order.order_id || event.linked_order_id) { ?>
+          <div class="field-row">
+            <span class="field-label">Po nalogu:</span>
+            <span class="field-value"><?= order.order_id || event.linked_order_id ?></span>
+          </div>
+          <? } ?>
+          <? if (request.request_id || event.linked_request_id) { ?>
+          <div class="field-row">
+            <span class="field-label">Zahtev:</span>
+            <span class="field-value"><?= request.request_id || event.linked_request_id ?></span>
+          </div>
+          <? } ?>
+          <div class="field-row">
+            <span class="field-label">Knjižio:</span>
+            <span class="field-value"><?= event.posted_by || event.created_by || '—' ?></span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Proknjiženo:</span>
+            <span class="field-value"><?= event.posted_at || event.created_at || '—' ?></span>
+          </div>
+          <? if (documents.length > 0) { ?>
+          <div class="field-row">
+            <span class="field-label">Dokumenta:</span>
+            <span class="field-value">
+              <? documents.forEach(function(doc, index) { ?>
+                <?= index ? ', ' : '' ?><?= doc.file_name || doc.document_id ?>
+              <? }); ?>
+            </span>
+          </div>
+          <? } ?>
+        </div>
+
+        <div class="signature-row">
+          <div class="sig-line">Blagajnik</div>
+          <div class="sig-line">Primalac / uplatioc</div>
+        </div>
+
+        <div class="print-footer">
+          Generisano: <?= header.generatedAt ?> · Korisnik: <?= header.generatedBy ?> · <?= header.sourceType ?> <?= header.sourceId ?>
+        </div>
       </section>
-
-      <h2>Opis</h2>
-      <p><?= event.description ?></p>
-      <h2>Dokumenti</h2>
-      <table>
-        <thead><tr><th>ID</th><th>Naziv fajla</th><th>Status</th><th>Link</th></tr></thead>
-        <tbody>
-          <? if (documents.length === 0) { ?><tr><td colspan="4">Nema dokumenata.</td></tr><? } ?>
-          <? documents.forEach(function(documentRecord) { ?>
-            <tr><td><?= documentRecord.document_id ?></td><td><?= documentRecord.file_name ?></td><td><?= documentRecord.status ?></td><td><?= documentRecord.file_url ?></td></tr>
-          <? }); ?>
-        </tbody>
-      </table>
-
-      <div class="signature-grid"><div class="signature-line">Blagajnik</div><div class="signature-line">Primalac / predavalac</div></div>
-      <footer class="print-footer">
-        <div>Generisano: <?= header.generatedAt ?> · Korisnik: <?= header.generatedBy ?> · Izvor: <?= header.sourceType ?> <?= header.sourceId ?></div>
-        <div><?= header.note ?></div>
-      </footer>
+      <? }); ?>
     </main>
   </body>
 </html>

@@ -1,276 +1,192 @@
 <!DOCTYPE html>
-<html>
+<html lang="sr">
   <head>
     <base target="_top">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <?!= include('html/styles'); ?>
   </head>
   <body>
-    <main class="mobile-shell">
-      <header>
-        <div class="top-bar">
-          <div>
-            <h1>BLAGAJNA</h1>
-            <p class="muted" data-current-user>Korisnik se učitava...</p>
-          </div>
+    <div class="m-shell">
+
+      <!-- HEADER -->
+      <header class="m-header">
+        <div class="m-header-balance" id="m-balance" data-raw-value="0">— RSD</div>
+        <div class="m-header-meta">
+          <span id="m-date"></span>
+          &nbsp;·&nbsp;
+          <span data-current-user>...</span>
         </div>
-        <div class="session-context">
-          <span class="ctx-chip"><i class="ti ti-building-bank" aria-hidden="true"></i><span data-session-cashbox>Blagajna se učitava...</span></span>
-          <span class="ctx-chip"><i class="ti ti-coins" aria-hidden="true"></i><select data-session-currency-select aria-label="Valuta"></select></span>
+        <div class="m-header-chips">
+          <span class="m-chip">
+            <i class="ti ti-building-bank" aria-hidden="true"></i>
+            <select data-session-cashbox-select aria-label="Blagajna"></select>
+          </span>
+          <span class="m-chip">
+            <i class="ti ti-coins" aria-hidden="true"></i>
+            <select data-session-currency-select aria-label="Valuta"></select>
+          </span>
+          <button class="m-chip theme-toggle" data-theme-toggle type="button" aria-label="Promeni temu">
+            <i class="ti ti-moon" aria-hidden="true"></i>
+          </button>
         </div>
-        <div id="message" class="message"></div>
       </header>
 
-      <section id="home" class="section active" data-section>
-        <div class="alert-card" id="urgent-alert" style="display:none">
-          <i class="ti ti-clock-play" aria-hidden="true"></i>
-          <div>
-            <div class="alert-title" id="urgent-alert-title"></div>
-            <div class="alert-sub">Tapni da vidiš naloge</div>
-          </div>
-        </div>
-        <div class="card" id="home-group-requests">
-          <h2>Zahtevi</h2>
-          <div class="button-grid">
-            <button data-target="new-payment-request" type="button"><i class="ti ti-plus" aria-hidden="true"></i> NOVI ZAHTEV ZA ISPLATU</button>
-            <button data-target="my-payment-requests" type="button"><i class="ti ti-inbox" aria-hidden="true"></i> MOJI ZAHTEVI</button>
-          </div>
-        </div>
-        <div class="card" id="home-group-approval">
-          <h2>Odobrenja</h2>
-          <button data-target="approval-requests" type="button"><i class="ti ti-check" aria-hidden="true"></i> ZAHTEVI ZA ODOBRENJE</button>
-        </div>
-        <div class="card" id="home-group-orders">
-          <h2>Nalozi</h2>
-          <div class="button-grid">
-            <button data-target="orders-waiting" type="button"><i class="ti ti-file-invoice" aria-hidden="true"></i> NALOZI ZA ISPLATU</button>
-            <button class="primary" data-target="execute-payment" type="button"><i class="ti ti-clock-play" aria-hidden="true"></i> IZVRŠI NALOG</button>
-          </div>
-        </div>
-        <div class="card" id="home-group-cashbox">
-          <h2>Blagajna</h2>
-          <div class="button-grid">
-            <button class="primary" data-target="cash-inflow" type="button"><i class="ti ti-cash" aria-hidden="true"></i> NOVA UPLATA</button>
-            <button data-target="mobile-reports" id="mobile-report-cash-movements-shortcut" type="button"><i class="ti ti-chart-bar" aria-hidden="true"></i> KRETANJA BLAGAJNE</button>
-            <button data-target="attach-document" type="button"><i class="ti ti-files" aria-hidden="true"></i> DODAJ DOKUMENT</button>
-            <button data-target="cashbox-balance" type="button"><i class="ti ti-wallet" aria-hidden="true"></i> PRESEK BLAGAJNE</button>
-          </div>
-        </div>
-        <div class="card" id="home-group-shift">
-          <h2>Smena</h2>
-          <div class="button-grid">
-            <button data-target="shift" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> OTVORI SMENU</button>
-            <button data-target="shift" id="load-my-shifts-home-btn" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> MOJE SMENE</button>
-            <button data-target="shift" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> PRIMOPREDAJA SMENE</button>
-            <button data-target="shift" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> ZATVORI SMENU</button>
-          </div>
-        </div>
-        <div class="card" id="home-group-closing">
-          <h2>Zaključak</h2>
-          <button data-target="daily-closing" type="button"><i class="ti ti-scale" aria-hidden="true"></i> DNEVNI ZAKLJUČAK</button>
-        </div>
-        <div class="card" id="home-group-reports">
-          <h2>Pregledi</h2>
-          <button data-target="mobile-reports" type="button"><i class="ti ti-chart-bar" aria-hidden="true"></i> OPERATIVNI PREGLEDI</button>
-        </div>
-      </section>
+      <!-- CONTENT -->
+      <div class="m-content">
 
-      <section id="new-payment-request" class="section" data-section>
-        <div class="card">
-          <h2>Novi zahtev za isplatu</h2>
-          <form id="payment-request-form" class="form-grid">
-            <label>Primalac novca <input name="requested_for_name" required></label>
-            <label>Iznos <input name="amount" type="number" step="0.01" required></label>
-            <label>Valuta <select name="currency" data-currency-options></select></label>
-            <label>Svrha <input name="purpose" required></label>
-            <label>Opis <textarea name="description"></textarea></label>
-            <label>Prioritet <select name="priority" data-priority-options></select></label>
-            <div class="actions">
-              <button class="primary" type="submit">Sačuvaj zahtev</button>
-              <button id="payment-request-submit-btn" type="button">Pošalji zahtev na odobrenje</button>
-            </div>
-          </form>
-          <div id="payment-request-result" class="result-box"></div>
-        </div>
-      </section>
+        <!-- KNJIGA -->
+        <section id="m-section-knjiga" class="m-section active" data-section>
+          <div class="m-section-actions">
+            <button class="btn-in btn-lg" id="m-btn-uplata" type="button">
+              <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> UPLATA
+            </button>
+            <button class="btn-out btn-lg" id="m-btn-isplata" type="button">
+              <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> ISPLATA
+            </button>
+          </div>
+          <div class="m-section-label" id="m-knjiga-label">Danas · 0 stavki</div>
+          <div id="m-knjiga-list"></div>
+        </section>
 
-      <section id="my-payment-requests" class="section" data-section data-autoload="loadMyRequests">
-        <div class="card">
-          <h2>Moji zahtevi</h2>
-          <button id="load-my-requests-btn" type="button">Učitaj moje zahteve</button>
-          <div id="my-requests-list" class="list"></div>
-        </div>
-      </section>
-
-      <section id="approval-requests" class="section" data-section data-autoload="loadApprovalRequests">
-        <div class="card">
-          <h2>Zahtevi za odobrenje</h2>
-          <button id="load-approval-requests-btn" type="button">Učitaj zahteve</button>
-          <div id="approval-requests-list" class="list"></div>
-        </div>
-      </section>
-
-      <section id="orders-waiting" class="section" data-section data-autoload="loadWaitingOrders">
-        <div class="card">
+        <!-- NALOZI -->
+        <section id="m-section-nalozi" class="m-section" data-section>
           <h2>Nalozi za isplatu</h2>
-          <button id="load-waiting-orders-btn" type="button">Učitaj naloge</button>
-          <div id="waiting-orders-list" class="list"></div>
-        </div>
-      </section>
+          <button id="m-load-nalozi-btn" type="button">
+            <i class="ti ti-refresh" aria-hidden="true"></i> Učitaj naloge
+          </button>
+          <div id="m-nalozi-list"></div>
+        </section>
 
-      <section id="execute-payment" class="section" data-section data-autoload="loadWaitingOrdersForExecution">
-        <div class="card">
-          <h2>Izvrši nalog</h2>
-          <button id="load-waiting-orders-for-execution-btn" type="button"><i class="ti ti-refresh" aria-hidden="true"></i> Učitaj naloge</button>
-          <div id="execution-orders-list" class="list"></div>
-        </div>
-        <div class="card" id="execute-payment-form-card" style="display:none">
-          <h3 id="execute-payment-order-summary">Izabrani nalog</h3>
-          <form id="execute-payment-form" class="form-grid">
-            <input name="order_id" type="hidden" required>
-            <label>Iznos isplate <input name="amount" type="number" step="0.01" placeholder="Ostavite prazno za puni iznos"></label>
-            <label>Napomena <textarea name="note"></textarea></label>
-            <div class="actions">
-              <button class="primary" type="submit"><i class="ti ti-check" aria-hidden="true"></i> Izvrši isplatu</button>
-              <button id="cancel-execution-btn" type="button">Otkaži</button>
-            </div>
-          </form>
-          <div id="execute-payment-result" class="result-box"></div>
-        </div>
-      </section>
-
-      <section id="cash-inflow" class="section" data-section>
-        <div class="card">
-          <h2>Nova uplata</h2>
-          <form id="cash-inflow-form" class="form-grid">
-            <input name="cashbox_id" type="hidden">
-            <label>Iznos <input name="amount" type="number" step="0.01" required></label>
-            <label>Valuta <select name="currency" data-currency-options></select></label>
-            <label>Opis <textarea name="description" required></textarea></label>
-            <button class="primary" type="submit">Knjiži uplatu</button>
-          </form>
-          <div id="cash-inflow-result" class="result-box"></div>
-        </div>
-      </section>
-
-      <section id="attach-document" class="section" data-section>
-        <div class="card">
-          <h2>Dodaj dokument</h2>
-          <form id="document-form" class="form-grid">
-            <label>Tip entiteta <select name="entity_type" data-entity-options></select></label>
-            <label>ID entiteta <input name="entity_id" required></label>
-            <label>Fajl <input name="file" type="file" required></label>
-            <label>Napomena <textarea name="note"></textarea></label>
-            <div class="actions">
-              <button class="primary" type="submit">Dodaj dokument</button>
-              <button id="list-documents-btn" type="button">Prikaži dokumente</button>
-            </div>
-          </form>
-          <div id="document-result" class="result-box"></div>
-        </div>
-      </section>
-
-      <section id="cashbox-balance" class="section" data-section>
-        <div class="card">
-          <h2>Presek blagajne</h2>
-          <form id="balance-form" class="form-grid">
-            <input name="cashbox_id" type="hidden">
-            <label>Valuta <select name="currency" data-currency-options></select></label>
-            <button class="primary" type="submit">Prikaži stanje</button>
-          </form>
-          <div id="balance-result" class="result-box"></div>
-        </div>
-      </section>
-
-      <section id="shift" class="section" data-section>
-        <div class="card">
+        <!-- SMENA -->
+        <section id="m-section-smena" class="m-section" data-section>
           <h2>Smena</h2>
-          <form id="open-shift-form" class="form-grid">
-            <input name="cashbox_id" type="hidden">
-            <label>Napomena pri otvaranju <textarea name="opening_note"></textarea></label>
-            <button class="primary" type="submit">Otvori smenu</button>
-          </form>
-        </div>
-        <div class="card">
-          <h3>Moje smene i presek</h3>
-          <button id="load-my-shifts-btn" type="button">Učitaj moje aktivne smene</button>
-          <form id="shift-balance-form" class="form-grid">
-            <label>ID smene <input name="shift_id"></label>
-            <button type="submit">Prikaži presek smene</button>
-          </form>
-        </div>
-        <div class="card">
-          <h3>Primopredaja smene</h3>
-          <form id="handover-shift-form" class="form-grid">
-            <label>ID smene <input name="shift_id" required></label>
-            <label>Email primaoca <input name="handover_to" type="email" required></label>
-            <div class="currency-balance-inputs" data-physical-balance-inputs></div>
-            <label>Napomena <textarea name="note"></textarea></label>
-            <button type="submit">Predaj smenu</button>
-          </form>
-        </div>
-        <div class="card">
-          <h3>Zatvori smenu</h3>
-          <form id="close-shift-form" class="form-grid">
-            <label>ID smene <input name="shift_id" required></label>
-            <div class="currency-balance-inputs" data-physical-balance-inputs></div>
-            <label>Napomena <textarea name="note"></textarea></label>
-            <button class="primary" type="submit">Zatvori smenu</button>
-          </form>
-        </div>
-        <div id="shift-result" class="result-box"></div>
-      </section>
 
-      <section id="daily-closing" class="section" data-section>
-        <div class="card">
-          <h2>Dnevni zaključak</h2>
-          <form id="daily-preview-form" class="form-grid">
-            <input name="cashbox_id" type="hidden">
-            <label>Valuta <select name="currency" data-currency-options></select></label>
-            <label>Datum <input name="closing_date" type="date" data-today required></label>
-            <button type="submit">Pripremi zaključak</button>
-          </form>
-        </div>
-        <div class="card">
-          <form id="daily-close-form" class="form-grid">
-            <input name="cashbox_id" type="hidden">
-            <label>Valuta <select name="currency" data-currency-options></select></label>
-            <label>Datum <input name="closing_date" type="date" data-today required></label>
-            <label>Fizičko stanje <input name="physical_balance" type="number" step="0.01" required></label>
-            <label>Napomena <textarea name="note"></textarea></label>
-            <div class="actions">
-              <button class="primary" type="submit">Zaključi dan</button>
-              <button id="load-daily-closings-btn" type="button">Pregled zaključaka</button>
-            </div>
-          </form>
-        </div>
-        <div id="daily-closing-result" class="result-box"></div>
-      </section>
-
-      <section id="mobile-reports" class="section" data-section>
-        <div class="card">
-          <h2>Pregledi</h2>
-          <form id="mobile-report-filters-form" class="form-grid">
-            <input name="cashbox_id" type="hidden">
-            <label>Valuta <select name="currency" data-currency-options></select></label>
-          </form>
-          <div class="button-grid">
-            <button id="mobile-report-cash-movements-btn" type="button">Kretanja blagajne</button>
-            <button id="mobile-report-balance-btn" type="button">Presek blagajne</button>
-            <button id="mobile-report-waiting-orders-btn" type="button">Nalozi za isplatu</button>
-            <button id="mobile-report-approval-requests-btn" type="button">Zahtevi za odobrenje</button>
-            <button id="mobile-report-missing-documents-btn" type="button">Nedostaju dokumenta</button>
+          <div class="card">
+            <div class="card-head"><h3>Otvori smenu</h3></div>
+            <form id="m-open-shift-form" class="form-grid">
+              <input name="cashbox_id" type="hidden">
+              <label>Napomena pri otvaranju
+                <textarea name="opening_note" rows="2"></textarea>
+              </label>
+              <button class="btn-primary" type="submit">Otvori smenu</button>
+            </form>
           </div>
-          <div id="mobile-reports-result" class="result-box"></div>
+
+          <div class="card">
+            <div class="card-head"><h3>Moje smene</h3></div>
+            <button id="m-load-shifts-btn" type="button">
+              <i class="ti ti-refresh" aria-hidden="true"></i> Učitaj moje smene
+            </button>
+            <div id="m-shifts-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Primopredaja smene</h3></div>
+            <form id="m-handover-shift-form" class="form-grid">
+              <label>ID smene <input name="shift_id" required></label>
+              <label>Email primaoca <input name="handover_to" type="email" required></label>
+              <div data-physical-balance-inputs></div>
+              <label>Napomena <textarea name="note"></textarea></label>
+              <button type="submit">Predaj smenu</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Zatvori smenu</h3></div>
+            <form id="m-close-shift-form" class="form-grid">
+              <label>ID smene <input name="shift_id" required></label>
+              <div data-physical-balance-inputs></div>
+              <label>Napomena <textarea name="note"></textarea></label>
+              <button class="btn-primary" type="submit">Zatvori smenu</button>
+            </form>
+          </div>
+
+          <div id="m-shift-result" class="result-box"></div>
+        </section>
+
+        <!-- ZAKLJUČAK -->
+        <section id="m-section-zakljucak" class="m-section" data-section>
+          <h2>Dnevni zaključak</h2>
+
+          <div class="card">
+            <div class="card-head"><h3>Pripremi zaključak</h3></div>
+            <form id="m-daily-preview-form" class="form-grid">
+              <input name="cashbox_id" type="hidden">
+              <label>Valuta <select name="currency" data-currency-options></select></label>
+              <label>Datum <input name="closing_date" type="date" data-today required></label>
+              <button type="submit">Pripremi zaključak</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Zaključi dan</h3></div>
+            <form id="m-daily-close-form" class="form-grid">
+              <input name="cashbox_id" type="hidden">
+              <label>Valuta <select name="currency" data-currency-options></select></label>
+              <label>Datum <input name="closing_date" type="date" data-today required></label>
+              <label>Fizičko stanje <input name="physical_balance" type="number" step="0.01" required></label>
+              <label>Napomena <textarea name="note"></textarea></label>
+              <button class="btn-primary" type="submit">Zaključi dan</button>
+            </form>
+          </div>
+
+          <div id="m-daily-result" class="result-box"></div>
+        </section>
+
+      </div><!-- /m-content -->
+
+      <!-- BOTTOM NAV -->
+      <nav class="m-bottom-nav" aria-label="Navigacija">
+        <button class="m-tab active" data-m-nav="m-section-knjiga" type="button">
+          <i class="ti ti-book-2" aria-hidden="true"></i>
+          <span>Knjiga</span>
+        </button>
+        <button class="m-tab" data-m-nav="m-section-nalozi" type="button">
+          <i class="ti ti-file-invoice" aria-hidden="true"></i>
+          <span>Nalozi</span>
+          <span class="m-tab-badge" data-tab-count="m-section-nalozi" style="display:none"></span>
+        </button>
+        <button class="m-tab" data-m-nav="m-section-smena" type="button">
+          <i class="ti ti-transfer" aria-hidden="true"></i>
+          <span>Smena</span>
+        </button>
+        <button class="m-tab" data-m-nav="m-section-zakljucak" type="button">
+          <i class="ti ti-scale" aria-hidden="true"></i>
+          <span>Zaključak</span>
+        </button>
+      </nav>
+
+    </div><!-- /m-shell -->
+
+    <!-- BOTTOM SHEET -->
+    <div id="sheet-overlay" class="sheet-overlay" style="display:none" role="dialog" aria-modal="true">
+      <div class="sheet" id="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title" id="sheet-title"></div>
+        <input type="number" id="sheet-amount" class="sheet-amount-input" inputmode="decimal" step="0.01" min="0" placeholder="0,00">
+        <div id="sheet-cur-toggle" class="cur-toggle">
+          <button class="cur-btn active in" data-currency="RSD" type="button">RSD</button>
+          <button class="cur-btn" data-currency="EUR" type="button">EUR</button>
         </div>
-      </section>
-    </main>
-    <nav class="bottom-nav" aria-label="Navigacija">
-      <button class="tab-btn active" data-target="home" type="button"><i class="ti ti-home" aria-hidden="true"></i><span>Početna</span></button>
-      <button class="tab-btn" data-target="approval-requests" type="button"><i class="ti ti-inbox" aria-hidden="true"></i><span>Zahtevi</span><span class="tab-count" data-tab-count="approval-requests" style="display:none"></span></button>
-      <button class="tab-btn" data-target="orders-waiting" type="button"><i class="ti ti-file-invoice" aria-hidden="true"></i><span>Nalozi</span><span class="tab-count" data-tab-count="orders-waiting" style="display:none"></span></button>
-      <button class="tab-btn" data-target="daily-closing" type="button"><i class="ti ti-scale" aria-hidden="true"></i><span>Zaključak</span></button>
-    </nav>
+        <input type="text" id="sheet-partner" placeholder="Primalac / uplatioc (opciono)">
+        <input type="text" id="sheet-description" placeholder="Opis / razlog *">
+        <button id="sheet-submit" class="btn-full btn-lg btn-in" type="button">
+          <i class="ti ti-check" aria-hidden="true"></i>
+          <span>Proknjiti</span>
+        </button>
+        <button id="sheet-cancel" class="btn-ghost btn-full" type="button">Otkaži</button>
+      </div>
+    </div>
+
+    <!-- MESSAGE -->
+    <div id="m-message" class="message" style="position:fixed;top:12px;left:12px;right:12px;z-index:200"></div>
+    <!-- Legacy message id compatibility -->
+    <div id="message" class="message" style="display:none"></div>
+
     <?!= include('html/scripts'); ?>
   </body>
 </html>

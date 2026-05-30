@@ -130,9 +130,21 @@ function apiExecutePaymentOrder(orderId, paymentData) {
   });
 }
 
+function apiReverseCashEvent(eventId, reason) {
+  return apiWrap_(function() {
+    return reverseCashEvent(eventId, reason);
+  });
+}
+
 function apiCreateCashInflow(data) {
   return apiWrap_(function() {
     return createCashInflow(withDefaultCashbox_(data || {}));
+  });
+}
+
+function apiCreateDirectCashOutflow(data) {
+  return apiWrap_(function() {
+    return createDirectCashOutflow(withDefaultCashbox_(data || {}));
   });
 }
 

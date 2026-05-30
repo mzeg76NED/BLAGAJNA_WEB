@@ -1,257 +1,394 @@
 <!DOCTYPE html>
-<html>
+<html lang="sr">
   <head>
     <base target="_top">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <?!= include('html/styles'); ?>
   </head>
   <body>
-    <main class="desktop-shell">
-      <nav class="desktop-nav">
-        <h2>BLAGAJNA WEB</h2>
-        <p class="muted" data-current-user>Korisnik se učitava...</p>
-        <button data-target="desktop-dashboard" type="button"><i class="ti ti-layout-dashboard" aria-hidden="true"></i> Dashboard</button>
-        <button data-target="desktop-requests" type="button"><i class="ti ti-inbox" aria-hidden="true"></i> Zahtevi za isplatu</button>
-        <button data-target="desktop-orders" type="button"><i class="ti ti-file-invoice" aria-hidden="true"></i> Nalozi za isplatu</button>
-        <button data-target="desktop-balance" type="button"><i class="ti ti-wallet" aria-hidden="true"></i> Stanje blagajne</button>
-        <button data-target="desktop-documents" type="button"><i class="ti ti-files" aria-hidden="true"></i> Dokumenta</button>
-        <button data-target="desktop-shifts" type="button"><i class="ti ti-transfer" aria-hidden="true"></i> Smene</button>
-        <button data-target="desktop-closings" type="button"><i class="ti ti-scale" aria-hidden="true"></i> Dnevni zaključci</button>
-        <button data-target="desktop-reports" type="button"><i class="ti ti-chart-bar" aria-hidden="true"></i> Izveštaji</button>
-        <button data-target="desktop-audit" type="button"><i class="ti ti-shield-check" aria-hidden="true"></i> Audit log</button>
-        <a class="button-link" href="?view=mobile">Mobilni prikaz</a>
+    <div class="d-shell">
+
+      <!-- NAV -->
+      <nav class="d-nav" aria-label="Navigacija">
+        <div class="nav-brand">
+          <div class="nav-brand-title"><i class="ti ti-building-bank" aria-hidden="true"></i> Blagajna</div>
+          <div class="nav-brand-user" data-nav-user>...</div>
+        </div>
+
+        <div class="nav-section-label">Blagajnička knjiga</div>
+        <button class="nav-item active" data-d-nav="knjiga" type="button">
+          <i class="ti ti-book-2" aria-hidden="true"></i> Knjiga
+        </button>
+        <button class="nav-item" data-d-nav="blagajnicki-list" type="button">
+          <i class="ti ti-file-description" aria-hidden="true"></i> Blagajnički list
+        </button>
+
+        <div class="nav-section-label">Transakcije</div>
+        <button class="nav-item" data-d-nav="nalozi" type="button">
+          <i class="ti ti-file-invoice" aria-hidden="true"></i> Nalozi za isplatu
+          <span class="nav-badge" id="nav-badge-nalozi" style="display:none">0</span>
+        </button>
+        <button class="nav-item" data-d-nav="zahtevi" type="button">
+          <i class="ti ti-inbox" aria-hidden="true"></i> Zahtevi
+          <span class="nav-badge info" id="nav-badge-zahtevi" style="display:none">0</span>
+        </button>
+
+        <div class="nav-section-label">Upravljanje</div>
+        <button class="nav-item" data-d-nav="smena" type="button">
+          <i class="ti ti-transfer" aria-hidden="true"></i> Smene
+        </button>
+        <button class="nav-item" data-d-nav="zakljucak" type="button">
+          <i class="ti ti-scale" aria-hidden="true"></i> Dnevni zaključak
+        </button>
+        <button class="nav-item" data-d-nav="izvestaji" type="button">
+          <i class="ti ti-chart-bar" aria-hidden="true"></i> Izveštaji
+        </button>
+        <button class="nav-item" data-d-nav="audit" type="button">
+          <i class="ti ti-shield-check" aria-hidden="true"></i> Audit log
+        </button>
+
+        <div class="nav-bottom">
+          <a class="button-link" href="?view=mobile" style="width:100%;font-size:12px;min-height:32px">
+            <i class="ti ti-device-mobile" aria-hidden="true"></i> Mobilni prikaz
+          </a>
+        </div>
       </nav>
 
-      <div class="desktop-main">
-        <header>
-          <div class="top-bar">
-            <div>
-              <h1>Operativni pregled</h1>
-              <p class="muted">Jednostavan desktop prikaz za rad sa postojećim backend funkcijama.</p>
-            </div>
-            <button id="desktop-refresh-btn" type="button">Osveži dashboard</button>
+      <!-- MAIN -->
+      <div class="d-main">
+
+        <!-- TOPBAR -->
+        <header class="d-topbar">
+          <div class="topbar-balance">
+            <span class="topbar-balance-label">Stanje blagajne</span>
+            <div class="topbar-balance-value" id="d-topbar-balance" data-raw-value="0">—</div>
           </div>
-          <div class="session-context">
-            <span class="ctx-chip"><i class="ti ti-building-bank" aria-hidden="true"></i><span data-session-cashbox>Blagajna se učitava...</span></span>
-            <span class="ctx-chip"><i class="ti ti-coins" aria-hidden="true"></i><select data-session-currency-select aria-label="Valuta"></select></span>
+          <div class="topbar-chips">
+            <span class="chip-select">
+              <i class="ti ti-building-bank" aria-hidden="true"></i>
+              <select id="d-cashbox-select" data-session-cashbox-select aria-label="Blagajna"></select>
+            </span>
+            <span class="chip-select">
+              <i class="ti ti-coins" aria-hidden="true"></i>
+              <select id="d-currency-select" data-session-currency-select aria-label="Valuta"></select>
+            </span>
           </div>
-          <div id="message" class="message"></div>
+          <div class="topbar-actions">
+            <button class="btn-ghost theme-toggle" data-theme-toggle type="button" title="Promeni temu">
+              <i class="ti ti-moon" aria-hidden="true"></i>
+              <span data-theme-label>Tamna</span>
+            </button>
+            <button class="btn-in" id="d-btn-uplata" type="button">
+              <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
+            </button>
+            <button class="btn-out" id="d-btn-isplata" type="button">
+              <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Isplata
+            </button>
+          </div>
         </header>
 
-        <section id="desktop-dashboard" class="section active" data-section>
-          <div class="kpi-row">
-            <div class="kpi-card" id="kpi-balance">
-              <div class="kpi-label"><i class="ti ti-wallet" aria-hidden="true"></i> Stanje blagajne</div>
-              <div class="kpi-value" id="kpi-balance-value">-</div>
-              <div class="kpi-sub" id="kpi-balance-sub"></div>
-            </div>
-            <div class="kpi-card" id="kpi-approval">
-              <div class="kpi-label"><i class="ti ti-inbox" aria-hidden="true"></i> Čekaju odobrenje</div>
-              <div class="kpi-value" id="kpi-approval-value">-</div>
-              <div class="kpi-sub">zahteva na čekanju</div>
-            </div>
-            <div class="kpi-card" id="kpi-orders">
-              <div class="kpi-label"><i class="ti ti-clock-play" aria-hidden="true"></i> Čekaju izvršenje</div>
-              <div class="kpi-value" id="kpi-orders-value">-</div>
-              <div class="kpi-sub">naloga za isplatu</div>
-            </div>
-            <div class="kpi-card" id="kpi-docs">
-              <div class="kpi-label"><i class="ti ti-file-x" aria-hidden="true"></i> Nedostaju dokumenta</div>
-              <div class="kpi-value" id="kpi-docs-value">-</div>
-              <div class="kpi-sub">entiteta bez dokumenta</div>
-            </div>
-          </div>
-          <div class="dashboard-grid">
-            <div class="card">
-              <h3>Trenutni korisnik</h3>
-              <p id="desktop-user-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Stanje blagajne</h3>
-              <p id="desktop-balance-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Zahtevi za odobrenje</h3>
-              <p id="desktop-requests-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Nalozi za isplatu</h3>
-              <p id="desktop-orders-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Nedostaju dokumenta</h3>
-              <p id="desktop-missing-documents-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Otvorene smene</h3>
-              <p id="desktop-shifts-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Dnevni zaključci</h3>
-              <p id="desktop-closings-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Razlike</h3>
-              <p id="desktop-differences-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Korekcije/storno</h3>
-              <p id="desktop-reversals-card" class="record-title">-</p>
-            </div>
-            <div class="card">
-              <h3>Presek blagajne</h3>
-              <form id="balance-form" class="form-grid">
-                <input name="cashbox_id" type="hidden">
-                <label>Valuta <select name="currency" data-currency-options></select></label>
-                <button type="submit">Prikaži stanje</button>
-              </form>
-            </div>
-          </div>
-          <div id="balance-result" class="result-box"></div>
-        </section>
+        <div id="d-message" class="message" style="margin:8px 20px 0;flex-shrink:0"></div>
 
-        <section id="desktop-requests" class="section" data-section>
-          <div class="desktop-two-col">
-            <div class="card">
-              <div class="card-head">
-                <h2>Zahtevi za isplatu</h2>
-                <div class="actions">
-                  <button id="desktop-load-requests-btn" type="button"><i class="ti ti-refresh" aria-hidden="true"></i> Zahtevi za odobrenje</button>
-                  <button id="load-my-requests-btn" type="button">Moji zahtevi</button>
+        <!-- D-CONTENT -->
+        <div class="d-content">
+
+          <!-- SEKCIJA: KNJIGA -->
+          <section id="d-section-knjiga" class="d-section active">
+            <div class="knjiga-layout">
+
+              <div class="card knjiga-main">
+                <div class="card-head">
+                  <i class="ti ti-book-2" aria-hidden="true"></i>
+                  <h2 style="flex:1">Blagajnička knjiga</h2>
+                  <span id="d-knjiga-period" style="font-size:12px;color:var(--color-text-muted)"></span>
+                  <input type="date" id="d-date-from" style="width:130px;min-height:32px;font-size:12px">
+                  <span style="color:var(--color-text-muted)">—</span>
+                  <input type="date" id="d-date-to" style="width:130px;min-height:32px;font-size:12px">
+                  <button id="d-knjiga-refresh" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">
+                    <i class="ti ti-refresh" aria-hidden="true"></i>
+                  </button>
+                </div>
+                <div class="table-wrap">
+                  <table class="book-table">
+                    <thead>
+                      <tr>
+                        <th style="width:36px">Rb.</th>
+                        <th style="width:72px">Datum</th>
+                        <th>Opis / Primalac</th>
+                        <th class="num" style="width:110px">Uplata</th>
+                        <th class="num" style="width:110px">Isplata</th>
+                        <th class="num" style="width:120px">Stanje</th>
+                      </tr>
+                    </thead>
+                    <tbody id="d-knjiga-tbody"></tbody>
+                    <tfoot id="d-knjiga-tfoot"></tfoot>
+                  </table>
                 </div>
               </div>
-              <div id="desktop-table-result" class="result-box"></div>
-              <div id="my-requests-list" class="list"></div>
+
+              <div class="knjiga-side">
+                <!-- Quick form card -->
+                <div class="card" id="d-quick-form-card">
+                  <div class="card-head"><h3>Nova transakcija</h3></div>
+                  <div class="type-toggle">
+                    <button class="type-btn type-btn-in active" id="d-qf-type-in" type="button">
+                      <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
+                    </button>
+                    <button class="type-btn type-btn-out" id="d-qf-type-out" type="button">
+                      Isplata <i class="ti ti-arrow-up-circle" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                  <div class="form-row-2">
+                    <input type="number" id="d-qf-amount" step="0.01" min="0" placeholder="Iznos">
+                    <select id="d-qf-currency" data-currency-options></select>
+                  </div>
+                  <input type="text" id="d-qf-partner" placeholder="Primalac / uplatioc">
+                  <textarea id="d-qf-description" rows="2" placeholder="Opis / razlog *"></textarea>
+                  <button class="btn-in btn-full btn-lg" id="d-qf-submit" type="button">
+                    <i class="ti ti-check" aria-hidden="true"></i>
+                    <span id="d-qf-submit-label">Proknjiti uplatu</span>
+                  </button>
+                </div>
+
+                <!-- Detail panel (hidden by default) -->
+                <div class="card" id="d-detail-panel" style="display:none;margin-top:12px">
+                  <div class="card-head">
+                    <span id="d-detail-title" style="flex:1;font-size:13px;font-weight:700"></span>
+                    <button class="btn-ghost small" id="d-detail-close" type="button" aria-label="Zatvori">
+                      <i class="ti ti-x" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                  <div id="d-detail-body"></div>
+                  <div style="display:flex;gap:8px;padding-top:4px">
+                    <button id="d-detail-print" type="button" style="flex:1;font-size:12px;min-height:32px">
+                      <i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list
+                    </button>
+                    <button class="btn-out" id="d-detail-storno" type="button" style="flex:1;font-size:12px;min-height:32px">
+                      <i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno
+                    </button>
+                  </div>
+                </div>
+              </div>
+
             </div>
-            <div class="card" id="request-detail-panel" style="display:none">
+          </section>
+
+          <!-- SEKCIJA: BLAGAJNIČKI LIST -->
+          <section id="d-section-blagajnicki-list" class="d-section">
+            <div class="card">
               <div class="card-head">
-                <h3 id="detail-panel-title">Detalji zahteva</h3>
-                <button id="close-detail-panel-btn" class="small" type="button" aria-label="Zatvori panel"><i class="ti ti-x" aria-hidden="true"></i></button>
+                <i class="ti ti-file-description" aria-hidden="true"></i>
+                <h2>Pretraži blagajnički list</h2>
               </div>
-              <div id="detail-panel-body" class="detail-body"></div>
-            </div>
-          </div>
-        </section>
-
-        <section id="desktop-orders" class="section" data-section>
-          <div class="card">
-            <h2>Nalozi za isplatu</h2>
-            <button id="desktop-load-orders-btn" type="button">Nalozi koji čekaju isplatu</button>
-            <div id="waiting-orders-list" class="list"></div>
-            <div id="desktop-table-result-orders" class="result-box"></div>
-          </div>
-        </section>
-
-        <section id="desktop-balance" class="section" data-section>
-          <div class="card">
-            <h2>Stanje blagajne</h2>
-            <form id="desktop-balance-form" class="form-grid two">
-              <input name="cashbox_id" type="hidden">
-              <label>Valuta <select name="currency" data-currency-options></select></label>
-              <button type="submit">Prikaži stanje</button>
-            </form>
-          </div>
-        </section>
-
-        <section id="desktop-documents" class="section" data-section>
-          <div class="card">
-            <h2>Dokumenta</h2>
-            <form id="document-form" class="form-grid two">
-              <label>Tip entiteta <select name="entity_type" data-entity-options></select></label>
-              <label>ID entiteta <input name="entity_id"></label>
-              <label>Fajl <input name="file" type="file"></label>
-              <label>Napomena <textarea name="note"></textarea></label>
+              <form id="print-tools-form" class="form-grid" style="grid-template-columns:1fr 1fr;gap:10px">
+                <label>ID zahteva <input name="payment_request_id" placeholder="REQ-..."></label>
+                <label>ID naloga <input name="payment_order_id" placeholder="ORD-..."></label>
+                <label>ID događaja <input name="cash_event_id" placeholder="CEV-..."></label>
+                <label>ID smene <input name="shift_id" placeholder="SHF-..."></label>
+                <label>ID zaključka <input name="daily_closing_id" placeholder="CLS-..."></label>
+                <label>Izveštaj
+                  <select id="print-report-type" name="report_type">
+                    <option value="missing-documents">Nedostajuća dokumenta</option>
+                    <option value="cashbox-balance">Presek stanja blagajni</option>
+                    <option value="orders-waiting-payment">Nalozi koji čekaju isplatu</option>
+                    <option value="requests-for-approval">Zahtevi za odobrenje</option>
+                    <option value="daily-closing">Dnevni zaključci</option>
+                    <option value="differences">Razlike</option>
+                    <option value="corrections-reversals">Korekcije i storno</option>
+                  </select>
+                </label>
+              </form>
               <div class="actions">
-                <button class="primary" type="submit">Dodaj dokument</button>
-                <button id="list-documents-btn" type="button">Prikaži dokumente</button>
+                <button id="print-payment-request-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Zahtev</button>
+                <button id="print-payment-order-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Nalog</button>
+                <button id="print-cash-event-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Događaj</button>
+                <button id="print-shift-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Primopredaja</button>
+                <button id="print-daily-closing-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Zaključak</button>
+                <button id="print-report-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Izveštaj</button>
               </div>
-            </form>
-            <div id="document-result" class="result-box"></div>
-          </div>
-        </section>
-
-        <section id="desktop-shifts" class="section" data-section>
-          <div class="card">
-            <h2>Smene</h2>
-            <button id="desktop-load-shifts-btn" type="button">Moje aktivne smene</button>
-            <button id="load-my-shifts-btn" type="button">Učitaj smene kao kartice</button>
-            <div id="shift-result" class="result-box"></div>
-          </div>
-        </section>
-
-        <section id="desktop-closings" class="section" data-section>
-          <div class="card">
-            <h2>Dnevni zaključci</h2>
-            <button id="desktop-load-closings-btn" type="button">Pregled dnevnih zaključaka</button>
-            <button id="load-daily-closings-btn" type="button">Pregled kao kartice</button>
-            <div id="daily-closing-result" class="result-box"></div>
-          </div>
-        </section>
-
-        <section id="desktop-reports" class="section" data-section>
-          <div class="card">
-            <h2>Operativni izveštaji</h2>
-            <form id="report-filters-form" class="form-grid two">
-              <input name="cashbox_id" type="hidden">
-              <label>Valuta <input name="currency" placeholder="RSD, EUR ili prazno za sve"></label>
-              <label>Od datuma <input name="date_from" type="date"></label>
-              <label>Do datuma <input name="date_to" type="date"></label>
-              <label>Status <input name="status"></label>
-            </form>
-            <div class="actions">
-              <button id="report-balance-btn" type="button">Presek stanja blagajni</button>
-              <button id="report-open-requests-btn" type="button">Otvoreni zahtevi</button>
-              <button id="report-approval-requests-btn" type="button">Zahtevi za odobrenje</button>
-              <button id="report-waiting-orders-btn" type="button">Nalozi koji čekaju isplatu</button>
-              <button id="report-cash-movements-btn" type="button">Kretanja blagajne</button>
-              <button id="report-executed-payments-btn" type="button">Izvršene isplate</button>
-              <button id="report-missing-documents-btn" type="button">Nedostajuća dokumenta</button>
-              <button id="report-daily-closings-btn" type="button">Dnevni zaključci</button>
-              <button id="report-differences-btn" type="button">Razlike</button>
-              <button id="report-corrections-btn" type="button">Korekcije i storno</button>
-              <button id="report-audit-exceptions-btn" type="button">Izuzeci za kontrolu</button>
             </div>
-            <div id="reports-result" class="result-box"></div>
-          </div>
-          <div class="card">
-            <h2>Štampa i PDF</h2>
-            <form id="print-tools-form" class="form-grid two">
-              <label>ID zahteva <input name="payment_request_id" placeholder="REQ-..."></label>
-              <label>ID naloga <input name="payment_order_id" placeholder="ORD-..."></label>
-              <label>ID događaja <input name="cash_event_id" placeholder="CEV-..."></label>
-              <label>ID smene <input name="shift_id" placeholder="SHF-..."></label>
-              <label>ID zaključka <input name="daily_closing_id" placeholder="CLS-..."></label>
-              <label>Izveštaj
-                <select name="report_type" id="print-report-type">
-                  <option value="missing-documents">Nedostajuća dokumenta</option>
-                  <option value="cashbox-balance">Presek stanja blagajni</option>
-                  <option value="orders-waiting-payment">Nalozi koji čekaju isplatu</option>
-                  <option value="requests-for-approval">Zahtevi za odobrenje</option>
-                  <option value="daily-closing">Dnevni zaključci</option>
-                  <option value="differences">Razlike</option>
-                  <option value="corrections-reversals">Korekcije i storno</option>
-                </select>
-              </label>
-            </form>
-            <div class="actions">
-              <button id="print-payment-request-btn" type="button">Štampaj zahtev</button>
-              <button id="print-payment-order-btn" type="button">Štampaj nalog</button>
-              <button id="print-cash-event-btn" type="button">Štampaj događaj</button>
-              <button id="print-shift-btn" type="button">Štampaj primopredaju</button>
-              <button id="print-daily-closing-btn" type="button">Štampaj zaključak</button>
-              <button id="print-report-btn" type="button">Štampaj izveštaj</button>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <section id="desktop-audit" class="section" data-section>
-          <div class="card">
-            <h2>Audit</h2>
-            <p class="muted">Audit log se ne uređuje iz interfejsa. Pregled audit log-a ostaje za kasniji hardening i reporting task.</p>
-          </div>
-        </section>
-      </div>
-    </main>
+          <!-- SEKCIJA: NALOZI -->
+          <section id="d-section-nalozi" class="d-section">
+            <div class="card">
+              <div class="card-head">
+                <i class="ti ti-file-invoice" aria-hidden="true"></i>
+                <h2>Nalozi za isplatu</h2>
+                <button id="d-load-nalozi-btn" type="button" style="min-height:32px;font-size:12px">
+                  <i class="ti ti-refresh" aria-hidden="true"></i> Učitaj
+                </button>
+              </div>
+              <div id="d-nalozi-list" class="result-box"></div>
+            </div>
+          </section>
+
+          <!-- SEKCIJA: ZAHTEVI -->
+          <section id="d-section-zahtevi" class="d-section">
+            <div class="desktop-two-col">
+              <div class="card">
+                <div class="card-head">
+                  <i class="ti ti-inbox" aria-hidden="true"></i>
+                  <h2>Zahtevi</h2>
+                  <div class="actions">
+                    <button id="d-load-approval-btn" type="button" style="min-height:32px;font-size:12px">Na čekanju</button>
+                    <button id="d-load-my-requests-btn" type="button" style="min-height:32px;font-size:12px">Moji zahtevi</button>
+                  </div>
+                </div>
+                <div id="d-zahtevi-list" class="result-box"></div>
+                <div id="my-requests-list" class="list"></div>
+              </div>
+              <div class="card" id="d-request-detail-panel" style="display:none">
+                <div class="card-head">
+                  <h3 id="d-rdp-title" style="flex:1">Detalji zahteva</h3>
+                  <button class="btn-ghost small" id="d-rdp-close" type="button">
+                    <i class="ti ti-x" aria-hidden="true"></i>
+                  </button>
+                </div>
+                <div id="d-rdp-body" class="card-body"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- SEKCIJA: SMENA -->
+          <section id="d-section-smena" class="d-section">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+              <div class="card">
+                <div class="card-head"><h3>Otvori smenu</h3></div>
+                <form id="d-open-shift-form" class="form-grid">
+                  <input name="cashbox_id" type="hidden">
+                  <label>Napomena pri otvaranju <textarea name="opening_note" rows="2"></textarea></label>
+                  <button class="btn-primary" type="submit">Otvori smenu</button>
+                </form>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Moje smene</h3></div>
+                <button id="d-load-shifts-btn" type="button">
+                  <i class="ti ti-refresh" aria-hidden="true"></i> Učitaj moje smene
+                </button>
+                <div id="d-shifts-list" class="result-box"></div>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Primopredaja smene</h3></div>
+                <form id="d-handover-form" class="form-grid">
+                  <label>ID smene <input name="shift_id" required></label>
+                  <label>Email primaoca <input name="handover_to" type="email" required></label>
+                  <div data-physical-balance-inputs></div>
+                  <label>Napomena <textarea name="note"></textarea></label>
+                  <button type="submit">Predaj smenu</button>
+                </form>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Zatvori smenu</h3></div>
+                <form id="d-close-shift-form" class="form-grid">
+                  <label>ID smene <input name="shift_id" required></label>
+                  <div data-physical-balance-inputs></div>
+                  <label>Napomena <textarea name="note"></textarea></label>
+                  <button class="btn-primary" type="submit">Zatvori smenu</button>
+                </form>
+              </div>
+            </div>
+            <div id="d-shift-result" class="result-box"></div>
+          </section>
+
+          <!-- SEKCIJA: ZAKLJUČAK -->
+          <section id="d-section-zakljucak" class="d-section">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+              <div class="card">
+                <div class="card-head"><h3>Pripremi zaključak</h3></div>
+                <form id="d-daily-preview-form" class="form-grid">
+                  <input name="cashbox_id" type="hidden">
+                  <label>Valuta <select name="currency" data-currency-options></select></label>
+                  <label>Datum <input name="closing_date" type="date" data-today required></label>
+                  <button type="submit">Pripremi zaključak</button>
+                </form>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Zaključi dan</h3></div>
+                <form id="d-daily-close-form" class="form-grid">
+                  <input name="cashbox_id" type="hidden">
+                  <label>Valuta <select name="currency" data-currency-options></select></label>
+                  <label>Datum <input name="closing_date" type="date" data-today required></label>
+                  <label>Fizičko stanje <input name="physical_balance" type="number" step="0.01" required></label>
+                  <label>Napomena <textarea name="note"></textarea></label>
+                  <button class="btn-primary" type="submit">Zaključi dan</button>
+                </form>
+              </div>
+            </div>
+            <div id="d-daily-result" class="result-box"></div>
+          </section>
+
+          <!-- SEKCIJA: IZVEŠTAJI -->
+          <section id="d-section-izvestaji" class="d-section">
+            <div class="card" style="margin-bottom:14px">
+              <div class="card-head">
+                <i class="ti ti-chart-bar" aria-hidden="true"></i>
+                <h2>Operativni izveštaji</h2>
+              </div>
+              <form id="report-filters-form" class="form-grid" style="grid-template-columns:1fr 1fr;gap:10px">
+                <input name="cashbox_id" type="hidden">
+                <label>Valuta <input name="currency" placeholder="RSD, EUR ili prazno za sve"></label>
+                <label>Od datuma <input name="date_from" type="date"></label>
+                <label>Do datuma <input name="date_to" type="date"></label>
+                <label>Status <input name="status"></label>
+              </form>
+              <div class="actions">
+                <button id="report-balance-btn" type="button">Presek stanja blagajni</button>
+                <button id="report-open-requests-btn" type="button">Otvoreni zahtevi</button>
+                <button id="report-approval-requests-btn" type="button">Zahtevi za odobrenje</button>
+                <button id="report-waiting-orders-btn" type="button">Nalozi koji čekaju isplatu</button>
+                <button id="report-cash-movements-btn" type="button">Kretanja blagajne</button>
+                <button id="report-executed-payments-btn" type="button">Izvršene isplate</button>
+                <button id="report-missing-documents-btn" type="button">Nedostajuća dokumenta</button>
+                <button id="report-daily-closings-btn" type="button">Dnevni zaključci</button>
+                <button id="report-differences-btn" type="button">Razlike</button>
+                <button id="report-corrections-btn" type="button">Korekcije i storno</button>
+                <button id="report-audit-exceptions-btn" type="button">Izuzeci za kontrolu</button>
+              </div>
+              <div id="reports-result" class="result-box"></div>
+            </div>
+          </section>
+
+          <!-- SEKCIJA: AUDIT -->
+          <section id="d-section-audit" class="d-section">
+            <div class="card">
+              <div class="card-head">
+                <i class="ti ti-shield-check" aria-hidden="true"></i>
+                <h2>Audit log</h2>
+                <button id="d-load-audit-btn" type="button" style="min-height:32px;font-size:12px">
+                  <i class="ti ti-refresh" aria-hidden="true"></i> Učitaj
+                </button>
+              </div>
+              <div id="d-audit-list" class="result-box">
+                <div class="empty-state">
+                  <i class="ti ti-shield-check" aria-hidden="true"></i>
+                  <p>Audit log je dostupan putem izveštaja.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div><!-- /d-content -->
+      </div><!-- /d-main -->
+
+    </div><!-- /d-shell -->
+
+    <!-- Legacy compat: message box referenced by old scripts -->
+    <div id="message" class="message" style="display:none"></div>
+    <!-- Legacy compat: result boxes referenced by old scripts -->
+    <div id="balance-result" style="display:none"></div>
+    <div id="shift-result" style="display:none"></div>
+    <div id="daily-closing-result" style="display:none"></div>
+    <div id="waiting-orders-list" style="display:none"></div>
+    <div id="approval-requests-list" style="display:none"></div>
+    <div id="my-requests-list" style="display:none"></div>
+    <div id="desktop-table-result" style="display:none"></div>
+    <div id="desktop-table-result-orders" style="display:none"></div>
+    <div id="execute-payment-result" style="display:none"></div>
+    <div id="desktop-user-card" style="display:none"></div>
+    <div id="document-result" style="display:none"></div>
+
     <?!= include('html/scripts'); ?>
   </body>
 </html>
