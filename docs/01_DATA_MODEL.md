@@ -172,6 +172,36 @@ Samo `POSTED` ili `LOCKED` Cash Event utice na izracunato stanje blagajne.
 
 Relationships: `cashbox_id` references `CASHBOXES.cashbox_id`; `currency` references `CURRENCIES.currency_code`; `linked_request_id` references `PAYMENT_REQUESTS.request_id`; `linked_order_id` references `PAYMENT_ORDERS.order_id`; `reversal_of_event_id` references `CASH_EVENTS.event_id`.
 
+## CASH_COUNTS
+
+Svrha: fizicki presek/popisana blagajna u toku smene ili na kraju smene.
+
+Presek sam po sebi evidentira popis. Ako postoji razlika u odnosu na obracunato stanje, sistem automatski pravi `CASH_EVENTS` dogadjaj tipa `CORRECTION`, tako da se stanje blagajne nastavlja od fizicki utvrdjenog stanja.
+
+| Column | Type | Required | Description |
+|---|---|---:|---|
+| count_id | string | yes | Unique count ID |
+| created_at | datetime | yes | Creation time |
+| created_by | string | yes | User who created count |
+| count_type | string | yes | CASHBOX_COUNT, SHIFT_OPENING, SHIFT_CLOSING |
+| cashbox_id | string | yes | Cashbox |
+| shift_id | string | no | Active shift at count time |
+| currency | string | yes | Currency |
+| counted_cash_total | number | yes | Total cash from denominations |
+| check_count | number | no | Number of checks |
+| check_total | number | no | Total check amount |
+| calculated_balance_before | number | yes | Balance before count correction |
+| difference | number | yes | Physical count minus calculated balance |
+| denominations_json | text/json | no | Counted denominations and quantities |
+| adjustment_event_id | string | no | Linked automatic correction cash event |
+| note | text | no | Note |
+| status | string | yes | POSTED, CANCELLED |
+| posted_by | string | yes | User who posted count |
+| posted_at | datetime | yes | Posting time |
+| updated_at | datetime | no | Last update time |
+
+Relationships: `cashbox_id` references `CASHBOXES.cashbox_id`; `shift_id` references `SHIFTS.shift_id`; `adjustment_event_id` references `CASH_EVENTS.event_id`.
+
 ## DOCUMENTS
 
 Svrha: metapodaci za fajlove sacuvane u Google Drive-u.
@@ -194,15 +224,15 @@ Relationship: `entity_type` and `entity_id` identify the business entity that ow
 
 ## SHIFTS
 
-Svrha: pracenje smene blagajnika i primopredaje.
+Svrha: pracenje operativne smene blagajne, glavnog blagajnika, rada vise korisnika u toku smene i primopredaje.
 
-Smena ne menja stanje blagajne. Smena odredjuje odgovornost nad blagajnom, dok se stanje blagajne racuna iz knjizenih blagajnickih dogadjaja.
+Smena sama ne menja stanje blagajne. Smena grupise dogadjaje, a stanje blagajne se racuna iz knjizenih blagajnickih dogadjaja. Presek blagajne u toku smene moze napraviti korektivni cash event ako fizicki popis odstupa od obracunatog stanja.
 
 | Column | Type | Required | Description |
 |---|---|---:|---|
 | shift_id | string | yes | Unique shift ID |
 | cashbox_id | string | yes | Cashbox |
-| opened_by | string | yes | User |
+| opened_by | string | yes | Glavni blagajnik smene |
 | opened_at | datetime | yes | Opening time |
 | opening_note | text | no | Opening note |
 | opening_balance_json | text/json | no | Calculated balance by currency at opening |

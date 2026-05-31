@@ -2,13 +2,17 @@
 
 ## Svrha
 
-Smena predstavlja kontrolisani period odgovornosti blagajnika za jednu blagajnu.
+Smena predstavlja kontrolisani operativni period rada jedne blagajne.
 
-Smena ne menja stanje blagajne. Smena određuje odgovornost nad blagajnom, dok se stanje blagajne računa iz knjiženih blagajničkih događaja.
+Smena grupiše glavnog blagajnika, ostale korisnike koji rade u toku smene i sve događaje nastale u tom periodu.
+
+Smena sama ne menja stanje blagajne. Stanje blagajne se računa iz knjiženih blagajničkih događaja. Kada se u toku smene uradi presek/popisana razlika, sistem razliku evidentira kroz korektivni blagajnički događaj.
 
 ## Poslovno znacenje
 
-Smena mora da odgovori ko je odgovoran za blagajnu, kada je odgovornost pocela, koje je izracunato stanje postojalo na otvaranju, kome je blagajna predata i da li postoji razlika izmedju izracunatog i fizicki prebrojanog stanja.
+Smena mora da odgovori ko je glavni blagajnik, kada je smena počela, koje je izračunato stanje postojalo na otvaranju, koji događaji su nastali u toku smene, kome je blagajna predata i da li postoji razlika između izračunatog i fizički prebrojanog stanja.
+
+U toku jedne smene više korisnika može raditi u aplikaciji. Direktno knjiženje gotovinskih događaja može raditi samo glavni blagajnik smene. Ostali korisnici koriste zahteve za uplatu ili isplatu.
 
 ## Statusi
 
@@ -28,7 +32,7 @@ Koriste se sledeci statusi:
 |---|---:|---|
 | shift_id | yes | Generated ID |
 | cashbox_id | yes | Blagajna |
-| opened_by | yes | Korisnik koji je otvorio smenu |
+| opened_by | yes | Glavni blagajnik smene, odnosno korisnik koji je otvorio smenu |
 | opened_at | yes | Vreme otvaranja |
 | opening_note | no | Napomena pri otvaranju |
 | opening_balance_json | no | Izracunato stanje po valutama pri otvaranju |
@@ -49,6 +53,8 @@ Koriste se sledeci statusi:
 
 Dozvoljene role za otvaranje su `CASHIER`, `CASHIER_SUPERVISOR` i `ADMIN`.
 
+Korisnik koji otvori smenu postaje glavni blagajnik te smene. Za jednu blagajnu može postojati samo jedna aktivna smena.
+
 ## Pregled aktivne smene i stanja
 
 `getActiveShiftForCashbox(cashboxId)` vraca jednu otvorenu smenu ili `null`. Ako postoje dve otvorene smene za istu blagajnu, baca se greska integriteta podataka.
@@ -56,6 +62,22 @@ Dozvoljene role za otvaranje su `CASHIER`, `CASHIER_SUPERVISOR` i `ADMIN`.
 `getMyActiveShifts()` vraca otvorene smene trenutnog korisnika.
 
 `getShiftBalance(shiftId)` vraca smenu i trenutno izracunato stanje po valutama. Stanje se ne cita iz rucno unetog polja, vec iz `CASH_EVENTS` sa statusom `POSTED` ili `LOCKED`.
+
+## Presek blagajne u toku smene
+
+U toku smene može se uraditi jedan ili više preseka blagajne. Presek je fizički popis gotovine i čekova po valuti.
+
+Ako je fizički popis jednak obračunatom stanju, presek se evidentira samo u `CASH_COUNTS`.
+
+Ako postoji razlika, sistem:
+
+1. evidentira presek u `CASH_COUNTS`,
+2. kreira automatski korektivni `CASH_EVENTS` događaj tipa `CORRECTION`,
+3. za višak knjiži korekciju `IN`,
+4. za manjak knjiži korekciju `OUT`,
+5. čuva vezu prema korektivnom događaju u `CASH_COUNTS.adjustment_event_id`.
+
+Na taj način blagajna posle preseka nastavlja od fizički utvrđenog stanja, bez ručnog menjanja salda.
 
 ## Primopredaja
 
@@ -89,7 +111,9 @@ Dozvoljene role za otkazivanje su `ADMIN`, `FINANCE` i `CASHIER_SUPERVISOR`.
 
 ## Aktivna smena kao validacija
 
-`assertCashboxHasOpenShift(cashboxId)` proverava da blagajna ima otvorenu smenu. U ovom tasku helper je implementiran, ali se jos ne forsira globalno nad uplatama, isplatama i transferima. Kasnije ga treba koristiti za cash inflow, cash outflow, transfer, primopredaju i dnevni zakljucak.
+`assertCashboxHasOpenShift(cashboxId)` proverava da blagajna ima otvorenu smenu.
+
+Direktne uplate i isplate sme da knjiži samo glavni blagajnik aktivne smene. Ostali korisnici u aktivnoj smeni koriste zahteve.
 
 ## Audit
 

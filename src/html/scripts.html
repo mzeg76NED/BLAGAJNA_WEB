@@ -1259,7 +1259,7 @@
     var hasShift = Boolean(shift.shift_id);
     var owner = isCurrentActiveShiftOwner_();
     var statusHtml = hasShift
-      ? '<div class="shift-state active"><strong>Aktivna smena</strong><span>Otvorio: ' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</span><span>Otvorena: ' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</span><span>Status: ' + escapeHtml(STATUS_LABEL_MAP[shift.status] || shift.status || '') + '</span></div>'
+      ? '<div class="shift-state active"><strong>Aktivna smena</strong><span>Glavni blagajnik: ' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</span><span>Otvorena: ' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</span><span>Status: ' + escapeHtml(STATUS_LABEL_MAP[shift.status] || shift.status || '') + '</span></div>'
       : '<div class="shift-state empty"><strong>Nema aktivne smene</strong><span>Prvo otvorite smenu da biste radili direktne uplate i isplate.</span></div>';
     ['d-shift-status','m-shift-status'].forEach(function(id) {
       var el = document.getElementById(id);
@@ -1357,11 +1357,11 @@
     }
     if (permissionText) {
       permissionText.textContent = uiState.activeShift && uiState.activeShift.shift_id
-        ? 'Aktivnu smenu je otvorio ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '. Direktno knjiženje može da radi samo taj korisnik. Ostali korisnici rade preko zahteva.'
+        ? 'Glavni blagajnik smene je ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '. Direktno knjiženje može da radi samo glavni blagajnik. Ostali korisnici rade preko zahteva.'
         : 'Nema otvorene smene. Otvorite smenu da biste mogli da knjižite direktne uplate i isplate.';
     }
     if (!canPost) {
-      showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i isplate može knjižiti samo korisnik koji je otvorio aktivnu smenu.', 'info');
+      showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i isplate može knjižiti samo glavni blagajnik aktivne smene.', 'info');
     }
     updateMobileDirectActionsVisibility_();
   }
@@ -2687,7 +2687,8 @@
           ['Popisan gotov novac', amountWithCurrency(result.counted_cash_total, result.currency)],
           ['Čekovi', amountWithCurrency(result.check_total, result.currency)],
           ['Obračunato pre popisa', amountWithCurrency(result.calculated_balance_before, result.currency)],
-          ['Razlika', amountWithCurrency(result.difference, result.currency)]
+          ['Razlika', amountWithCurrency(result.difference, result.currency)],
+          ['Korekcija', result.adjustment_event_id || 'Nema razlike']
         ]);
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
@@ -2704,7 +2705,8 @@
           ['Popisan gotov novac', amountWithCurrency(result.counted_cash_total, result.currency)],
           ['Čekovi', amountWithCurrency(result.check_total, result.currency)],
           ['Obračunato pre popisa', amountWithCurrency(result.calculated_balance_before, result.currency)],
-          ['Razlika', amountWithCurrency(result.difference, result.currency)]
+          ['Razlika', amountWithCurrency(result.difference, result.currency)],
+          ['Korekcija', result.adjustment_event_id || 'Nema razlike']
         ]);
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });

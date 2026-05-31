@@ -39,59 +39,128 @@ function prepareCashCount(cashboxId, currency, countType) {
 }
 
 function createCashCount(data) {
-  initializeDatabase();
-  const currentUser = requireActiveUserWithRole_(CASH_COUNT_ROLES_);
-  data = data || {};
-  const cashboxId = data.cashbox_id;
-  const currency = data.currency;
-  const countType = data.count_type || CASH_COUNT_TYPES.CASHBOX_COUNT;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
 
-  assertNonEmptyString(cashboxId, 'cashbox_id');
-  assertActiveCashbox(cashboxId);
-  assertActiveCurrency(currency);
-  assertAllowedValue(countType, objectValues_(CASH_COUNT_TYPES), 'count_type');
+  try {
+    initializeDatabase();
+    const currentUser = requireActiveUserWithRole_(CASH_COUNT_ROLES_);
+    data = data || {};
+    const cashboxId = data.cashbox_id;
+    const currency = data.currency;
+    const countType = data.count_type || CASH_COUNT_TYPES.CASHBOX_COUNT;
 
-  const activeShift = getActiveShiftForCashbox(cashboxId);
-  const denominations = normalizeDenominations_(currency, data.denominations || []);
-  const countedCashTotal = denominations.reduce(function(total, item) {
-    return total + item.denomination * item.quantity;
-  }, 0);
-  const checkCount = toNonNegativeNumber_(data.check_count, 'check_count');
-  const checkTotal = toNonNegativeNumber_(data.check_total, 'check_total');
-  const calculatedBalance = calculateCashboxBalance(cashboxId, currency);
-  const difference = countedCashTotal + checkTotal - calculatedBalance;
-  const now = getCurrentTimestamp_();
-  const record = {
-    count_id: generateId_('CNT'),
-    created_at: now,
-    created_by: currentUser.email,
-    count_type: countType,
+    assertNonEmptyString(cashboxId, 'cashbox_id');
+    assertActiveCashbox(cashboxId);
+    assertActiveCurrency(currency);
+    assertAllowedValue(countType, objectValues_(CASH_COUNT_TYPES), 'count_type');
+
+    const activeShift = getActiveShiftForCashbox(cashboxId);
+    const denominations = normalizeDenominations_(currency, data.denominations || []);
+    const countedCashTotal = denominations.reduce(function(total, item) {
+      return total + item.denomination * item.quantity;
+    }, 0);
+    const checkCount = toNonNegativeNumber_(data.check_count, 'check_count');
+    const checkTotal = toNonNegativeNumber_(data.check_total, 'check_total');
+    const calculatedBalance = calculateCashboxBalance(cashboxId, currency);
+    const difference = countedCashTotal + checkTotal - calculatedBalance;
+    const now = getCurrentTimestamp_();
+    const countId = generateId_('CNT');
+    const adjustmentEvent = buildCashCountAdjustmentEvent_(
+      countId,
+      cashboxId,
+      currency,
+      difference,
+      currentUser.email,
+      now,
+      data.note
+    );
+    const record = {
+      count_id: countId,
+      created_at: now,
+      created_by: currentUser.email,
+      count_type: countType,
+      cashbox_id: cashboxId,
+      shift_id: activeShift ? activeShift.shift_id : '',
+      currency: currency,
+      counted_cash_total: countedCashTotal,
+      check_count: checkCount,
+      check_total: checkTotal,
+      calculated_balance_before: calculatedBalance,
+      difference: difference,
+      denominations_json: serializeJson_(denominations),
+      adjustment_event_id: adjustmentEvent ? adjustmentEvent.event_id : '',
+      note: data.note || '',
+      status: CASH_COUNT_STATUSES.POSTED,
+      posted_by: currentUser.email,
+      posted_at: now,
+      updated_at: ''
+    };
+
+    appendRecord(SHEET_NAMES.CASH_COUNTS, record);
+    writeAuditLog(
+      AUDIT_ACTIONS.POST,
+      SHEET_NAMES.CASH_COUNTS,
+      record.count_id,
+      null,
+      record,
+      adjustmentEvent
+        ? 'Cash count posted with automatic balance correction.'
+        : 'Cash count posted without difference.'
+    );
+
+    if (adjustmentEvent) {
+      appendRecord(SHEET_NAMES.CASH_EVENTS, adjustmentEvent);
+      writeAuditLog(
+        AUDIT_ACTIONS.POST,
+        SHEET_NAMES.CASH_EVENTS,
+        adjustmentEvent.event_id,
+        null,
+        adjustmentEvent,
+        'Automatic correction created from cash count: ' + countId
+      );
+    }
+
+    return record;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function buildCashCountAdjustmentEvent_(countId, cashboxId, currency, difference, userEmail, timestamp, note) {
+  const numericDifference = Number(difference || 0);
+  if (Math.abs(numericDifference) <= 0.000001) {
+    return null;
+  }
+  const direction = numericDifference > 0 ? 'IN' : 'OUT';
+  const amount = Math.abs(numericDifference);
+  const description = 'Automatska korekcija po preseku blagajne ' + countId +
+    '. Razlika: ' + numericDifference + ' ' + currency +
+    (note ? '. Napomena: ' + String(note).trim() : '');
+
+  return {
+    event_id: generateId_('CEV'),
+    created_at: timestamp,
+    created_by: userEmail,
+    event_date: timestamp,
+    event_type: CASH_EVENT_TYPES.CORRECTION,
     cashbox_id: cashboxId,
-    shift_id: activeShift ? activeShift.shift_id : '',
     currency: currency,
-    counted_cash_total: countedCashTotal,
-    check_count: checkCount,
-    check_total: checkTotal,
-    calculated_balance_before: calculatedBalance,
-    difference: difference,
-    denominations_json: serializeJson_(denominations),
-    note: data.note || '',
-    status: CASH_COUNT_STATUSES.POSTED,
-    posted_by: currentUser.email,
-    posted_at: now,
+    direction: direction,
+    amount: amount,
+    linked_request_id: '',
+    linked_order_id: '',
+    partner_name: 'Presek blagajne',
+    description: description,
+    document_status: DOCUMENT_STATUSES.NONE,
+    status: CASH_EVENT_STATUSES.POSTED,
+    posted_by: userEmail,
+    posted_at: timestamp,
+    locked_by: '',
+    locked_at: '',
+    reversal_of_event_id: '',
     updated_at: ''
   };
-
-  appendRecord(SHEET_NAMES.CASH_COUNTS, record);
-  writeAuditLog(
-    AUDIT_ACTIONS.POST,
-    SHEET_NAMES.CASH_COUNTS,
-    record.count_id,
-    null,
-    record,
-    'Cash count posted. Count does not alter cash events or balance.'
-  );
-  return record;
 }
 
 function normalizeDenominations_(currency, rows) {
