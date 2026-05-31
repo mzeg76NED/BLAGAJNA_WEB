@@ -99,7 +99,13 @@ Ogranicenje: sistem u ovom tasku ne otvara automatski novu smenu za korisnika ko
 
 ## Zatvaranje smene
 
-`closeShift(shiftId, physicalBalanceByCurrency, note)` zatvara otvorenu smenu. Fizicko stanje je obavezno u ovom tasku.
+Zatvaranje smene podrazumeva prethodni popis blagajne.
+
+Korisnik prvo radi presek blagajne za sve aktivne valute kroz unos apoena i čekova. Sistem za svaku valutu evidentira `CASH_COUNTS`, a ako postoji razlika kreira `CORRECTION` događaj sa opisom `PRESEK SMENE - KOREKCIJA - VIŠAK` ili `PRESEK SMENE - KOREKCIJA - MANJAK`.
+
+`closeShiftWithLatestCashCounts(shiftId, note)` zatvara otvorenu smenu koristeći poslednji sačuvani popis po valutama kao fizičko stanje. Ako za neku aktivnu valutu ne postoji popis u smeni, smena se ne može zatvoriti.
+
+`closeShift(shiftId, physicalBalanceByCurrency, note)` ostaje serverska pomoćna funkcija za kontrolisane pozive, ali korisnički interfejs koristi zatvaranje preko poslednjeg popisa.
 
 Ako nema razlike, status postaje `CLOSED`. Ako postoji razlika, status postaje `CLOSED_WITH_DIFFERENCE`.
 

@@ -199,6 +199,47 @@ function closeShift(shiftId, physicalBalanceByCurrency, note) {
   }
 }
 
+function closeShiftWithLatestCashCounts(shiftId, note) {
+  assertNonEmptyString(shiftId, 'shiftId');
+  const shift = getShiftMatchOrThrow_(shiftId).record;
+  assertEntityStatus(shift, [SHIFT_STATUSES.OPEN], 'Shift');
+  assertShiftOwnerOrElevated_(shift);
+
+  const counts = listRecords(SHEET_NAMES.CASH_COUNTS, {
+    shift_id: shift.shift_id,
+    status: CASH_COUNT_STATUSES.POSTED
+  });
+  const latestByCurrency = counts.reduce(function(result, count) {
+    const currency = count.currency;
+    if (!currency) {
+      return result;
+    }
+    const current = result[currency];
+    const currentTime = current ? new Date(current.posted_at || current.created_at || 0).getTime() : 0;
+    const nextTime = new Date(count.posted_at || count.created_at || 0).getTime();
+    if (!current || nextTime >= currentTime) {
+      result[currency] = count;
+    }
+    return result;
+  }, {});
+
+  const supportedCurrencies = listSupportedCurrencies();
+  const missing = supportedCurrencies.filter(function(currency) {
+    return !latestByCurrency[currency];
+  });
+  if (missing.length) {
+    throw new Error('Pre zatvaranja smene uradite presek blagajne za valute: ' + missing.join(', ') + '.');
+  }
+
+  const physicalBalance = supportedCurrencies.reduce(function(result, currency) {
+    const count = latestByCurrency[currency];
+    result[currency] = Number(count.counted_cash_total || 0) + Number(count.check_total || 0);
+    return result;
+  }, {});
+
+  return closeShift(shift.shift_id, physicalBalance, note);
+}
+
 function cancelShift(shiftId, reason) {
   requireActiveUserWithRole_(SHIFT_CANCEL_ROLES_);
   assertNonEmptyString(shiftId, 'shiftId');

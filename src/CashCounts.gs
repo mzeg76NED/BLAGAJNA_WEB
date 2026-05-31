@@ -127,6 +127,39 @@ function createCashCount(data) {
   }
 }
 
+function createCashCounts(data) {
+  data = data || {};
+  const grouped = (data.denominations || []).reduce(function(result, row) {
+    const currency = row.currency || data.currency;
+    if (!currency) {
+      return result;
+    }
+    if (!result[currency]) {
+      result[currency] = [];
+    }
+    result[currency].push(row);
+    return result;
+  }, {});
+
+  if (Number(data.check_total || 0) > 0 && data.currency && !grouped[data.currency]) {
+    grouped[data.currency] = [];
+  }
+
+  if (!Object.keys(grouped).length) {
+    grouped[data.currency] = [];
+  }
+
+  return Object.keys(grouped).map(function(currency) {
+    const countData = Object.assign({}, data, {
+      currency: currency,
+      denominations: grouped[currency],
+      check_count: currency === data.currency ? data.check_count : 0,
+      check_total: currency === data.currency ? data.check_total : 0
+    });
+    return createCashCount(countData);
+  });
+}
+
 function buildCashCountAdjustmentEvent_(countId, cashboxId, currency, difference, userEmail, timestamp, note) {
   const numericDifference = Number(difference || 0);
   if (Math.abs(numericDifference) <= 0.000001) {
@@ -134,7 +167,8 @@ function buildCashCountAdjustmentEvent_(countId, cashboxId, currency, difference
   }
   const direction = numericDifference > 0 ? 'IN' : 'OUT';
   const amount = Math.abs(numericDifference);
-  const description = 'Automatska korekcija po preseku blagajne ' + countId +
+  const differenceLabel = numericDifference > 0 ? 'VIŠAK' : 'MANJAK';
+  const description = 'PRESEK SMENE - KOREKCIJA - ' + differenceLabel + ' ' + countId +
     '. Razlika: ' + numericDifference + ' ' + currency +
     (note ? '. Napomena: ' + String(note).trim() : '');
 

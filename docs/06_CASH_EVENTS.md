@@ -35,10 +35,11 @@ Cash Event je stvarno kretanje novca. Samo knjizeni dogadjaji ulaze u obracun st
 | CASH_OUTFLOW | OUT | Smanjuje stanje |
 | CASH_TRANSFER_IN | IN | Povecava stanje blagajne primaoca |
 | CASH_TRANSFER_OUT | OUT | Smanjuje stanje blagajne izvora |
+| TREASURY_HANDOVER | OUT | Predaja sredstava iz blagajne u trezor; smanjuje blagajnu, nije isplata korisniku |
 | CORRECTION | IN/OUT/NEUTRAL | Zavisi od korekcije, kasniji workflow |
 | REVERSAL | IN/OUT/NEUTRAL | Zavisi od storna, kasniji workflow |
 
-U Task 05 implementirani su `CASH_INFLOW` i `CASH_OUTFLOW`. Transferi, korekcije i storna ostaju za kasnije.
+U pilot verziji implementirani su `CASH_INFLOW`, `CASH_OUTFLOW`, `TREASURY_HANDOVER`, `CORRECTION` po preseku blagajne i `REVERSAL`.
 
 ## Statusi
 

@@ -546,3 +546,62 @@ function createDirectCashOutflow(data) {
     lock.releaseLock();
   }
 }
+
+function createTreasuryHandover(data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    const currentUser = requireActiveUserWithRole_(CASH_EVENT_POSTER_ROLES_);
+    const d = data || {};
+
+    assertRequiredFields(d, ['cashbox_id', 'currency', 'amount']);
+    assertPositiveAmount(d.amount);
+    assertActiveCashbox(d.cashbox_id);
+    assertCashboxAccess(d.cashbox_id);
+    assertActiveCurrency(d.currency);
+    assertCurrentUserOwnsOpenShiftForCashbox_(d.cashbox_id);
+
+    const previousBalance = calculateCashboxBalance(d.cashbox_id, d.currency);
+    assertSufficientBalance(previousBalance, d.amount, d.cashbox_id, d.currency);
+
+    const now = getCurrentTimestamp_();
+    const cashEvent = {
+      event_id: generateId_('CEV'),
+      created_at: now,
+      created_by: currentUser.email,
+      event_date: d.event_date || now,
+      event_type: CASH_EVENT_TYPES.TREASURY_HANDOVER,
+      cashbox_id: d.cashbox_id,
+      currency: d.currency,
+      direction: 'OUT',
+      amount: Number(d.amount),
+      linked_request_id: '',
+      linked_order_id: '',
+      partner_name: 'Trezor',
+      description: 'Predaja u trezor' + (d.description ? '. ' + String(d.description).trim() : ''),
+      document_status: DOCUMENT_STATUSES.NONE,
+      status: CASH_EVENT_STATUSES.POSTED,
+      posted_by: currentUser.email,
+      posted_at: now,
+      locked_by: '',
+      locked_at: '',
+      reversal_of_event_id: '',
+      updated_at: ''
+    };
+
+    appendRecord(SHEET_NAMES.CASH_EVENTS, cashEvent);
+    writeAuditLog(
+      AUDIT_ACTIONS.POST,
+      SHEET_NAMES.CASH_EVENTS,
+      cashEvent.event_id,
+      null,
+      cashEvent,
+      'Treasury handover posted.'
+    );
+
+    return cashEvent;
+  } finally {
+    lock.releaseLock();
+  }
+}

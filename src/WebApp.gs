@@ -148,6 +148,12 @@ function apiCreateDirectCashOutflow(data) {
   });
 }
 
+function apiCreateTreasuryHandover(data) {
+  return apiWrap_(function() {
+    return createTreasuryHandover(withDefaultCashbox_(data || {}));
+  });
+}
+
 function apiPrepareCashCount(cashboxId, currency, countType) {
   return apiWrap_(function() {
     return prepareCashCount(cashboxId || getDefaultCashboxIdForCurrentUser_(), currency, countType);
@@ -157,6 +163,12 @@ function apiPrepareCashCount(cashboxId, currency, countType) {
 function apiCreateCashCount(data) {
   return apiWrap_(function() {
     return createCashCount(withDefaultCashbox_(data || {}));
+  });
+}
+
+function apiCreateCashCounts(data) {
+  return apiWrap_(function() {
+    return createCashCounts(withDefaultCashbox_(data || {}));
   });
 }
 
@@ -265,6 +277,12 @@ function apiHandoverShift(shiftId, handoverToUserEmail, physicalBalanceByCurrenc
 function apiCloseShift(shiftId, physicalBalanceByCurrency, note) {
   return apiWrap_(function() {
     return closeShift(shiftId, parseJsonInput_(physicalBalanceByCurrency), note);
+  });
+}
+
+function apiCloseShiftWithLatestCashCounts(shiftId, note) {
+  return apiWrap_(function() {
+    return closeShiftWithLatestCashCounts(shiftId, note);
   });
 }
 

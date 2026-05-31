@@ -122,7 +122,7 @@
             <form id="m-close-shift-form" class="form-grid">
               <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>
               <input name="shift_id" type="hidden" required>
-              <div data-physical-balance-inputs></div>
+              <div class="shift-warning">Pre zatvaranja smene sačuvajte presek blagajne za sve aktivne valute. Zatvaranje koristi poslednji sačuvani popis.</div>
               <label>Napomena <textarea name="note"></textarea></label>
               <button class="btn-primary" type="submit">Zatvori smenu</button>
             </form>
@@ -206,6 +206,9 @@
       </button>
       <button class="btn-out btn-lg" id="m-btn-isplata" type="button">
         <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> ISPLATA
+      </button>
+      <button class="btn-out btn-lg" id="m-btn-trezor" type="button">
+        <i class="ti ti-building-bank" aria-hidden="true"></i> TREZOR
       </button>
     </div>
 

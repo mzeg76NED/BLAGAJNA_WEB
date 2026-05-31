@@ -482,16 +482,45 @@
       var currency = currencySelect ? currencySelect.value || SESSION.currency : SESSION.currency;
       var denominations = getClientDenominations_(currency);
       form.dataset.denominationCount = String(denominations.length);
+      if (!form.dataset.countRows) form.dataset.countRows = '[]';
       if (!denominations.length) {
-        container.innerHTML = '<div class="shift-warning">Apoeni nisu definisani za valutu ' + escapeHtml(currency) + '. U tabeli CURRENCIES popunite kolonu denominations, na primer: 100,50,20,10,5,1.</div>';
+        container.innerHTML = '<div class="shift-warning">Apoeni nisu definisani za valutu ' + escapeHtml(currency) + '. U tabeli CURRENCIES popunite kolonu denominations, na primer: 100,50,20,10,5,1.</div>' +
+          '<div data-count-rows></div>';
         bindCashCountTotal_(form);
+        renderCashCountRows_(form);
         return;
       }
-      container.innerHTML = denominations.map(function(value) {
-        return '<label class="denomination-row"><span>' + escapeHtml(value) + ' ' + escapeHtml(currency) + '</span>' +
-          '<input name="denom_' + escapeHtml(value) + '" type="number" min="0" step="1" inputmode="numeric" value="0"></label>';
-      }).join('');
+      container.innerHTML =
+        '<div class="count-entry-form">' +
+          '<label>Valuta <input type="text" value="' + escapeHtml(currency) + '" readonly></label>' +
+          '<label>Apoen <select data-count-denomination>' + denominations.map(function(value) {
+            return '<option value="' + escapeHtml(value) + '">' + escapeHtml(formatAmount_(value)) + '</option>';
+          }).join('') + '</select></label>' +
+          '<label>Komada <input data-count-quantity type="number" min="0" step="1" inputmode="numeric" value=""></label>' +
+          '<button class="btn-primary" data-count-add type="button">Upiši</button>' +
+        '</div>' +
+        '<div data-count-rows></div>';
+      var addBtn = container.querySelector('[data-count-add]');
+      if (addBtn) {
+        addBtn.addEventListener('click', function() {
+          var denomEl = container.querySelector('[data-count-denomination]');
+          var qtyEl = container.querySelector('[data-count-quantity]');
+          var denomination = Number(denomEl && denomEl.value || 0);
+          var quantity = Number(qtyEl && qtyEl.value || 0);
+          if (!denomination || !quantity || quantity <= 0) {
+            showMessage('Unesite apoen i broj komada za popis.', 'error');
+            if (qtyEl) qtyEl.focus();
+            return;
+          }
+          addCashCountRow_(form, currency, denomination, quantity);
+          if (qtyEl) {
+            qtyEl.value = '';
+            qtyEl.focus();
+          }
+        });
+      }
       bindCashCountTotal_(form);
+      renderCashCountRows_(form);
     });
   }
 
@@ -521,24 +550,81 @@
 
   function updateCashCountTotal_(form) {
     if (!form) return;
-    var total = collectDenominations_(form).reduce(function(sum, row) {
-      return sum + row.denomination * row.quantity;
-    }, 0);
-    total += parseAmountInput_((form.querySelector('[name="check_total"]') || {}).value || '');
+    var totals = collectDenominations_(form).reduce(function(result, row) {
+      var currency = row.currency || ((form.querySelector('[name="currency"]') || {}).value || SESSION.currency);
+      result[currency] = Number(result[currency] || 0) + row.denomination * row.quantity;
+      return result;
+    }, {});
     var target = form.querySelector('[data-cash-count-total]');
     var currency = (form.querySelector('[name="currency"]') || {}).value || SESSION.currency;
-    if (target) target.textContent = 'Popisano: ' + formatAmount_(total) + ' ' + currency;
+    totals[currency] = Number(totals[currency] || 0) + parseAmountInput_((form.querySelector('[name="check_total"]') || {}).value || '');
+    if (target) {
+      var parts = Object.keys(totals).filter(function(code) { return Math.abs(Number(totals[code] || 0)) > 0.000001; })
+        .map(function(code) { return formatAmount_(totals[code]) + ' ' + code; });
+      target.textContent = 'Popisano: ' + (parts.length ? parts.join(' · ') : '0,00 ' + currency);
+    }
+    renderCashCountRows_(form);
   }
 
   function collectDenominations_(form) {
-    var rows = [];
-    Array.prototype.forEach.call(form.querySelectorAll('[name^="denom_"]'), function(input) {
-      rows.push({
-        denomination: Number(input.name.replace('denom_', '')),
-        quantity: Number(input.value || 0)
+    if (!form) return [];
+    try {
+      return JSON.parse(form.dataset.countRows || '[]').map(function(row) {
+        return {
+          currency: row.currency,
+          denomination: Number(row.denomination || 0),
+          quantity: Number(row.quantity || 0)
+        };
+      });
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function addCashCountRow_(form, currency, denomination, quantity) {
+    var rows = collectDenominations_(form);
+    var found = rows.filter(function(row) {
+      return row.currency === currency && Number(row.denomination) === Number(denomination);
+    })[0];
+    if (found) {
+      found.quantity = Number(found.quantity || 0) + Number(quantity || 0);
+    } else {
+      rows.push({ currency: currency, denomination: denomination, quantity: quantity });
+    }
+    form.dataset.countRows = JSON.stringify(rows);
+    updateCashCountTotal_(form);
+  }
+
+  function removeCashCountRow_(form, index) {
+    var rows = collectDenominations_(form);
+    rows.splice(index, 1);
+    form.dataset.countRows = JSON.stringify(rows);
+    updateCashCountTotal_(form);
+  }
+
+  function renderCashCountRows_(form) {
+    if (!form) return;
+    var target = form.querySelector('[data-count-rows]');
+    if (!target) return;
+    var rows = collectDenominations_(form);
+    if (!rows.length) {
+      target.innerHTML = '<div class="empty-state">Još nema unetih apoena.</div>';
+      return;
+    }
+    target.innerHTML = '<table class="count-table"><thead><tr><th>Valuta</th><th>Apoen</th><th>Komada</th><th>Iznos</th><th></th></tr></thead><tbody>' +
+      rows.map(function(row, index) {
+        var amount = Number(row.denomination || 0) * Number(row.quantity || 0);
+        return '<tr><td>' + escapeHtml(row.currency || '') + '</td>' +
+          '<td>' + formatAmount_(row.denomination) + '</td>' +
+          '<td>' + escapeHtml(row.quantity) + '</td>' +
+          '<td>' + formatAmount_(amount) + '</td>' +
+          '<td><button class="icon-btn" type="button" data-count-remove="' + index + '" title="Ukloni"><i class="ti ti-x"></i></button></td></tr>';
+      }).join('') + '</tbody></table>';
+    target.querySelectorAll('[data-count-remove]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        removeCashCountRow_(form, Number(btn.getAttribute('data-count-remove')));
       });
     });
-    return rows;
   }
 
   function validateCashCountForm_(form) {
@@ -547,7 +633,7 @@
     var denominationCount = Number(form.dataset.denominationCount || 0);
     var cashRows = collectDenominations_(form).filter(function(row) { return Number(row.quantity || 0) > 0; });
     var checkTotal = parseAmountInput_((form.querySelector('[name="check_total"]') || {}).value || '');
-    if (denominationCount === 0 && checkTotal <= 0) {
+    if (denominationCount === 0 && checkTotal <= 0 && !cashRows.length) {
       showMessage('Za valutu ' + currency + ' nisu definisani apoeni. Popunite kolonu denominations u tabeli CURRENCIES ili unesite iznos čekova.', 'error');
       return false;
     }
@@ -1335,7 +1421,7 @@
 
   function applyDirectCashPermission_() {
     var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
-    ['d-btn-uplata','d-btn-isplata','d-quick-form-card','m-direct-actions'].forEach(function(id) {
+    ['d-quick-form-card','m-direct-actions'].forEach(function(id) {
       var el = document.getElementById(id);
       if (!el) return;
       if (canPost) {
@@ -1363,7 +1449,24 @@
     if (!canPost) {
       showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i isplate može knjižiti samo glavni blagajnik aktivne smene.', 'info');
     }
+    updateDesktopDirectActionsVisibility_();
     updateMobileDirectActionsVisibility_();
+  }
+
+  function updateDesktopDirectActionsVisibility_() {
+    var activeTabIsBook = Boolean(document.querySelector('#d-section-knjiga.active'));
+    var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
+    ['d-btn-uplata','d-btn-isplata','d-btn-trezor'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (activeTabIsBook && canPost) {
+        el.removeAttribute('hidden');
+        el.style.display = '';
+      } else {
+        el.setAttribute('hidden', 'hidden');
+        el.style.display = 'none';
+      }
+    });
   }
 
   function updateMobileDirectActionsVisibility_() {
@@ -1399,6 +1502,7 @@
       document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
         btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'smena');
       });
+      updateDesktopDirectActionsVisibility_();
     }
   }
 
@@ -1926,7 +2030,7 @@
       var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
       if (displayDirection === 'IN')  totalIn  += displayAmount;
       if (displayDirection === 'OUT') totalOut += displayAmount;
-      var rowNumber = ev.entry_number || (events.length - idx);
+      var rowNumber = events.length - idx;
       rows.push(isMobile ? renderMobileEntry_(ev, rowNumber) : renderKnjigaRow_(ev, rowNumber, Number(ev.running_balance || 0)));
     });
 
@@ -2010,7 +2114,8 @@
     var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
     var isIn  = displayDirection === 'IN';
     var isOut = displayDirection === 'OUT';
-    var rowClass = (isIn ? 'row-in' : isOut ? 'row-out' : 'row-opening') + (ev.optimistic_id ? ' optimistic' : '');
+    var isCount = ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || ''));
+    var rowClass = (isCount ? 'row-count' : isIn ? 'row-in' : isOut ? 'row-out' : 'row-opening') + (ev.optimistic_id ? ' optimistic' : '');
     var amtFmt  = formatAmount_(displayAmount);
     var balFmt  = formatAmount_(balance);
     var dateStr = formatDateShort_(ev.event_date || ev.created_at);
@@ -2084,7 +2189,8 @@
       ' · ' + escapeHtml(ev.event_id) +
       (ev.reversal_of_event_id ? ' · Veza: ' + escapeHtml(ev.reversal_of_event_id) : '');
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
-    return '<div class="m-entry' + (ev.optimistic_id ? ' optimistic' : '') + '" data-event-id="' + escapeHtml(ev.event_id) + '">' +
+    var isCount = ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || ''));
+    return '<div class="m-entry' + (isCount ? ' count' : '') + (ev.optimistic_id ? ' optimistic' : '') + '" data-event-id="' + escapeHtml(ev.event_id) + '">' +
       '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
       '<div class="m-entry-info">' +
         '<div class="m-entry-desc"><span class="m-entry-no">' + index + '.</span> ' + label + '</div>' +
@@ -2256,25 +2362,40 @@
     var label  = document.getElementById('d-qf-submit-label');
     if (!btnIn || !btnOut || !submit) return;
 
-    btnIn.addEventListener('click', function() {
+    function setQuickType(type) {
       currentQuickFormType_ = 'IN';
-      btnIn.classList.add('active');  btnOut.classList.remove('active');
-      submit.className = 'btn-in btn-full btn-lg';
-      if (label) label.textContent = 'Proknjiti uplatu';
-    });
-    btnOut.addEventListener('click', function() {
-      currentQuickFormType_ = 'OUT';
-      btnOut.classList.add('active'); btnIn.classList.remove('active');
-      submit.className = 'btn-out btn-full btn-lg';
-      if (label) label.textContent = 'Proknjiti isplatu';
-    });
+      if (type === 'OUT' || type === 'TREASURY') currentQuickFormType_ = type;
+      btnIn.classList.toggle('active', currentQuickFormType_ === 'IN');
+      btnOut.classList.toggle('active', currentQuickFormType_ !== 'IN');
+      submit.className = (currentQuickFormType_ === 'IN' ? 'btn-in' : 'btn-out') + ' btn-full btn-lg';
+      if (label) {
+        label.textContent = currentQuickFormType_ === 'IN'
+          ? 'Proknjiti uplatu'
+          : currentQuickFormType_ === 'TREASURY'
+            ? 'Proknjiti predaju u trezor'
+            : 'Proknjiti isplatu';
+      }
+    }
+
+    btnIn.addEventListener('click', function() { setQuickType('IN'); });
+    btnOut.addEventListener('click', function() { setQuickType('OUT'); });
     submit.addEventListener('click', submitDesktopQuickForm_);
     bindDesktopEnterFlow_();
 
     var btnU = document.getElementById('d-btn-uplata');
     var btnI = document.getElementById('d-btn-isplata');
-    if (btnU) btnU.addEventListener('click', function() { btnIn.click(); var a = document.getElementById('d-qf-amount'); if (a) a.focus(); });
-    if (btnI) btnI.addEventListener('click', function() { btnOut.click(); var a = document.getElementById('d-qf-amount'); if (a) a.focus(); });
+    var btnT = document.getElementById('d-btn-trezor');
+    if (btnU) btnU.addEventListener('click', function() { setQuickType('IN'); var a = document.getElementById('d-qf-amount'); if (a) a.focus(); });
+    if (btnI) btnI.addEventListener('click', function() { setQuickType('OUT'); var a = document.getElementById('d-qf-amount'); if (a) a.focus(); });
+    if (btnT) btnT.addEventListener('click', function() {
+      setQuickType('TREASURY');
+      var partner = document.getElementById('d-qf-partner');
+      var desc = document.getElementById('d-qf-description');
+      if (partner) partner.value = 'Trezor';
+      if (desc) desc.value = 'Predaja u trezor';
+      var a = document.getElementById('d-qf-amount');
+      if (a) a.focus();
+    });
   }
 
   function bindDesktopEnterFlow_() {
@@ -2303,19 +2424,25 @@
     var cur     = (document.getElementById('d-qf-currency')    || {}).value || SESSION.currency;
     var partner = ((document.getElementById('d-qf-partner')    || {}).value || '').trim();
     var desc    = ((document.getElementById('d-qf-description') || {}).value || '').trim();
+    var isTreasury = type === 'TREASURY';
+    var direction = type === 'IN' ? 'IN' : 'OUT';
 
     if (!amount || amount <= 0) { var a = document.getElementById('d-qf-amount'); if (a) a.focus(); return; }
-    if (!desc && !partner)      { var d2 = document.getElementById('d-qf-description'); if (d2) d2.focus(); return; }
+    if (!isTreasury && !desc && !partner) { var d2 = document.getElementById('d-qf-description'); if (d2) d2.focus(); return; }
+    if (isTreasury) {
+      partner = 'Trezor';
+      desc = desc || 'Predaja u trezor';
+    }
 
     var tempId = 'OPT-' + Date.now();
-    rememberOptimisticEvent_(buildOptimisticEvent_(tempId, type, amount, cur, partner, desc, 'KNJIŽENJE'));
+    rememberOptimisticEvent_(buildOptimisticEvent_(tempId, direction, amount, cur, partner, desc, 'KNJIŽENJE'));
     renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
     if (cur === SESSION.currency) {
-      updateTopbarBalance_(type === 'IN' ? amount : -amount);
+      updateTopbarBalance_(direction === 'IN' ? amount : -amount);
     }
 
     var data = { cashbox_id: SESSION.cashboxId, currency: cur, amount: amount, partner_name: partner, description: desc || partner };
-    var fn   = type === 'IN' ? 'apiCreateCashInflow' : 'apiCreateDirectCashOutflow';
+    var fn   = type === 'IN' ? 'apiCreateCashInflow' : isTreasury ? 'apiCreateTreasuryHandover' : 'apiCreateDirectCashOutflow';
 
     google.script.run
       .withSuccessHandler(function(resp) {
@@ -2333,14 +2460,14 @@
         else {
           removeOptimisticEvent_(tempId);
           renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
-          if (cur === SESSION.currency) updateTopbarBalance_(type === 'IN' ? -amount : amount);
+          if (cur === SESSION.currency) updateTopbarBalance_(direction === 'IN' ? -amount : amount);
           showDesktopMessage_('Greška: ' + humanizeError_(resp && resp.error ? resp.error.message : 'problem.'), 'error');
         }
       })
       .withFailureHandler(function(err) {
         removeOptimisticEvent_(tempId);
         renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
-        if (cur === SESSION.currency) updateTopbarBalance_(type === 'IN' ? -amount : amount);
+        if (cur === SESSION.currency) updateTopbarBalance_(direction === 'IN' ? -amount : amount);
         showDesktopMessage_('Greška: ' + humanizeError_(err && err.message ? err.message : 'tehnički problem.'), 'error');
       })
       [fn](data);
@@ -2378,12 +2505,14 @@
   function bindMobileSheet_() {
     var btnU   = document.getElementById('m-btn-uplata');
     var btnI   = document.getElementById('m-btn-isplata');
+    var btnT   = document.getElementById('m-btn-trezor');
     var submit = document.getElementById('sheet-submit');
     var cancel = document.getElementById('sheet-cancel');
     var overlay= document.getElementById('sheet-overlay');
 
     if (btnU)    btnU.addEventListener('click',    function() { openSheet_('IN'); });
     if (btnI)    btnI.addEventListener('click',    function() { openSheet_('OUT'); });
+    if (btnT)    btnT.addEventListener('click',    function() { openSheet_('TREASURY'); });
     if (submit)  submit.addEventListener('click',  submitSheet_);
     if (cancel)  cancel.addEventListener('click',  closeSheet_);
     if (overlay) overlay.addEventListener('click', function(e) { if (e.target === overlay) closeSheet_(); });
@@ -2419,18 +2548,26 @@
     var title   = document.getElementById('sheet-title');
     var submit  = document.getElementById('sheet-submit');
     var lbl     = submit ? submit.querySelector('span') : null;
+    var isIn    = type === 'IN';
+    var isTreasury = type === 'TREASURY';
     if (!overlay) return;
 
-    if (title)  { title.textContent = type === 'IN' ? 'Nova uplata' : 'Nova isplata'; title.className = 'sheet-title ' + (type === 'IN' ? 'in' : 'out'); }
-    if (submit) submit.className = 'btn-full btn-lg ' + (type === 'IN' ? 'btn-in' : 'btn-out');
-    if (lbl)    lbl.textContent  = type === 'IN' ? 'Proknjiti uplatu' : 'Proknjiti isplatu';
+    if (title)  { title.textContent = isIn ? 'Nova uplata' : isTreasury ? 'Predaja u trezor' : 'Nova isplata'; title.className = 'sheet-title ' + (isIn ? 'in' : 'out'); }
+    if (submit) submit.className = 'btn-full btn-lg ' + (isIn ? 'btn-in' : 'btn-out');
+    if (lbl)    lbl.textContent  = isIn ? 'Proknjiti uplatu' : isTreasury ? 'Proknjiti predaju' : 'Proknjiti isplatu';
 
     document.querySelectorAll('#sheet-cur-toggle .cur-btn').forEach(function(btn) {
       var sel = (btn.dataset.currency || 'RSD') === SESSION.currency;
-      btn.className = 'cur-btn' + (sel ? ' active ' + (type === 'IN' ? 'in' : 'out') : '');
+      btn.className = 'cur-btn' + (sel ? ' active ' + (isIn ? 'in' : 'out') : '');
     });
 
     ['sheet-amount','sheet-partner','sheet-description'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    if (isTreasury) {
+      var partner = document.getElementById('sheet-partner');
+      var desc = document.getElementById('sheet-description');
+      if (partner) partner.value = 'Trezor';
+      if (desc) desc.value = 'Predaja u trezor';
+    }
 
     overlay.style.display = 'flex';
     setTimeout(function() { var a = document.getElementById('sheet-amount'); if (a) a.focus(); }, 150);
@@ -2447,24 +2584,30 @@
     var desc    = ((document.getElementById('sheet-description')           || {}).value || '').trim();
     var type    = currentSheetType_;
     var cur     = SESSION.currency;
+    var isTreasury = type === 'TREASURY';
+    var direction = type === 'IN' ? 'IN' : 'OUT';
 
     var activeCur = document.querySelector('#sheet-cur-toggle .cur-btn.active');
     if (activeCur) cur = activeCur.dataset.currency || cur;
 
     if (!amount || amount <= 0) { var a = document.getElementById('sheet-amount'); if (a) a.focus(); return; }
-    if (!desc && !partner)      { var d2 = document.getElementById('sheet-description'); if (d2) d2.focus(); return; }
+    if (!isTreasury && !desc && !partner) { var d2 = document.getElementById('sheet-description'); if (d2) d2.focus(); return; }
+    if (isTreasury) {
+      partner = 'Trezor';
+      desc = desc || 'Predaja u trezor';
+    }
 
     closeSheet_();
 
     var tempId = 'OPT-' + Date.now();
-    rememberOptimisticEvent_(buildOptimisticEvent_(tempId, type, amount, cur, partner, desc, 'KNJIŽENJE'));
+    rememberOptimisticEvent_(buildOptimisticEvent_(tempId, direction, amount, cur, partner, desc, 'KNJIŽENJE'));
     renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
     if (cur === SESSION.currency) {
-      updateMobileBalance_(type === 'IN' ? amount : -amount);
+      updateMobileBalance_(direction === 'IN' ? amount : -amount);
     }
 
     var data = { cashbox_id: SESSION.cashboxId, currency: cur, amount: amount, partner_name: partner, description: desc || partner };
-    var fn   = type === 'IN' ? 'apiCreateCashInflow' : 'apiCreateDirectCashOutflow';
+    var fn   = type === 'IN' ? 'apiCreateCashInflow' : isTreasury ? 'apiCreateTreasuryHandover' : 'apiCreateDirectCashOutflow';
 
     google.script.run
       .withSuccessHandler(function(resp) {
@@ -2481,14 +2624,14 @@
         else {
           removeOptimisticEvent_(tempId);
           renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
-          if (cur === SESSION.currency) updateMobileBalance_(type === 'IN' ? -amount : amount);
+          if (cur === SESSION.currency) updateMobileBalance_(direction === 'IN' ? -amount : amount);
           showMobileMessage_('Greška: ' + humanizeError_(resp && resp.error ? resp.error.message : 'problem.'), 'error');
         }
       })
       .withFailureHandler(function(err) {
         removeOptimisticEvent_(tempId);
         renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
-        if (cur === SESSION.currency) updateMobileBalance_(type === 'IN' ? -amount : amount);
+        if (cur === SESSION.currency) updateMobileBalance_(direction === 'IN' ? -amount : amount);
         showMobileMessage_('Greška: ' + humanizeError_(err && err.message ? err.message : 'problem.'), 'error');
       })
       [fn](data);
@@ -2563,6 +2706,7 @@
         document.querySelectorAll('[data-d-nav]').forEach(function(b) {
           b.classList.toggle('active', b === btn);
         });
+        updateDesktopDirectActionsVisibility_();
         if (target === 'knjiga')  { loadKnjiga_(true); }
         if (target === 'nalozi')  { loadDesktopNalozi_(); }
         if (target === 'zahtevi') { loadApprovalRequestsTo_('d-zahtevi-list', true); }
@@ -2651,7 +2795,7 @@
         showDesktopMessage_('Nema aktivne smene za zatvaranje. Otvorite smenu ili osvežite aplikaciju.', 'error');
         return;
       }
-      callApi('apiCloseActiveShift', [data.cashbox_id || SESSION.cashboxId, collectPhysicalBalance_(form), data.note], function(result) {
+      callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
         uiState.activeShift = null;
         uiState.canPostDirectCashEvents = false;
         applyActiveShiftFields_();
@@ -2665,7 +2809,7 @@
         showMobileMessage_('Nema aktivne smene za zatvaranje. Otvorite smenu ili osvežite aplikaciju.', 'error');
         return;
       }
-      callApi('apiCloseShift', [data.shift_id, collectPhysicalBalance_(form), data.note], function(result) {
+      callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
         uiState.activeShift = null;
         uiState.canPostDirectCashEvents = false;
         applyActiveShiftFields_();
@@ -2680,16 +2824,21 @@
       data.denominations = collectDenominations_(form);
       data.check_count = Number(data.check_count || 0);
       data.check_total = parseAmountInput_(data.check_total);
-      callApi('apiCreateCashCount', [data], function(result) {
+      callApi('apiCreateCashCounts', [data], function(results) {
+        var result = Array.isArray(results) ? results[0] || {} : results || {};
+        var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
         renderSummaryCard('d-shift-result', 'Presek blagajne je sačuvan', [
-          ['ID', result.count_id],
-          ['Valuta', result.currency],
-          ['Popisan gotov novac', amountWithCurrency(result.counted_cash_total, result.currency)],
+          ['ID', countIds],
+          ['Valuta', Array.isArray(results) ? results.map(function(item) { return item.currency; }).join(', ') : result.currency],
+          ['Popisan gotov novac', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.counted_cash_total, item.currency); }).join(' · ') : amountWithCurrency(result.counted_cash_total, result.currency)],
           ['Čekovi', amountWithCurrency(result.check_total, result.currency)],
-          ['Obračunato pre popisa', amountWithCurrency(result.calculated_balance_before, result.currency)],
-          ['Razlika', amountWithCurrency(result.difference, result.currency)],
-          ['Korekcija', result.adjustment_event_id || 'Nema razlike']
+          ['Obračunato pre popisa', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.calculated_balance_before, item.currency); }).join(' · ') : amountWithCurrency(result.calculated_balance_before, result.currency)],
+          ['Razlika', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.difference, item.currency); }).join(' · ') : amountWithCurrency(result.difference, result.currency)],
+          ['Korekcija', Array.isArray(results) ? results.map(function(item) { return item.adjustment_event_id || 'Nema razlike'; }).join(', ') : result.adjustment_event_id || 'Nema razlike']
         ]);
+        form.dataset.countRows = '[]';
+        renderDenominationInputs_();
+        refreshBalance_();
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
     bindForm('m-cash-count-form', function(data, form) {
@@ -2698,16 +2847,21 @@
       data.denominations = collectDenominations_(form);
       data.check_count = Number(data.check_count || 0);
       data.check_total = parseAmountInput_(data.check_total);
-      callApi('apiCreateCashCount', [data], function(result) {
+      callApi('apiCreateCashCounts', [data], function(results) {
+        var result = Array.isArray(results) ? results[0] || {} : results || {};
+        var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
         renderSummaryCard('m-shift-result', 'Presek blagajne je sačuvan', [
-          ['ID', result.count_id],
-          ['Valuta', result.currency],
-          ['Popisan gotov novac', amountWithCurrency(result.counted_cash_total, result.currency)],
+          ['ID', countIds],
+          ['Valuta', Array.isArray(results) ? results.map(function(item) { return item.currency; }).join(', ') : result.currency],
+          ['Popisan gotov novac', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.counted_cash_total, item.currency); }).join(' · ') : amountWithCurrency(result.counted_cash_total, result.currency)],
           ['Čekovi', amountWithCurrency(result.check_total, result.currency)],
-          ['Obračunato pre popisa', amountWithCurrency(result.calculated_balance_before, result.currency)],
-          ['Razlika', amountWithCurrency(result.difference, result.currency)],
-          ['Korekcija', result.adjustment_event_id || 'Nema razlike']
+          ['Obračunato pre popisa', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.calculated_balance_before, item.currency); }).join(' · ') : amountWithCurrency(result.calculated_balance_before, result.currency)],
+          ['Razlika', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.difference, item.currency); }).join(' · ') : amountWithCurrency(result.difference, result.currency)],
+          ['Korekcija', Array.isArray(results) ? results.map(function(item) { return item.adjustment_event_id || 'Nema razlike'; }).join(', ') : result.adjustment_event_id || 'Nema razlike']
         ]);
+        form.dataset.countRows = '[]';
+        renderDenominationInputs_();
+        refreshBalance_();
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
     bindForm('d-daily-preview-form', function(data) {

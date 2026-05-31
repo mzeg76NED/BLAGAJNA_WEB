@@ -5,7 +5,7 @@
  * intentionally configures this project copy for one known environment.
  */
 const APP_NAME = 'BLAGAJNA WEB';
-const APP_VERSION = '0.1.5-pilot';
+const APP_VERSION = '0.1.6-pilot';
 const ENVIRONMENT = 'PILOT'; // DEV, PILOT, PROD
 const DEBUG_MODE = false;
 const DATABASE_SPREADSHEET_ID = '';
@@ -90,6 +90,7 @@ const CASH_EVENT_TYPES = Object.freeze({
   CASH_OUTFLOW: 'CASH_OUTFLOW',
   CASH_TRANSFER_IN: 'CASH_TRANSFER_IN',
   CASH_TRANSFER_OUT: 'CASH_TRANSFER_OUT',
+  TREASURY_HANDOVER: 'TREASURY_HANDOVER',
   CORRECTION: 'CORRECTION',
   REVERSAL: 'REVERSAL'
 });
