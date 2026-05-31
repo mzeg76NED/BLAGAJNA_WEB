@@ -18,7 +18,8 @@ const CASH_DENOMINATIONS_ = Object.freeze({
 
 function getCashDenominations(currency) {
   assertActiveCurrency(currency);
-  return (CASH_DENOMINATIONS_[currency] || []).slice();
+  const configured = getCurrencyDenominationMap()[currency];
+  return (configured && configured.length ? configured : (CASH_DENOMINATIONS_[currency] || [])).slice();
 }
 
 function prepareCashCount(cashboxId, currency, countType) {

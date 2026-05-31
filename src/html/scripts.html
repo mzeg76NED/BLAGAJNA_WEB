@@ -481,6 +481,12 @@
       if (!container) return;
       var currency = currencySelect ? currencySelect.value || SESSION.currency : SESSION.currency;
       var denominations = getClientDenominations_(currency);
+      form.dataset.denominationCount = String(denominations.length);
+      if (!denominations.length) {
+        container.innerHTML = '<div class="shift-warning">Apoeni nisu definisani za valutu ' + escapeHtml(currency) + '. U tabeli CURRENCIES popunite kolonu denominations, na primer: 100,50,20,10,5,1.</div>';
+        bindCashCountTotal_(form);
+        return;
+      }
       container.innerHTML = denominations.map(function(value) {
         return '<label class="denomination-row"><span>' + escapeHtml(value) + ' ' + escapeHtml(currency) + '</span>' +
           '<input name="denom_' + escapeHtml(value) + '" type="number" min="0" step="1" inputmode="numeric" value="0"></label>';
@@ -490,7 +496,10 @@
   }
 
   function getClientDenominations_(currency) {
+    var configured = uiState.config && uiState.config.cashDenominations && uiState.config.cashDenominations[currency];
+    if (configured && configured.length) return configured;
     if (currency === 'EUR') return [500, 200, 100, 50, 20, 10, 5, 2, 1];
+    if (currency && currency !== 'RSD') return [];
     return [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
   }
 
@@ -530,6 +539,23 @@
       });
     });
     return rows;
+  }
+
+  function validateCashCountForm_(form) {
+    if (!form) return true;
+    var currency = (form.querySelector('[name="currency"]') || {}).value || SESSION.currency;
+    var denominationCount = Number(form.dataset.denominationCount || 0);
+    var cashRows = collectDenominations_(form).filter(function(row) { return Number(row.quantity || 0) > 0; });
+    var checkTotal = parseAmountInput_((form.querySelector('[name="check_total"]') || {}).value || '');
+    if (denominationCount === 0 && checkTotal <= 0) {
+      showMessage('Za valutu ' + currency + ' nisu definisani apoeni. Popunite kolonu denominations u tabeli CURRENCIES ili unesite iznos čekova.', 'error');
+      return false;
+    }
+    if (!cashRows.length && checkTotal <= 0) {
+      showMessage('Unesite makar jedan apoen ili iznos čekova za presek blagajne.', 'error');
+      return false;
+    }
+    return true;
   }
 
   function collectPhysicalBalance_(form) {
@@ -2649,6 +2675,7 @@
       }, { successMessage: 'Smena je zatvorena.' });
     });
     bindForm('d-cash-count-form', function(data, form) {
+      if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
       data.check_count = Number(data.check_count || 0);
@@ -2665,6 +2692,7 @@
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
     bindForm('m-cash-count-form', function(data, form) {
+      if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
       data.check_count = Number(data.check_count || 0);

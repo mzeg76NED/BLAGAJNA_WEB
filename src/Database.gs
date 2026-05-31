@@ -250,8 +250,8 @@ function rowToRecord_(headers, row) {
 
 function seedInitialCurrencies_() {
   const initialCurrencies = [
-    { currency_code: 'RSD', name: 'Srpski dinar', active: true, is_default: true },
-    { currency_code: 'EUR', name: 'Evro', active: true, is_default: false }
+    { currency_code: 'RSD', name: 'Srpski dinar', active: true, is_default: true, denominations: '5000,2000,1000,500,200,100,50,20,10,5,2,1' },
+    { currency_code: 'EUR', name: 'Evro', active: true, is_default: false, denominations: '500,200,100,50,20,10,5,2,1' }
   ];
 
   initialCurrencies.forEach(function(currency) {

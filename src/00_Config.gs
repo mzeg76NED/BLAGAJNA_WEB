@@ -5,7 +5,7 @@
  * intentionally configures this project copy for one known environment.
  */
 const APP_NAME = 'BLAGAJNA WEB';
-const APP_VERSION = '0.1.3-pilot';
+const APP_VERSION = '0.1.4-pilot';
 const ENVIRONMENT = 'PILOT'; // DEV, PILOT, PROD
 const DEBUG_MODE = false;
 const DATABASE_SPREADSHEET_ID = '';
@@ -216,7 +216,8 @@ const TABLE_HEADERS = Object.freeze({
     'currency_code',
     'name',
     'active',
-    'is_default'
+    'is_default',
+    'denominations'
   ]),
   PAYMENT_REQUESTS: Object.freeze([
     'request_id',

@@ -491,6 +491,7 @@ function buildAppConfigForUi_(currentUser) {
     appVersion: APP_CONFIG.APP_VERSION,
     environment: APP_CONFIG.ENVIRONMENT,
     currencies: listSupportedCurrencies(),
+    cashDenominations: getCurrencyDenominationMap(),
     cashboxes: cashboxes,
     requestPriorities: objectValues_(REQUEST_PRIORITIES),
     entityTypes: objectValues_(ENTITY_TYPES),
