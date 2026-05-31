@@ -5,7 +5,7 @@
  * intentionally configures this project copy for one known environment.
  */
 const APP_NAME = 'BLAGAJNA WEB';
-const APP_VERSION = '0.1.0-pilot';
+const APP_VERSION = '0.1.1-pilot';
 const ENVIRONMENT = 'PILOT'; // DEV, PILOT, PROD
 const DEBUG_MODE = false;
 const DATABASE_SPREADSHEET_ID = '';
@@ -41,7 +41,6 @@ const SHEET_NAMES = Object.freeze({
   DOCUMENTS: 'DOCUMENTS',
   SHIFTS: 'SHIFTS',
   DAILY_CLOSING: 'DAILY_CLOSING',
-  CASH_COUNT: 'CASH_COUNT',
   AUDIT_LOG: 'AUDIT_LOG'
 });
 

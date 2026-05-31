@@ -125,6 +125,7 @@
       renderDenominationInputs_();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
+      renderAppVersion_();
       applyActiveShiftFields_();
       applyDirectCashPermission_();
       loadCashbookFilterOptions_();
@@ -1174,6 +1175,13 @@
   function renderCurrentUser(user) {
     document.querySelectorAll('[data-current-user]').forEach(function(element) {
       element.textContent = user && user.email ? user.email + ' · ' + user.role : 'Korisnik nije učitan';
+    });
+  }
+
+  function renderAppVersion_() {
+    var version = uiState.config && (uiState.config.appVersion || uiState.config.version) || '';
+    document.querySelectorAll('[data-app-version]').forEach(function(element) {
+      element.textContent = version ? 'v' + version : '';
     });
   }
 
@@ -3030,6 +3038,7 @@
       renderDenominationInputs_();
       applyDefaultCashboxFields();
       renderCurrentUser(uiState.currentUser);
+      renderAppVersion_();
       applyActiveShiftFields_();
       applyDirectCashPermission_();
       loadCashbookFilterOptions_();

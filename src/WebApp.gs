@@ -488,6 +488,8 @@ function buildAppConfigForUi_(currentUser) {
   return {
     appName: APP_CONFIG.APP_NAME,
     version: APP_CONFIG.VERSION,
+    appVersion: APP_CONFIG.APP_VERSION,
+    environment: APP_CONFIG.ENVIRONMENT,
     currencies: listSupportedCurrencies(),
     cashboxes: cashboxes,
     requestPriorities: objectValues_(REQUEST_PRIORITIES),
