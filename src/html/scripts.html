@@ -17,6 +17,12 @@
   var OPTIMISTIC_REFRESH_DELAY_MS = 1800;
   var LAST_KNJIGA_EVENTS = [];
   var REPORT_CACHE = {};
+  var MESSAGE_HIDE_TIMERS = {};
+  var MESSAGE_TIMEOUTS_MS = {
+    info: 4500,
+    success: 3500,
+    error: 9000
+  };
   var LAST_KNJIGA_TOTALS = {
     totalIn: 0,
     totalOut: 0,
@@ -683,9 +689,19 @@
     }
     box.textContent = message;
     box.className = 'message show ' + (type || 'info');
-    if (type !== 'error') {
-      setTimeout(function() { box.className = 'message'; }, 4000);
+    scheduleMessageHide_(box, 'message', type);
+  }
+
+  function scheduleMessageHide_(el, key, type) {
+    var messageType = type || 'info';
+    var timeout = MESSAGE_TIMEOUTS_MS[messageType] || MESSAGE_TIMEOUTS_MS.info;
+    if (MESSAGE_HIDE_TIMERS[key]) {
+      clearTimeout(MESSAGE_HIDE_TIMERS[key]);
     }
+    MESSAGE_HIDE_TIMERS[key] = setTimeout(function() {
+      el.className = 'message';
+      MESSAGE_HIDE_TIMERS[key] = null;
+    }, timeout);
   }
 
   function setLoading(isLoading) {
@@ -2865,9 +2881,7 @@
     if (!el) return;
     el.textContent = msg;
     el.className   = 'message show ' + (type || 'info');
-    if (type !== 'error') {
-      setTimeout(function() { el.className = 'message'; }, 4000);
-    }
+    scheduleMessageHide_(el, 'd-message', type);
   }
 
   function showMobileMessage_(msg, type) {
@@ -2875,9 +2889,7 @@
     if (!el) return;
     el.textContent = msg;
     el.className   = 'message show ' + (type || 'info');
-    if (type !== 'error') {
-      setTimeout(function() { el.className = 'message'; }, 4000);
-    }
+    scheduleMessageHide_(el, 'm-message', type);
   }
 
   function appPrompt_(options, onConfirm) {
