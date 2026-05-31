@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blagajna WEB</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+  <?!= include('html/styles-v2'); ?>
+  <script>
+    window.BLAGAJNA_WEB_APP_URL = '<?= ScriptApp.getService().getUrl() ?>';
+  </script>
+</head>
+<body>
+
+<!-- ╔══════════════════════════════════════════════════════════════╗
+     ║  BLAGAJNA WEB — Desktop v2                                  ║
+     ╚══════════════════════════════════════════════════════════════╝ -->
+
+<div class="dv2-shell">
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────────── -->
+  <nav class="dv2-nav" aria-label="Glavna navigacija">
+
+    <div class="dv2-nav-brand">
+      <div class="dv2-nav-brand-title">
+        <i class="ti ti-building-bank" aria-hidden="true"></i> Blagajna WEB
+      </div>
+      <div class="dv2-nav-brand-user" id="v2-nav-user">Učitavam...</div>
+      <div class="dv2-role-chip" id="v2-role-chip"></div>
+    </div>
+
+    <div class="dv2-nav-section">Blagajnička knjiga</div>
+    <div class="dv2-nav-item active" data-v2-nav="knjiga" role="button" tabindex="0">
+      <i class="ti ti-book-2" aria-hidden="true"></i> Knjiga
+    </div>
+    <div class="dv2-nav-item" data-v2-nav="blagajnicki-list" role="button" tabindex="0">
+      <i class="ti ti-file-description" aria-hidden="true"></i> Blagajnički list
+    </div>
+
+    <div class="dv2-nav-section">Transakcije</div>
+    <div class="dv2-nav-item" data-v2-nav="nalozi" role="button" tabindex="0">
+      <i class="ti ti-file-invoice" aria-hidden="true"></i> Nalozi za isplatu
+      <span class="dv2-nav-badge" id="nav-badge-nalozi">0</span>
+    </div>
+    <div class="dv2-nav-item" data-v2-nav="zahtevi" role="button" tabindex="0">
+      <i class="ti ti-inbox" aria-hidden="true"></i> Zahtevi
+      <span class="dv2-nav-badge info-badge" id="nav-badge-zahtevi">0</span>
+    </div>
+
+    <div class="dv2-nav-section">Upravljanje</div>
+    <div class="dv2-nav-item" data-v2-nav="smena" role="button" tabindex="0">
+      <i class="ti ti-transfer" aria-hidden="true"></i> Smene
+    </div>
+    <div class="dv2-nav-item" data-v2-nav="zakljucak" role="button" tabindex="0">
+      <i class="ti ti-scale" aria-hidden="true"></i> Dnevni zaključak
+    </div>
+
+    <div class="dv2-nav-section">Analitika</div>
+    <div class="dv2-nav-item" data-v2-nav="izvestaji" role="button" tabindex="0">
+      <i class="ti ti-chart-bar" aria-hidden="true"></i> Izveštaji
+    </div>
+    <div class="dv2-nav-item" data-v2-nav="audit" role="button" tabindex="0">
+      <i class="ti ti-shield-check" aria-hidden="true"></i> Audit log
+    </div>
+
+    <div class="dv2-nav-bottom">
+      <div id="v2-shift-badge" style="font-size:11px;color:rgba(255,255,255,.4);padding:4px 6px;margin-bottom:6px"></div>
+      <div style="font-size:9px;color:rgba(255,255,255,.25);padding:0 6px;margin-bottom:6px" id="v2-app-version"></div>
+      <a href="?view=desktop" title="Prebaci na stari UI"><i class="ti ti-layout-sidebar"></i> Stari dizajn</a>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ─────────────────────────────────────────────────── -->
+  <div class="dv2-main">
+
+    <!-- TOPBAR -->
+    <header class="dv2-topbar" role="banner">
+      <div class="dv2-kpi" style="padding-left:18px">
+        <div class="dv2-kpi-val v-in" id="v2-topbar-balance">—</div>
+        <div class="dv2-kpi-lbl">Stanje blagajne</div>
+      </div>
+      <div class="dv2-kpi">
+        <div class="dv2-kpi-val v-pri" id="v2-topbar-nalozi">—</div>
+        <div class="dv2-kpi-lbl">Naloga čeka</div>
+      </div>
+      <div class="dv2-kpi">
+        <div class="dv2-kpi-val" style="font-size:12px;color:var(--v2-text-2)" id="v2-topbar-shift">—</div>
+        <div class="dv2-kpi-lbl">Status smene</div>
+      </div>
+      <div class="dv2-kpi" style="border-right:none">
+        <div style="display:flex;gap:12px">
+          <span><span class="dv2-kpi-val v-in" style="font-size:14px" id="v2-topbar-in">+0,00</span> <span style="font-size:10px;color:var(--v2-text-3)">IN</span></span>
+          <span><span class="dv2-kpi-val v-out" style="font-size:14px" id="v2-topbar-out">-0,00</span> <span style="font-size:10px;color:var(--v2-text-3)">OUT</span></span>
+        </div>
+        <div class="dv2-kpi-lbl">Promet danas (knjiga)</div>
+      </div>
+
+      <!-- Urgent alert -->
+      <div class="dv2-urgent-kpi" id="v2-urgent-kpi" role="button" tabindex="0" aria-label="Nalozi koji čekaju">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+        <span id="v2-urgent-title">čeka</span>
+        <span class="dv2-urgent-badge" id="v2-urgent-badge">0</span>
+      </div>
+
+      <div class="dv2-topbar-right">
+        <div class="dv2-chip-select">
+          <i class="ti ti-building-bank" style="font-size:14px;color:var(--v2-text-3)" aria-hidden="true"></i>
+          <select id="v2-cashbox-select" aria-label="Izaberi blagajnu"></select>
+        </div>
+        <div class="dv2-chip-select">
+          <i class="ti ti-coins" style="font-size:14px;color:var(--v2-text-3)" aria-hidden="true"></i>
+          <select id="v2-currency-select" aria-label="Izaberi valutu"></select>
+        </div>
+        <div class="v2-clock">
+          <strong id="v2-clock-time">--:--</strong>
+          <span id="v2-clock-date">—</span>
+        </div>
+        <button class="dv2-topbar-btn" id="v2-theme-btn" aria-label="Promeni temu">
+          <i class="ti ti-moon" aria-hidden="true"></i>
+          <span data-v2-theme-label>Tamna</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Message bar -->
+    <div class="dv2-message" id="dv2-message" role="alert" aria-live="polite"></div>
+
+    <!-- CONTENT -->
+    <div class="dv2-content">
+
+      <!-- ── KNJIGA ────────────────────────────────────────────── -->
+      <div id="dv2-section-knjiga" class="dv2-section active">
+        <div class="v2-knjiga-layout">
+
+          <!-- Main table card -->
+          <div class="v2-card v2-knjiga-main">
+            <div class="v2-card-head">
+              <div class="v2-card-title"><i class="ti ti-book-2" aria-hidden="true"></i> Blagajnička knjiga</div>
+              <div class="v2-knjiga-filters">
+                <input class="v2-filter" type="date" id="v2-date-from" aria-label="Datum od">
+                <span style="color:var(--v2-text-3);font-size:12px">—</span>
+                <input class="v2-filter" type="date" id="v2-date-to" aria-label="Datum do">
+                <select class="v2-filter" id="v2-shift-filter" aria-label="Filter po smeni">
+                  <option value="">Sve smene</option>
+                </select>
+                <button class="dv2-topbar-btn" id="v2-knjiga-refresh" aria-label="Osveži knjigu">
+                  <i class="ti ti-refresh" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+            <div class="v2-table-wrap">
+              <table class="v2-book-table" aria-label="Blagajnička knjiga">
+                <thead>
+                  <tr>
+                    <th style="width:36px">Rb.</th>
+                    <th style="width:68px">Datum</th>
+                    <th>Opis / Primalac</th>
+                    <th class="num" style="width:110px">Uplata</th>
+                    <th class="num" style="width:110px">Isplata</th>
+                    <th class="num" style="width:120px">Stanje</th>
+                    <th style="width:90px">Status</th>
+                  </tr>
+                  <tr class="total-row" id="v2-knjiga-total-row">
+                    <td colspan="3" style="font-size:11px;font-weight:700;padding:8px 10px">UKUPNO</td>
+                    <td class="cell-in">0,00</td>
+                    <td class="cell-out">0,00</td>
+                    <td class="cell-bal">0,00</td>
+                    <td></td>
+                  </tr>
+                </thead>
+                <tbody id="v2-knjiga-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Side: permission / quick form / detail panel -->
+          <div class="v2-knjiga-side">
+
+            <!-- Permission card (shown when no active shift) -->
+            <div class="v2-card" id="v2-permission-card" style="display:none">
+              <div class="v2-card-head">
+                <div class="v2-card-title"><i class="ti ti-lock" aria-hidden="true"></i> Direktan rad blagajne</div>
+              </div>
+              <div class="v2-card-body" style="font-size:13px;color:var(--v2-text-2)">
+                Direktne uplate i isplate može knjižiti samo blagajnik aktivne smene.
+              </div>
+              <div style="padding:0 14px 12px">
+                <button class="v2-btn v2-btn-primary" onclick="v2GoTo('smena')">
+                  <i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick form card -->
+            <div class="v2-card" id="v2-qf-card">
+              <div class="v2-card-head">
+                <div class="v2-card-title"><i class="ti ti-plus" aria-hidden="true"></i> Nova transakcija</div>
+              </div>
+              <div class="v2-card-body">
+                <div class="v2-qf-toggle">
+                  <button class="v2-qf-btn active-in" id="v2-qf-btn-in">
+                    <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
+                  </button>
+                  <button class="v2-qf-btn" id="v2-qf-btn-out">
+                    Isplata <i class="ti ti-arrow-up-circle" aria-hidden="true"></i>
+                  </button>
+                </div>
+                <div class="v2-input-row">
+                  <input class="v2-input" id="v2-qf-amount" type="text" inputmode="decimal" placeholder="Iznos" aria-label="Iznos">
+                  <select class="v2-input" id="v2-qf-currency" aria-label="Valuta">
+                    <option>RSD</option><option>EUR</option>
+                  </select>
+                </div>
+                <div class="v2-qf-field">
+                  <input class="v2-input" id="v2-qf-partner" type="text" placeholder="Primalac / uplatioc" aria-label="Partner">
+                </div>
+                <div class="v2-qf-field">
+                  <textarea class="v2-input" id="v2-qf-desc" rows="2" placeholder="Opis / razlog *" aria-label="Opis" style="resize:none"></textarea>
+                </div>
+                <button class="v2-qf-submit" id="v2-qf-submit">
+                  <i class="ti ti-check" aria-hidden="true"></i>
+                  <span id="v2-qf-submit-label">Proknjiti uplatu</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Detail panel (otvara se klikom na red) -->
+            <div class="v2-card v2-detail-panel" id="v2-detail-panel">
+              <div class="v2-card-head">
+                <div class="v2-card-title" id="v2-detail-title">Detalji</div>
+                <button class="v2-btn-icon-sm" id="v2-detail-close" aria-label="Zatvori detalje">
+                  <i class="ti ti-x" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="v2-card-body" id="v2-detail-body"></div>
+              <div class="v2-detail-actions">
+                <button class="v2-btn-icon-sm" id="v2-detail-print">
+                  <i class="ti ti-printer" aria-hidden="true"></i> Blag. list
+                </button>
+                <button class="v2-btn v2-btn-warn" id="v2-detail-storno">
+                  <i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno
+                </button>
+              </div>
+            </div>
+
+          </div><!-- /v2-knjiga-side -->
+        </div><!-- /v2-knjiga-layout -->
+      </div>
+
+      <!-- ── BLAGAJNIČKI LIST ───────────────────────────────────── -->
+      <div id="dv2-section-blagajnicki-list" class="dv2-section">
+        <div class="v2-card" style="max-width:560px">
+          <div class="v2-card-head">
+            <div class="v2-card-title"><i class="ti ti-file-description" aria-hidden="true"></i> Blagajnički list</div>
+          </div>
+          <div class="v2-card-body">
+            <div class="v2-form-grid">
+              <div class="v2-form-field">
+                <label class="v2-form-label">Tip entiteta</label>
+                <select class="v2-input" id="v2-bl-entity" aria-label="Tip entiteta">
+                  <option value="CASH_EVENT">Gotovinski događaj</option>
+                  <option value="PAYMENT_ORDER">Nalog za isplatu</option>
+                  <option value="PAYMENT_REQUEST">Zahtev za isplatu</option>
+                </select>
+              </div>
+              <div class="v2-form-field">
+                <label class="v2-form-label">ID</label>
+                <input class="v2-input" id="v2-bl-id" type="text" placeholder="npr. CEV-001" aria-label="ID entiteta">
+              </div>
+              <div class="v2-form-field span2">
+                <button class="v2-btn v2-btn-primary" onclick="
+                  var t=(document.getElementById('v2-bl-entity')||{}).value;
+                  var i=(document.getElementById('v2-bl-id')||{}).value.trim();
+                  if(!i){v2ShowMsg('Unesite ID.','error');return;}
+                  var view=t==='CASH_EVENT'?'print-cash-event':t==='PAYMENT_ORDER'?'print-payment-order':'print-payment-request';
+                  window.open((window.BLAGAJNA_WEB_APP_URL||'')+'?view='+view+'&id='+encodeURIComponent(i),'_blank');
+                ">
+                  <i class="ti ti-printer" aria-hidden="true"></i> Otvori za štampu
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── NALOZI ─────────────────────────────────────────────── -->
+      <div id="dv2-section-nalozi" class="dv2-section">
+        <div class="v2-two-col">
+
+          <div class="v2-card" style="display:flex;flex-direction:column;min-height:0">
+            <div class="v2-card-head">
+              <div class="v2-card-title"><i class="ti ti-file-invoice" aria-hidden="true"></i> Nalozi za isplatu</div>
+              <button class="dv2-topbar-btn" onclick="v2LoadNalozi()" aria-label="Osveži naloge">
+                <i class="ti ti-refresh" aria-hidden="true"></i>
+              </button>
+            </div>
+            <div id="v2-nalozi-list" class="v2-entity-list" style="flex:1;overflow-y:auto"></div>
+          </div>
+
+          <!-- Nalog detail panel -->
+          <div class="v2-card v2-detail-panel" id="v2-nalog-panel">
+            <div class="v2-card-head">
+              <div class="v2-card-title" id="v2-nalog-panel-title">Detalji naloga</div>
+              <button class="v2-btn-icon-sm" id="v2-nalog-panel-close" aria-label="Zatvori">
+                <i class="ti ti-x" aria-hidden="true"></i>
+              </button>
+            </div>
+            <div class="v2-card-body" id="v2-nalog-panel-body"></div>
+            <div class="v2-detail-actions">
+              <button class="v2-btn v2-btn-in" id="v2-nalog-execute-btn">
+                <i class="ti ti-cash" aria-hidden="true"></i> Izvrši isplatu
+              </button>
+              <button class="v2-btn v2-btn-warn" id="v2-nalog-reject-btn">
+                <i class="ti ti-x" aria-hidden="true"></i> Odbij
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── ZAHTEVI ────────────────────────────────────────────── -->
+      <div id="dv2-section-zahtevi" class="dv2-section">
+        <div class="v2-two-col">
+
+          <div class="v2-card" style="display:flex;flex-direction:column;min-height:0">
+            <div class="v2-card-head">
+              <div class="v2-card-title"><i class="ti ti-inbox" aria-hidden="true"></i> Zahtevi</div>
+              <div style="display:flex;gap:5px">
+                <button class="v2-btn v2-btn-primary" id="v2-btn-approval">Na čekanju</button>
+                <button class="v2-btn v2-btn-ghost" id="v2-btn-my">Moji zahtevi</button>
+              </div>
+            </div>
+            <div id="v2-zahtevi-list" class="v2-entity-list" style="flex:1;overflow-y:auto"></div>
+          </div>
+
+          <!-- Zahtev detail panel -->
+          <div class="v2-card v2-detail-panel" id="v2-zahtev-panel">
+            <div class="v2-card-head">
+              <div class="v2-card-title" id="v2-zahtev-panel-title">Detalji zahteva</div>
+              <button class="v2-btn-icon-sm" id="v2-zahtev-panel-close" aria-label="Zatvori">
+                <i class="ti ti-x" aria-hidden="true"></i>
+              </button>
+            </div>
+            <div class="v2-card-body" id="v2-zahtev-panel-body"></div>
+            <div class="v2-detail-actions" style="flex-wrap:wrap">
+              <button class="v2-btn v2-btn-approve" id="v2-req-approve-btn">
+                <i class="ti ti-check" aria-hidden="true"></i> Odobri
+              </button>
+              <button class="v2-btn v2-btn-primary" id="v2-req-approve-ord-btn" style="font-size:11px">
+                <i class="ti ti-check" aria-hidden="true"></i> Odobri + Nalog
+              </button>
+              <button class="v2-btn v2-btn-reject" id="v2-req-reject-btn">
+                <i class="ti ti-x" aria-hidden="true"></i> Odbij
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── SMENA ──────────────────────────────────────────────── -->
+      <div id="dv2-section-smena" class="dv2-section">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <!-- Status smene -->
+            <div class="v2-card">
+              <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-transfer" aria-hidden="true"></i> Status smene</div></div>
+              <div id="v2-shift-status-body"></div>
+              <div style="padding:0 14px 12px">
+                <button class="v2-btn v2-btn-ghost" onclick="
+                  if(!V2.uiState.activeShift){v2ShowMsg('Nema aktivne smene.','error');return;}
+                  v2CallApi('apiGetActiveShiftBalance',[V2.session.cashboxId],function(r){
+                    if(r&&r.balanceByCurrency){
+                      var msg=Object.keys(r.balanceByCurrency).map(function(c){return v2Fmt(r.balanceByCurrency[c])+' '+c;}).join(' / ');
+                      v2ShowMsg('Presek smene: '+msg,'success');
+                    }
+                  },{quiet:true});
+                ">
+                  <i class="ti ti-scale" aria-hidden="true"></i> Presek aktivne smene
+                </button>
+              </div>
+            </div>
+
+            <!-- Otvori smenu -->
+            <div class="v2-card" id="v2-open-shift-card">
+              <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-door-enter" aria-hidden="true"></i> Otvori novu smenu</div></div>
+              <div class="v2-card-body">
+                <div class="v2-qf-field">
+                  <label class="v2-qf-label">Napomena pri otvaranju (opciono)</label>
+                  <input class="v2-input" id="v2-open-shift-note" type="text" placeholder="npr. jutarnja smena">
+                </div>
+                <button class="v2-btn v2-btn-in" onclick="v2OpenShift()">
+                  <i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu
+                </button>
+              </div>
+            </div>
+
+            <!-- Zatvori smenu -->
+            <div class="v2-card" id="v2-close-shift-card" style="display:none">
+              <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-door-exit" aria-hidden="true"></i> Zatvaranje smene</div></div>
+              <div class="v2-card-body">
+                <div class="v2-form-grid">
+                  <div class="v2-form-field">
+                    <label class="v2-form-label">Fizičko stanje — RSD</label>
+                    <input class="v2-input" id="v2-close-phys-rsd" type="text" inputmode="decimal" placeholder="0,00">
+                  </div>
+                  <div class="v2-form-field">
+                    <label class="v2-form-label">Fizičko stanje — EUR</label>
+                    <input class="v2-input" id="v2-close-phys-eur" type="text" inputmode="decimal" placeholder="0,00">
+                  </div>
+                  <div class="v2-form-field span2">
+                    <label class="v2-form-label">Napomena</label>
+                    <input class="v2-input" id="v2-close-shift-note" type="text" placeholder="opciono">
+                  </div>
+                  <div class="v2-form-field span2 v2-form-actions">
+                    <button class="v2-btn v2-btn-ghost" onclick="
+                      var to=(document.getElementById('v2-handover-to')||{}).value||'';
+                      if(!to){v2ShowMsg('Unesite email korisnika za primopredaju.','error');return;}
+                      var phys={RSD:v2ParseAmt((document.getElementById('v2-close-phys-rsd')||{}).value)};
+                      var eur=v2ParseAmt((document.getElementById('v2-close-phys-eur')||{}).value);
+                      if(eur)phys.EUR=eur;
+                      var note=(document.getElementById('v2-close-shift-note')||{}).value||'';
+                      if(!V2.uiState.activeShift){v2ShowMsg('Nema aktivne smene.','error');return;}
+                      v2CallApi('apiHandoverShift',[V2.uiState.activeShift.shift_id,to,phys,note],function(){
+                        V2.uiState.activeShift=null;v2RenderShiftStatus(null);v2LoadShifts();
+                      },{successMessage:'Primopredaja je evidentirana.'});
+                    ">
+                      <i class="ti ti-arrow-right" aria-hidden="true"></i> Primopredaja
+                    </button>
+                    <button class="v2-btn v2-btn-out" onclick="v2CloseShift()">
+                      <i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu
+                    </button>
+                  </div>
+                  <div class="v2-form-field span2">
+                    <label class="v2-form-label">Primopredaj korisniku (email)</label>
+                    <input class="v2-input" id="v2-handover-to" type="email" placeholder="korisnik@firma.rs">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Istorija smena -->
+          <div class="v2-card">
+            <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-history" aria-hidden="true"></i> Moje smene</div></div>
+            <div id="v2-shifts-history" style="overflow-y:auto;max-height:400px">
+              <div class="v2-empty"><i class="ti ti-transfer"></i><p>Učitavam...</p></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── DNEVNI ZAKLJUČAK ───────────────────────────────────── -->
+      <div id="dv2-section-zakljucak" class="dv2-section">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+          <div style="display:flex;flex-direction:column;gap:12px">
+
+            <div class="v2-card">
+              <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-eye" aria-hidden="true"></i> Pripremi zaključak</div></div>
+              <div class="v2-card-body">
+                <div class="v2-form-grid">
+                  <div class="v2-form-field">
+                    <label class="v2-form-label">Valuta</label>
+                    <select class="v2-input" id="v2-closing-currency" aria-label="Valuta">
+                      <option>RSD</option><option>EUR</option>
+                    </select>
+                  </div>
+                  <div class="v2-form-field">
+                    <label class="v2-form-label">Datum</label>
+                    <input class="v2-input v2-date-today" id="v2-closing-date" type="date">
+                  </div>
+                  <div class="v2-form-field span2">
+                    <button class="v2-btn v2-btn-ghost" onclick="v2PrepareClosing()">
+                      <i class="ti ti-eye" aria-hidden="true"></i> Pripremi zaključak
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <!-- Preview -->
+              <div class="v2-closing-preview" id="v2-closing-preview" style="display:none">
+                <div class="v2-cp-row"><span>Saldo na početku dana</span><span id="v2-cp-open">—</span></div>
+                <div class="v2-cp-row"><span>Ukupno uplaćeno</span><span id="v2-cp-in" style="color:var(--v2-in)">—</span></div>
+                <div class="v2-cp-row"><span>Ukupno isplaćeno</span><span id="v2-cp-out" style="color:var(--v2-out)">—</span></div>
+                <div class="v2-cp-row v2-cp-total"><span>Izračunat saldo</span><span id="v2-cp-bal">—</span></div>
+              </div>
+            </div>
+
+            <div class="v2-card" id="v2-closing-form-card" style="display:none">
+              <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-lock" aria-hidden="true"></i> Zaključi dan</div></div>
+              <div class="v2-card-body">
+                <input type="hidden" id="v2-closing-calc-bal">
+                <div class="v2-form-grid">
+                  <div class="v2-form-field span2">
+                    <label class="v2-form-label">Fizičko stanje (prebrojano)</label>
+                    <input class="v2-input" id="v2-closing-physical" type="text" inputmode="decimal" placeholder="0,00">
+                  </div>
+                  <div class="v2-form-field span2">
+                    <label class="v2-form-label">Napomena</label>
+                    <input class="v2-input" id="v2-closing-note" type="text">
+                  </div>
+                  <div class="v2-form-field span2">
+                    <button class="v2-btn v2-btn-out" onclick="v2CloseDay()">
+                      <i class="ti ti-lock" aria-hidden="true"></i> Zaključi dan
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Istorija zaključaka -->
+          <div class="v2-card">
+            <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-history" aria-hidden="true"></i> Istorija zaključaka</div></div>
+            <div class="v2-empty"><i class="ti ti-scale"></i><p>Zaključci će biti prikazani ovde.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── IZVEŠTAJI ──────────────────────────────────────────── -->
+      <div id="dv2-section-izvestaji" class="dv2-section">
+        <div class="v2-card">
+          <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-chart-bar" aria-hidden="true"></i> Izveštaji</div></div>
+          <div id="v2-report-list">
+            <?php $reports = [
+              ['apiGetCashboxBalanceReport',       'Stanje blagajne',         'Pregled salda svih blagajni i valuta',    'ti-coins',             '#dcfce7','#166534'],
+              ['apiGetCashMovementsReport',         'Gotovinski pokreti',      'Svi uplivi i isplate za period',          'ti-arrows-exchange',   '#dbeafe','#1d4ed8'],
+              ['apiGetOrdersWaitingPaymentReport',  'Nalozi koji čekaju',      'Nalozi u statusu WAITING/PARTIALLY',      'ti-file-invoice',      '#fef3c7','#92400e'],
+              ['apiGetRequestsForApprovalReport',   'Zahtevi za odobrenje',   'Zahtevi u statusu SUBMITTED/IN_REVIEW',   'ti-inbox',             '#ede9fe','#5b21b6'],
+              ['apiGetMissingDocumentsReport',      'Nedostajuća dokumenta',  'Entiteti bez priložene dokumentacije',    'ti-file-off',          '#fee2e2','#991b1b'],
+              ['apiGetDailyClosingReport',          'Dnevni zaključak',       'Pregled zaključaka po datumu',            'ti-scale',             '#f1f5f9','#475569'],
+              ['apiGetDifferencesReport',           'Razlike pri zatvaranju', 'Smene i zaključci sa razlikama',          'ti-alert-triangle',    '#fef3c7','#92400e'],
+              ['apiGetCorrectionsAndReversalsReport','Korekcije i storni',    'Svi REVERSAL i CORRECTION događaji',      'ti-rotate-clockwise',  '#fee2e2','#991b1b'],
+              ['apiGetExecutedPaymentsReport',      'Izvršene isplate',       'Cash eventi tipa CASH_OUTFLOW',           'ti-cash',              '#dcfce7','#166534'],
+              ['apiGetAuditExceptionsReport',       'Audit izuzeci',          'Nestandardne akcije iz audit loga',       'ti-shield-exclamation','#fee2e2','#991b1b'],
+            ]; ?>
+          </div>
+        </div>
+        <!-- Report result area -->
+        <div class="v2-card" id="v2-report-result-card" style="display:none">
+          <div class="v2-card-head">
+            <div class="v2-card-title" id="v2-report-result-title">Rezultati</div>
+            <button class="dv2-topbar-btn" onclick="document.getElementById('v2-report-result-card').style.display='none'">
+              <i class="ti ti-x" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="v2-card-body" id="v2-report-result-body" style="overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <!-- ── AUDIT LOG ──────────────────────────────────────────── -->
+      <div id="dv2-section-audit" class="dv2-section">
+        <div class="v2-card" style="flex:1;min-height:0;display:flex;flex-direction:column">
+          <div class="v2-card-head">
+            <div class="v2-card-title"><i class="ti ti-shield-check" aria-hidden="true"></i> Audit log</div>
+            <button class="dv2-topbar-btn" onclick="v2LoadAudit()" aria-label="Osveži audit log">
+              <i class="ti ti-refresh" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="v2-audit-grid v2-audit-head">
+            <span>Vreme</span><span>Korisnik</span><span>Akcija</span><span>Entitet</span>
+          </div>
+          <div id="v2-audit-list" style="overflow-y:auto;flex:1">
+            <div class="v2-empty"><i class="ti ti-shield-check"></i><p>Klikni "Osveži" za učitavanje.</p></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /dv2-content -->
+  </div><!-- /dv2-main -->
+</div><!-- /dv2-shell -->
+
+<!-- Modal -->
+<div class="v2-modal-overlay" id="v2-modal-overlay" role="dialog" aria-modal="true">
+  <div class="v2-modal" id="v2-modal-body"></div>
+</div>
+
+<script>
+// Popuni izveštaje dinamički (bez PHP-a, vanilla JS)
+document.addEventListener('DOMContentLoaded', function() {
+  var reports = [
+    ['apiGetCashboxBalanceReport',        'Stanje blagajne',          'Pregled salda svih blagajni i valuta',   'ti-coins',              '#dcfce7','#166534', ['cashbox_name','currency','balance']],
+    ['apiGetCashMovementsReport',         'Gotovinski pokreti',       'Svi uplivi i isplate za period',         'ti-arrows-exchange',    '#dbeafe','#1d4ed8', ['event_date','event_type','direction','signed_amount','currency','partner_name','description','status']],
+    ['apiGetOrdersWaitingPaymentReport',  'Nalozi koji čekaju',       'Nalozi u statusu WAITING/PARTIALLY',     'ti-file-invoice',       '#fef3c7','#92400e', ['order_id','pay_to_name','remaining_amount','currency','status']],
+    ['apiGetRequestsForApprovalReport',   'Zahtevi za odobrenje',     'Zahtevi u statusu SUBMITTED/IN_REVIEW',  'ti-inbox',              '#ede9fe','#5b21b6', ['request_id','requested_for_name','amount','currency','status']],
+    ['apiGetMissingDocumentsReport',      'Nedostajuća dokumenta',    'Entiteti bez priložene dokumentacije',   'ti-file-off',           '#fee2e2','#991b1b', ['entity_type','entity_id','date','description','document_status']],
+    ['apiGetDailyClosingReport',          'Dnevni zaključak',         'Pregled zaključaka po datumu',           'ti-scale',              '#f1f5f9','#475569', ['closing_date','cashbox_name','currency','calculated_balance','physical_balance','difference','status']],
+    ['apiGetDifferencesReport',           'Razlike pri zatvaranju',   'Smene i zaključci sa razlikama',         'ti-alert-triangle',     '#fef3c7','#92400e', ['closing_date','cashbox_name','currency','difference','status']],
+    ['apiGetCorrectionsAndReversalsReport','Korekcije i storni',      'Svi REVERSAL i CORRECTION događaji',    'ti-rotate-clockwise',   '#fee2e2','#991b1b', ['event_date','event_id','event_type','amount','currency','description']],
+    ['apiGetExecutedPaymentsReport',      'Izvršene isplate',         'Cash eventi tipa CASH_OUTFLOW',          'ti-cash',               '#dcfce7','#166534', ['event_date','currency','amount','partner_name','linked_order_id','status']],
+    ['apiGetAuditExceptionsReport',       'Audit izuzeci',            'Nestandardne akcije iz audit loga',      'ti-shield-exclamation', '#fee2e2','#991b1b', ['timestamp','user','action','entity_type','entity_id','comment']],
+  ];
+  var rl = document.getElementById('v2-report-list');
+  if (!rl) return;
+  rl.innerHTML = reports.map(function(r) {
+    var apiName = r[0], name = r[1], desc = r[2], icon = r[3], bg = r[4], color = r[5];
+    var cols = JSON.stringify(r[6]);
+    return '<div class="v2-report-row">' +
+      '<div class="v2-report-icon" style="background:' + bg + ';color:' + color + '"><i class="ti ' + icon + '"></i></div>' +
+      '<div><div class="v2-report-name">' + name + '</div><div class="v2-report-desc">' + desc + '</div></div>' +
+      '<div class="v2-report-btn" style="display:flex;gap:6px">' +
+        '<button class="v2-btn v2-btn-ghost" style="font-size:12px" onclick="v2RunReport(\'' + apiName + '\',\'' + name + '\',' + cols + ')">' +
+          '<i class="ti ti-table-export"></i> Prikaži' +
+        '</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+});
+
+function v2RunReport(apiName, title, cols) {
+  var card  = document.getElementById('v2-report-result-card');
+  var tbody = document.getElementById('v2-report-result-body');
+  var t     = document.getElementById('v2-report-result-title');
+  if (!card || !tbody || !t) return;
+  card.style.display = '';
+  t.textContent = title;
+  tbody.innerHTML = '<div class="v2-skeleton"></div>'.repeat(3);
+  v2CallApi(apiName, [{ cashbox_id: V2.session.cashboxId, currency: V2.session.currency }], function(result) {
+    if (!result || !result.length) { tbody.innerHTML = '<div class="v2-empty"><i class="ti ti-inbox"></i><p>Nema podataka.</p></div>'; return; }
+    var rows = result;
+    var thead = '<tr>' + cols.map(function(c) { return '<th style="background:var(--v2-bg);padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--v2-text-3);border-bottom:1.5px solid var(--v2-border);white-space:nowrap">' + (FIELD_LABELS[c]||c) + '</th>'; }).join('') + '</tr>';
+    var tbody_html = rows.map(function(row) {
+      return '<tr>' + cols.map(function(c) {
+        var val = row[c];
+        var cell = val == null ? '—' : String(val);
+        if (c === 'status') cell = '<span class="v2-badge ' + (V2_STATUS_BADGE[val]||'v2-b-draft') + '">' + (V2_STATUS_LABEL[val]||val) + '</span>';
+        if ((c.indexOf('amount')!==-1||c==='balance'||c==='difference'||c==='remaining_amount'||c==='signed_amount')&&val!=null) cell = v2Fmt(val);
+        return '<td style="padding:7px 10px;border-bottom:1px solid var(--v2-border-2);font-size:12px;white-space:nowrap">' + cell + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    tbody.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead>' + thead + '</thead><tbody>' + tbody_html + '</tbody></table>';
+  }, { quiet: true });
+}
+
+var FIELD_LABELS = {
+  cashbox_name:'Blagajna', currency:'Valuta', balance:'Stanje', event_date:'Datum', event_type:'Tip',
+  direction:'Smer', signed_amount:'Iznos', amount:'Iznos', partner_name:'Partner', description:'Opis',
+  status:'Status', order_id:'ID naloga', pay_to_name:'Primalac', remaining_amount:'Preostalo',
+  request_id:'ID zahteva', requested_for_name:'Primalac', closing_date:'Datum', calculated_balance:'Obračunato',
+  physical_balance:'Fizički', difference:'Razlika', entity_type:'Tip', entity_id:'ID', document_status:'Dokument',
+  event_id:'ID eventi', linked_order_id:'Nalog', timestamp:'Vreme', user:'Korisnik', action:'Akcija', comment:'Komentar'
+};
+</script>
+
+<?!= include('html/scripts-v2'); ?>
+</body>
+</html>

@@ -1,0 +1,915 @@
+<script>
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  BLAGAJNA WEB — Desktop v2 scripts                          ║
+   ║  Standalone — ne zavisi od scripts.html                     ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+
+  /* ── Globalni state ──────────────────────────────────────────── */
+  var V2 = {
+    uiState: { config: {}, currentUser: null, activeShift: null, canPostDirectCashEvents: false },
+    session: { cashboxId: '', cashboxName: '', currency: 'RSD' },
+    selectedEventId: '',
+    selectedOrderId: '',
+    selectedRequestId: '',
+    qfType: 'IN',
+    msgTimers: {},
+    liveTimer: null
+  };
+
+  var V2_STATUS_BADGE = {
+    'DRAFT':              'v2-b-draft',
+    'SUBMITTED':          'v2-b-sub',
+    'IN_REVIEW':          'v2-b-review',
+    'APPROVED':           'v2-b-approved',
+    'REJECTED':           'v2-b-rejected',
+    'CANCELLED':          'v2-b-cancelled',
+    'CONVERTED_TO_ORDER': 'v2-b-approved',
+    'WAITING_PAYMENT':    'v2-b-wait',
+    'PARTIALLY_PAID':     'v2-b-partial',
+    'PAID':               'v2-b-paid',
+    'POSTED':             'v2-b-posted',
+    'LOCKED':             'v2-b-locked',
+    'REVERSED':           'v2-b-reversed',
+    'OPEN':               'v2-b-open',
+    'CLOSED':             'v2-b-closed',
+    'CLOSED_WITH_DIFFERENCE': 'v2-b-diff'
+  };
+  var V2_STATUS_LABEL = {
+    'DRAFT': 'Nacrt', 'SUBMITTED': 'Podnet', 'IN_REVIEW': 'U obradi',
+    'APPROVED': 'Odobren', 'REJECTED': 'Odbijen', 'CANCELLED': 'Otkazan',
+    'CONVERTED_TO_ORDER': 'Pretvoren u nalog', 'WAITING_PAYMENT': 'Čeka isplatu',
+    'PARTIALLY_PAID': 'Delimično isplaćen', 'PAID': 'Isplaćen',
+    'POSTED': 'Proknjižen', 'LOCKED': 'Zaključan', 'REVERSED': 'Storniran',
+    'OPEN': 'Otvorena', 'CLOSED': 'Zatvorena', 'CLOSED_WITH_DIFFERENCE': 'Razlika pri zatvararnju'
+  };
+
+  /* ── callApi — kopija iz scripts.html ───────────────────────── */
+  function v2CallApi(functionName, args, onSuccess, options) {
+    options = options || {};
+    if (!window.google || !google.script || !google.script.run) {
+      v2ShowMsg('Greška: Apps Script okruženje nije dostupno.', 'error');
+      return;
+    }
+    if (!options.quiet) v2ShowMsg(options.loadingMessage || 'Obrađujem...', 'info');
+    google.script.run
+      .withSuccessHandler(function(response) {
+        if (!response || response.ok !== true) {
+          v2ShowMsg('Greška: ' + v2HumanizeError(response && response.error ? response.error.message : 'poziv nije uspeo.'), 'error');
+          if (options.onComplete) options.onComplete(response);
+          return;
+        }
+        if (!options.quiet) v2ShowMsg(options.successMessage || 'Uspešno.', 'success');
+        if (onSuccess) onSuccess(response.data);
+        if (options.onComplete) options.onComplete(response);
+      })
+      .withFailureHandler(function(error) {
+        v2ShowMsg('Greška: ' + v2HumanizeError(error && error.message ? error.message : 'tehnički problem.'), 'error');
+        if (options.onComplete) options.onComplete(error);
+      })
+      [functionName].apply(google.script.run, args || []);
+  }
+
+  function v2HumanizeError(msg) {
+    var m = String(msg || '');
+    if (m.indexOf('balance') !== -1 || m.indexOf('Insufficient') !== -1) return 'Nedovoljno sredstava u blagajni.';
+    if (m.indexOf('not found') !== -1) return 'Zapis nije pronađen.';
+    if (m.indexOf('not active') !== -1) return 'Entitet nije aktivan.';
+    if (m.indexOf('role') !== -1) return 'Nemate dozvolu za ovu akciju.';
+    return m.length > 120 ? m.slice(0, 120) + '…' : m;
+  }
+
+  /* ── Poruke ──────────────────────────────────────────────────── */
+  function v2ShowMsg(msg, type) {
+    var el = document.getElementById('dv2-message');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'dv2-message show ' + (type || 'info');
+    clearTimeout(V2.msgTimers.main);
+    var delay = type === 'error' ? 9000 : type === 'success' ? 3500 : 4000;
+    V2.msgTimers.main = setTimeout(function() { el.className = 'dv2-message'; }, delay);
+  }
+
+  /* ── Format helpers ──────────────────────────────────────────── */
+  function v2Fmt(value) {
+    return (Number(value) || 0).toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function v2ParseAmt(value) {
+    var text = String(value || '').trim().replace(/\s/g, '');
+    if (text.indexOf(',') !== -1) text = text.replace(/\./g, '').replace(',', '.');
+    return parseFloat(text) || 0;
+  }
+  function v2DateShort(value) {
+    if (!value) return '—';
+    var d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return String(value).slice(0, 10);
+    return d.getDate() + '.' + (d.getMonth() + 1) + '.';
+  }
+  function v2TimeShort(value) {
+    if (!value) return '—';
+    var d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return '';
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  function v2Esc(value) {
+    return String(value == null ? '—' : value)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+  function v2Badge(status) {
+    var cls = V2_STATUS_BADGE[status] || 'v2-b-draft';
+    var lbl = V2_STATUS_LABEL[status] || status;
+    return '<span class="v2-badge ' + cls + '">' + v2Esc(lbl) + '</span>';
+  }
+  function v2ShortUser(email) {
+    return String(email || '—').split('@')[0];
+  }
+
+  /* ── Tema ────────────────────────────────────────────────────── */
+  function v2InitTheme() {
+    var saved = '';
+    try { saved = localStorage.getItem('blagajna_theme') || ''; } catch(e) {}
+    v2ApplyTheme(saved === 'dark' ? 'dark' : 'light');
+  }
+  function v2ApplyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    var dark = theme === 'dark';
+    var btn = document.getElementById('v2-theme-btn');
+    if (btn) {
+      var icon = btn.querySelector('i');
+      if (icon) icon.className = dark ? 'ti ti-sun' : 'ti ti-moon';
+      var lbl = btn.querySelector('[data-v2-theme-label]');
+      if (lbl) lbl.textContent = dark ? 'Svetla' : 'Tamna';
+    }
+  }
+
+  /* ── Sat ─────────────────────────────────────────────────────── */
+  function v2StartClock() {
+    function tick() {
+      var now = new Date();
+      var dateEl = document.getElementById('v2-clock-date');
+      var timeEl = document.getElementById('v2-clock-time');
+      if (dateEl) dateEl.textContent = now.getDate() + '.' + (now.getMonth()+1) + '.' + now.getFullYear() + '.';
+      if (timeEl) timeEl.textContent = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    }
+    tick();
+    setInterval(tick, 30000);
+  }
+
+  /* ── Navigacija ──────────────────────────────────────────────── */
+  function v2GoTo(sectionId) {
+    document.querySelectorAll('.dv2-section').forEach(function(s) {
+      s.classList.toggle('active', s.id === 'dv2-section-' + sectionId);
+    });
+    document.querySelectorAll('[data-v2-nav]').forEach(function(b) {
+      b.classList.toggle('active', b.getAttribute('data-v2-nav') === sectionId);
+    });
+    if (sectionId === 'knjiga')    v2LoadKnjiga(true);
+    if (sectionId === 'nalozi')    v2LoadNalozi();
+    if (sectionId === 'zahtevi')   v2LoadApprovalRequests();
+    if (sectionId === 'smena')     v2LoadShifts();
+    if (sectionId === 'zakljucak') v2LoadClosings();
+    if (sectionId === 'audit')     v2LoadAudit();
+  }
+
+  /* ── Session init ────────────────────────────────────────────── */
+  function v2InitSession(config) {
+    var cashboxes = config.cashboxes || [];
+    var cashboxId = config.defaultCashboxId || (cashboxes[0] && cashboxes[0].cashbox_id) || '';
+    var cashbox = cashboxes.filter(function(c) { return c.cashbox_id === cashboxId; })[0]
+      || { cashbox_id: cashboxId, name: cashboxId };
+    V2.session.cashboxId   = cashbox.cashbox_id;
+    V2.session.cashboxName = cashbox.name || cashbox.cashbox_id;
+    V2.session.currency    = config.defaultCurrency || (config.currencies && config.currencies[0]) || 'RSD';
+
+    // Cashbox select
+    var cbSelect = document.getElementById('v2-cashbox-select');
+    if (cbSelect) {
+      cbSelect.innerHTML = cashboxes.map(function(c) {
+        return '<option value="' + v2Esc(c.cashbox_id) + '">' + v2Esc(c.name || c.cashbox_id) + '</option>';
+      }).join('');
+      cbSelect.value = V2.session.cashboxId;
+      cbSelect.addEventListener('change', function() {
+        var sel = cashboxes.filter(function(c) { return c.cashbox_id === cbSelect.value; })[0];
+        V2.session.cashboxId   = cbSelect.value;
+        V2.session.cashboxName = sel ? (sel.name || sel.cashbox_id) : cbSelect.value;
+        v2RefreshBalance();
+        v2LoadKnjiga(true);
+        v2RefreshShiftStatus();
+      });
+    }
+
+    // Currency select
+    var curSelect = document.getElementById('v2-currency-select');
+    if (curSelect) {
+      var currencies = config.currencies || ['RSD', 'EUR'];
+      curSelect.innerHTML = currencies.map(function(c) {
+        return '<option value="' + v2Esc(c) + '">' + v2Esc(c) + '</option>';
+      }).join('');
+      curSelect.value = V2.session.currency;
+      curSelect.addEventListener('change', function() {
+        V2.session.currency = curSelect.value;
+        v2RefreshBalance();
+        v2LoadKnjiga(true);
+      });
+    }
+
+    // Today in date inputs
+    var today = config.today || new Date().toISOString().slice(0,10);
+    document.querySelectorAll('.v2-date-today').forEach(function(el) {
+      if (!el.value) el.value = today;
+    });
+    var dateFrom = document.getElementById('v2-date-from');
+    var dateTo   = document.getElementById('v2-date-to');
+    if (dateTo && !dateTo.value)     dateTo.value = today;
+    if (dateFrom && !dateFrom.value) { var d=new Date(today); d.setDate(d.getDate()-30); dateFrom.value=d.toISOString().slice(0,10); }
+  }
+
+  function v2RenderUser(user) {
+    var navUser = document.getElementById('v2-nav-user');
+    if (navUser && user) navUser.textContent = (user.full_name || user.email || '');
+    var roleChip = document.getElementById('v2-role-chip');
+    if (roleChip && user) {
+      var labels = { ADMIN:'Administrator', DIRECTOR:'Direktor', FINANCE:'Finansije',
+        CASHIER_SUPERVISOR:'Šef blagajne', CASHIER:'Blagajnik', APPROVER:'Odobravač',
+        REQUESTER:'Podnosilac', VIEWER:'Preglednik' };
+      roleChip.textContent = labels[user.role] || user.role || '';
+    }
+    var appVer = document.getElementById('v2-app-version');
+    if (appVer) appVer.textContent = '';
+  }
+
+  function v2RenderShiftStatus(shift) {
+    var statusEl = document.getElementById('v2-shift-badge');
+    var topbarShift = document.getElementById('v2-topbar-shift');
+    if (shift && shift.shift_id) {
+      var lbl = 'Smena: ' + v2ShortUser(shift.opened_by) + ' · ' + v2TimeShort(shift.opened_at) + ' · ' + shift.shift_id;
+      if (statusEl) { statusEl.innerHTML = '<span style="color:#4ade80">●</span> ' + v2Esc(lbl); statusEl.style.display=''; }
+      if (topbarShift) topbarShift.textContent = lbl;
+    } else {
+      if (statusEl) { statusEl.innerHTML = '<span style="color:var(--v2-text-3)">○</span> Nema aktivne smene'; statusEl.style.display=''; }
+      if (topbarShift) topbarShift.textContent = 'Nema aktivne smene';
+    }
+    v2RenderShiftForm(shift);
+  }
+
+  function v2RenderShiftForm(shift) {
+    var hasShift = shift && Boolean(shift.shift_id);
+    var openForm  = document.getElementById('v2-open-shift-card');
+    var closeForm = document.getElementById('v2-close-shift-card');
+    if (openForm)  openForm.style.display  = hasShift ? 'none' : '';
+    if (closeForm) closeForm.style.display = hasShift ? '' : 'none';
+    var statusCard = document.getElementById('v2-shift-status-body');
+    if (statusCard && hasShift) {
+      statusCard.innerHTML = [
+        ['ID smene', shift.shift_id],
+        ['Otvorio', shift.opened_by || '—'],
+        ['Otvoreno u', v2TimeShort(shift.opened_at)],
+        ['Status', shift.status]
+      ].map(function(r) {
+        return '<div class="v2-shift-card"><div class="v2-shift-meta">' + v2Esc(r[0]) + '</div><div class="v2-shift-who">' + v2Esc(r[1]) + '</div></div>';
+      }).join('');
+    }
+  }
+
+  function v2RefreshShiftStatus() {
+    v2CallApi('apiGetActiveShiftState', [V2.session.cashboxId], function(state) {
+      V2.uiState.activeShift = state && state.shift ? state.shift : null;
+      v2RenderShiftStatus(V2.uiState.activeShift);
+    }, { quiet: true });
+  }
+
+  /* ── Saldo ───────────────────────────────────────────────────── */
+  function v2RefreshBalance() {
+    if (!V2.session.cashboxId) return;
+    v2CallApi('apiCalculateCashboxBalance', [V2.session.cashboxId, V2.session.currency], function(result) {
+      var val = Number(result) || 0;
+      var balEl = document.getElementById('v2-topbar-balance');
+      if (balEl) {
+        balEl.textContent = v2Fmt(val) + ' ' + V2.session.currency;
+        balEl.className = 'dv2-kpi-val ' + (val >= 0 ? 'v-in' : 'v-out');
+      }
+    }, { quiet: true });
+  }
+
+  /* ── Urgent alert ────────────────────────────────────────────── */
+  function v2RefreshUrgentAlert() {
+    v2CallApi('apiListOrdersWaitingForPayment', [], function(result) {
+      var count = (result || []).length;
+      var el = document.getElementById('v2-urgent-kpi');
+      var titleEl = document.getElementById('v2-urgent-title');
+      var badgeEl = document.getElementById('v2-urgent-badge');
+      if (el) {
+        el.classList.toggle('visible', count > 0);
+        if (titleEl) titleEl.textContent = count + (count === 1 ? ' nalog čeka' : ' naloga čeka');
+        if (badgeEl) badgeEl.textContent = count;
+      }
+      // Nav badge
+      var nb = document.getElementById('nav-badge-nalozi');
+      if (nb) { nb.textContent = count; nb.classList.toggle('visible', count > 0); }
+    }, { quiet: true });
+  }
+
+  function v2RefreshApprovalBadge() {
+    var zb = document.getElementById('nav-badge-zahtevi');
+    if (!zb) return;
+    v2CallApi('apiListRequestsForApproval', [], function(result) {
+      var count = (result || []).length;
+      zb.textContent = count;
+      zb.classList.toggle('visible', count > 0);
+    }, { quiet: true });
+  }
+
+  /* ── Blagajnička knjiga ──────────────────────────────────────── */
+  function v2LoadKnjiga(isBackground) {
+    var dateFrom   = (document.getElementById('v2-date-from') || {}).value || '';
+    var dateTo     = (document.getElementById('v2-date-to')   || {}).value || '';
+    var shiftFilter= (document.getElementById('v2-shift-filter') || {}).value || '';
+    var tbody = document.getElementById('v2-knjiga-tbody');
+    if (!tbody) return;
+    if (!isBackground) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="v2-skeleton"></div></td></tr>'.repeat(4);
+    }
+    v2CallApi('apiGetCashMovementsReport', [{
+      cashbox_id: V2.session.cashboxId,
+      currency:   V2.session.currency,
+      date_from:  dateFrom,
+      date_to:    dateTo,
+      shift_id:   shiftFilter
+    }], function(events) {
+      v2RenderKnjiga(events || []);
+    }, { quiet: true });
+  }
+
+  function v2RenderKnjiga(events) {
+    var tbody = document.getElementById('v2-knjiga-tbody');
+    var totalRow = document.getElementById('v2-knjiga-total-row');
+    if (!tbody) return;
+    if (!events.length) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="v2-empty"><i class="ti ti-inbox-off"></i><p>Nema transakcija za izabrani period.</p></div></td></tr>';
+      if (totalRow) totalRow.innerHTML = '<td colspan="4">UKUPNO</td><td class="cell-in">0,00</td><td class="cell-out">0,00</td><td class="cell-bal">0,00</td>';
+      v2UpdatePromet(0, 0);
+      return;
+    }
+    var totalIn = 0, totalOut = 0;
+    tbody.innerHTML = events.map(function(ev, idx) {
+      var dir = ev.display_direction || ev.direction;
+      var amt = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+      var isIn = dir === 'IN';
+      if (isIn) totalIn += amt; else totalOut += amt;
+      var bal = Number(ev.running_balance || 0);
+      return '<tr data-v2-event-id="' + v2Esc(ev.event_id) + '">' +
+        '<td style="color:var(--v2-text-3);font-size:11px">' + (events.length - idx) + '</td>' +
+        '<td style="color:var(--v2-text-3);font-size:11px;white-space:nowrap">' + v2DateShort(ev.event_date || ev.created_at) + '</td>' +
+        '<td><div class="v2-desc-main">' + v2Esc(ev.partner_name || ev.description || '—') + '</div>' +
+          '<div class="v2-desc-sub">' + v2Esc(ev.description || '') + ' · ' + v2Esc(v2ShortUser(ev.posted_by || ev.created_by)) + ' · ' + v2Esc(ev.event_id) + '</div></td>' +
+        '<td class="cell-in">'  + (isIn  ? v2Fmt(amt) : '') + '</td>' +
+        '<td class="cell-out">' + (!isIn ? v2Fmt(amt) : '') + '</td>' +
+        '<td class="cell-bal">' + v2Fmt(bal) + '</td>' +
+        '<td>' + v2Badge(ev.status) + '</td>' +
+      '</tr>';
+    }).join('');
+    if (totalRow) {
+      totalRow.innerHTML = '<td colspan="3" style="font-size:11px;font-weight:700;padding:8px 10px">UKUPNO</td>' +
+        '<td class="cell-in">' + v2Fmt(totalIn) + '</td>' +
+        '<td class="cell-out">' + v2Fmt(totalOut) + '</td>' +
+        '<td class="cell-bal">' + v2Fmt(events.length ? Number(events[0].running_balance||0) : 0) + '</td>' +
+        '<td></td>';
+    }
+    v2UpdatePromet(totalIn, totalOut);
+    // Click handlers
+    tbody.querySelectorAll('tr[data-v2-event-id]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var eid = row.getAttribute('data-v2-event-id');
+        var ev = events.filter(function(e) { return e.event_id === eid; })[0];
+        if (ev) v2OpenEventDetail(ev);
+      });
+    });
+  }
+
+  function v2UpdatePromet(totalIn, totalOut) {
+    var inEl  = document.getElementById('v2-topbar-in');
+    var outEl = document.getElementById('v2-topbar-out');
+    if (inEl)  inEl.textContent  = '+' + v2Fmt(totalIn);
+    if (outEl) outEl.textContent = '-' + v2Fmt(totalOut);
+  }
+
+  /* ── Knjiga detail panel ─────────────────────────────────────── */
+  function v2OpenEventDetail(ev) {
+    V2.selectedEventId = ev.event_id;
+    var panel = document.getElementById('v2-detail-panel');
+    var title = document.getElementById('v2-detail-title');
+    var body  = document.getElementById('v2-detail-body');
+    if (!panel) return;
+
+    var isIn = (ev.display_direction || ev.direction) === 'IN';
+    var dirColor = isIn ? 'var(--v2-in)' : 'var(--v2-out)';
+    title.innerHTML = '<span style="color:' + dirColor + '">' + (isIn ? '↓ UPLATA' : '↑ ISPLATA') + '</span> · ' + v2Esc(ev.event_id);
+
+    body.innerHTML = [
+      ['Iznos', '<span style="font-size:15px;font-weight:800;color:' + dirColor + '">' + v2Fmt(ev.amount) + ' ' + v2Esc(ev.currency||V2.session.currency) + '</span>'],
+      ['Datum', v2DateShort(ev.event_date || ev.created_at) + ' ' + v2TimeShort(ev.posted_at || ev.created_at || ev.event_date)],
+      ['Primalac/uplatioc', v2Esc(ev.partner_name || '—')],
+      ['Opis', v2Esc(ev.description || '—')],
+      ['Status', v2Badge(ev.status)],
+      ['Knjižio', v2Esc(ev.posted_by || ev.created_by || '—')],
+      ['Smena', v2Esc(ev.shift_id || '—')]
+    ].map(function(r) {
+      return '<div class="v2-detail-row"><span class="v2-detail-key">' + r[0] + '</span><span class="v2-detail-val">' + r[1] + '</span></div>';
+    }).join('');
+
+    // Print button
+    var printBtn = document.getElementById('v2-detail-print');
+    if (printBtn) {
+      printBtn.onclick = function() {
+        var url = (window.BLAGAJNA_WEB_APP_URL || window.location.href.split('?')[0]) + '?view=print-cash-event&id=' + encodeURIComponent(ev.event_id);
+        window.open(url, '_blank');
+      };
+    }
+    // Storno button
+    var stornoBtn = document.getElementById('v2-detail-storno');
+    if (stornoBtn) {
+      var canReverse = ev.status !== 'REVERSED' && ev.event_type !== 'REVERSAL';
+      stornoBtn.disabled = !canReverse;
+      stornoBtn.onclick = canReverse ? function() {
+        v2Prompt('Storno stavke', 'Razlog storna za ' + ev.event_id + ':', 'Razlog', 'Storniraj', true, function(reason) {
+          v2CallApi('apiReverseCashEvent', [ev.event_id, reason], function() {
+            panel.classList.remove('open');
+            v2LoadKnjiga(true);
+            v2RefreshBalance();
+          }, { successMessage: 'Storno je evidentiran.' });
+        });
+      } : null;
+    }
+
+    panel.classList.add('open');
+    // Highlight selected row
+    document.querySelectorAll('#v2-knjiga-tbody tr').forEach(function(r) {
+      r.classList.toggle('selected', r.getAttribute('data-v2-event-id') === ev.event_id);
+    });
+  }
+
+  /* ── Quick form ──────────────────────────────────────────────── */
+  function v2SetQfType(type) {
+    V2.qfType = type;
+    var isIn = type === 'IN';
+    document.getElementById('v2-qf-btn-in').className  = 'v2-qf-btn' + (isIn  ? ' active-in'  : '');
+    document.getElementById('v2-qf-btn-out').className = 'v2-qf-btn' + (!isIn ? ' active-out' : '');
+    var submit = document.getElementById('v2-qf-submit');
+    if (submit) {
+      submit.className = 'v2-qf-submit' + (!isIn ? ' type-out' : '');
+      document.getElementById('v2-qf-submit-label').textContent = isIn ? 'Proknjiti uplatu' : 'Proknjiti isplatu';
+    }
+  }
+
+  function v2SubmitQf() {
+    var amount   = v2ParseAmt((document.getElementById('v2-qf-amount') || {}).value);
+    var currency = (document.getElementById('v2-qf-currency') || {}).value || V2.session.currency;
+    var partner  = (document.getElementById('v2-qf-partner')  || {}).value || '';
+    var desc     = ((document.getElementById('v2-qf-desc') || {}).value || '').trim();
+    if (!amount || amount <= 0) { v2ShowMsg('Unesite ispravan iznos.', 'error'); return; }
+    if (!desc) { v2ShowMsg('Opis / razlog je obavezan.', 'error'); return; }
+    if (!V2.uiState.canPostDirectCashEvents) { v2ShowMsg('Direktne uplate/isplate zahtevaju aktivnu smenu.', 'error'); return; }
+
+    var payload = { cashbox_id: V2.session.cashboxId, currency: currency, amount: amount, partner_name: partner, description: desc };
+    var fn = V2.qfType === 'IN' ? 'apiCreateCashInflow' : 'apiCreateDirectCashOutflow';
+    var label = V2.qfType === 'IN' ? 'Uplata' : 'Isplata';
+    v2CallApi(fn, [payload], function() {
+      document.getElementById('v2-qf-amount').value  = '';
+      document.getElementById('v2-qf-partner').value = '';
+      document.getElementById('v2-qf-desc').value    = '';
+      v2LoadKnjiga(true);
+      v2RefreshBalance();
+    }, { successMessage: label + ' proknjižena.' });
+  }
+
+  /* ── Nalozi ──────────────────────────────────────────────────── */
+  function v2LoadNalozi() {
+    var list = document.getElementById('v2-nalozi-list');
+    if (!list) return;
+    list.innerHTML = '<div class="v2-skeleton" style="margin:12px"></div>'.repeat(3);
+    v2CallApi('apiListOrdersWaitingForPayment', [], function(result) {
+      v2RenderNalozi(result || []);
+      var nb = document.getElementById('nav-badge-nalozi');
+      if (nb) { nb.textContent = result.length; nb.classList.toggle('visible', result.length > 0); }
+    }, { quiet: true });
+  }
+
+  function v2RenderNalozi(orders) {
+    var list = document.getElementById('v2-nalozi-list');
+    if (!list) return;
+    if (!orders.length) { list.innerHTML = '<div class="v2-empty"><i class="ti ti-check"></i><p>Nema naloga koji čekaju isplatu.</p></div>'; return; }
+    list.innerHTML = orders.map(function(o) {
+      var rem = Number(o.amount_ordered||0) - Number(o.amount_paid||0);
+      return '<div class="v2-entity-row' + (V2.selectedOrderId===o.order_id?' selected':'') + '" data-v2-order-id="' + v2Esc(o.order_id) + '">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="v2-entity-id">' + v2Esc(o.order_id) + '</div>' +
+          '<div class="v2-entity-name">' + v2Esc(o.pay_to_name||'—') + '</div>' +
+          '<div class="v2-entity-sub">' + v2Esc(o.purpose||'') + '</div>' +
+        '</div>' +
+        '<div class="v2-entity-right">' +
+          '<div class="v2-entity-amount">' + v2Fmt(rem) + ' ' + v2Esc(o.currency||'') + '</div>' +
+          '<div style="margin-top:4px">' + v2Badge(o.status) + (o.priority==='URGENT'?'<span class="v2-badge v2-b-urgent" style="margin-left:3px">HITNO</span>':'') + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    list.querySelectorAll('[data-v2-order-id]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var oid = row.getAttribute('data-v2-order-id');
+        var order = orders.filter(function(o) { return o.order_id === oid; })[0];
+        if (order) v2OpenNalogDetail(order, orders);
+      });
+    });
+  }
+
+  function v2OpenNalogDetail(order, orders) {
+    V2.selectedOrderId = order.order_id;
+    v2RenderNalozi(orders);
+    var panel = document.getElementById('v2-nalog-panel');
+    var title = document.getElementById('v2-nalog-panel-title');
+    var body  = document.getElementById('v2-nalog-panel-body');
+    if (!panel) return;
+    var rem = Number(order.amount_ordered||0) - Number(order.amount_paid||0);
+    title.textContent = 'Nalog za isplatu';
+    body.innerHTML = [
+      ['ID naloga', order.order_id],
+      ['Primalac', order.pay_to_name || '—'],
+      ['Svrha', order.purpose || '—'],
+      ['Iznos naloga', v2Fmt(order.amount_ordered) + ' ' + (order.currency||'')],
+      order.amount_paid > 0 ? ['Već isplaćeno', v2Fmt(order.amount_paid)] : null,
+      ['Preostalo', '<span style="font-size:15px;font-weight:800;color:var(--v2-out)">' + v2Fmt(rem) + ' ' + v2Esc(order.currency||'') + '</span>'],
+      ['Prioritet', v2Badge(order.priority === 'URGENT' ? 'URGENT' : 'DRAFT').replace('URGENT','HITNO').replace('DRAFT','NORMALAN')],
+      ['Status', v2Badge(order.status)]
+    ].filter(Boolean).map(function(r) {
+      return '<div class="v2-detail-row"><span class="v2-detail-key">' + v2Esc(r[0]) + '</span><span class="v2-detail-val">' + r[1] + '</span></div>';
+    }).join('');
+
+    var execBtn = document.getElementById('v2-nalog-execute-btn');
+    if (execBtn) {
+      execBtn.onclick = function() {
+        v2Confirm('Izvršenje isplate', 'Izvršiti isplatu ' + v2Fmt(rem) + ' ' + (order.currency||'') + ' za nalog ' + order.order_id + '?', 'Izvrši isplatu', false, function() {
+          v2CallApi('apiExecutePaymentOrder', [order.order_id, {}], function() {
+            panel.classList.remove('open');
+            V2.selectedOrderId = '';
+            v2LoadNalozi();
+            v2LoadKnjiga(true);
+            v2RefreshBalance();
+            v2RefreshUrgentAlert();
+          }, { successMessage: 'Isplata je izvršena.' });
+        });
+      };
+    }
+    var rejectBtn = document.getElementById('v2-nalog-reject-btn');
+    if (rejectBtn) {
+      rejectBtn.onclick = function() {
+        v2Prompt('Odbijanje naloga', 'Razlog odbijanja naloga ' + order.order_id + ':', 'Razlog', 'Odbij', true, function(reason) {
+          v2CallApi('apiRejectPaymentOrderByCashier', [order.order_id, reason], function() {
+            panel.classList.remove('open');
+            V2.selectedOrderId = '';
+            v2LoadNalozi();
+          }, { successMessage: 'Nalog je odbijen.' });
+        });
+      };
+    }
+    panel.classList.add('open');
+  }
+
+  /* ── Zahtevi ─────────────────────────────────────────────────── */
+  function v2LoadApprovalRequests() {
+    var list = document.getElementById('v2-zahtevi-list');
+    if (!list) return;
+    list.innerHTML = '<div class="v2-skeleton" style="margin:12px"></div>'.repeat(3);
+    v2CallApi('apiListRequestsForApproval', [], function(result) {
+      v2RenderZahtevi(result || []);
+      var zb = document.getElementById('nav-badge-zahtevi');
+      if (zb) { zb.textContent = result.length; zb.classList.toggle('visible', result.length > 0); }
+    }, { quiet: true });
+  }
+
+  function v2LoadMyRequests() {
+    var list = document.getElementById('v2-zahtevi-list');
+    if (!list) return;
+    list.innerHTML = '<div class="v2-skeleton" style="margin:12px"></div>'.repeat(3);
+    v2CallApi('apiListMyPaymentRequests', [], function(result) {
+      v2RenderZahtevi(result || []);
+    }, { quiet: true });
+  }
+
+  function v2RenderZahtevi(requests) {
+    var list = document.getElementById('v2-zahtevi-list');
+    if (!list) return;
+    if (!requests.length) { list.innerHTML = '<div class="v2-empty"><i class="ti ti-inbox"></i><p>Nema zahteva.</p></div>'; return; }
+    list.innerHTML = requests.map(function(r) {
+      return '<div class="v2-entity-row' + (V2.selectedRequestId===r.request_id?' selected':'') + '" data-v2-req-id="' + v2Esc(r.request_id) + '">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="v2-entity-id">' + v2Esc(r.request_id) + '</div>' +
+          '<div class="v2-entity-name">' + v2Esc(r.requested_for_name||'—') + '</div>' +
+          '<div class="v2-entity-sub">' + v2Esc(r.purpose||'') + '</div>' +
+        '</div>' +
+        '<div class="v2-entity-right">' +
+          '<div class="v2-entity-amount">' + v2Fmt(r.amount) + ' ' + v2Esc(r.currency||'') + '</div>' +
+          '<div style="margin-top:4px">' + v2Badge(r.status) + (r.priority==='URGENT'?'<span class="v2-badge v2-b-urgent" style="margin-left:3px">HITNO</span>':'') + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    list.querySelectorAll('[data-v2-req-id]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var rid = row.getAttribute('data-v2-req-id');
+        var req = requests.filter(function(r) { return r.request_id === rid; })[0];
+        if (req) v2OpenRequestDetail(req, requests);
+      });
+    });
+  }
+
+  function v2OpenRequestDetail(req, requests) {
+    V2.selectedRequestId = req.request_id;
+    v2RenderZahtevi(requests);
+    var panel = document.getElementById('v2-zahtev-panel');
+    var title = document.getElementById('v2-zahtev-panel-title');
+    var body  = document.getElementById('v2-zahtev-panel-body');
+    if (!panel) return;
+    title.textContent = 'Zahtev za isplatu';
+    body.innerHTML = [
+      ['ID zahteva', req.request_id],
+      ['Primalac', req.requested_for_name||'—'],
+      ['Svrha', req.purpose||'—'],
+      ['Iznos', '<span style="font-size:15px;font-weight:800;color:var(--v2-out)">' + v2Fmt(req.amount) + ' ' + v2Esc(req.currency||'') + '</span>'],
+      ['Prioritet', v2Badge(req.priority === 'URGENT' ? 'URGENT' : '').replace('URGENT','HITNO') || 'NORMALAN'],
+      ['Status', v2Badge(req.status)],
+      ['Kreirao', v2Esc(req.created_by||'—')]
+    ].map(function(r) {
+      return '<div class="v2-detail-row"><span class="v2-detail-key">' + v2Esc(r[0]) + '</span><span class="v2-detail-val">' + r[1] + '</span></div>';
+    }).join('');
+
+    var isPending = req.status === 'SUBMITTED' || req.status === 'IN_REVIEW';
+    var approveBtn  = document.getElementById('v2-req-approve-btn');
+    var appOrdBtn   = document.getElementById('v2-req-approve-ord-btn');
+    var rejectBtn   = document.getElementById('v2-req-reject-btn');
+    if (approveBtn)  { approveBtn.disabled  = !isPending; approveBtn.onclick = isPending ? function() {
+      v2CallApi('apiApprovePaymentRequest', [req.request_id], function() {
+        panel.classList.remove('open'); V2.selectedRequestId = ''; v2LoadApprovalRequests(); v2RefreshApprovalBadge();
+      }, { successMessage: 'Zahtev je odobren.' }); } : null; }
+    if (appOrdBtn)   { appOrdBtn.disabled   = !isPending; appOrdBtn.onclick = isPending ? function() {
+      v2CallApi('apiApproveAndIssuePaymentOrder', [req.request_id, { cashbox_id: V2.session.cashboxId }], function() {
+        panel.classList.remove('open'); V2.selectedRequestId = ''; v2LoadApprovalRequests(); v2LoadNalozi(); v2RefreshUrgentAlert(); v2RefreshApprovalBadge();
+      }, { successMessage: 'Zahtev odobren, nalog je spreman za isplatu.' }); } : null; }
+    if (rejectBtn)   { rejectBtn.disabled   = !isPending; rejectBtn.onclick = isPending ? function() {
+      v2Prompt('Odbijanje zahteva', 'Razlog odbijanja zahteva ' + req.request_id + ':', 'Razlog', 'Odbij', true, function(reason) {
+        v2CallApi('apiRejectPaymentRequest', [req.request_id, reason], function() {
+          panel.classList.remove('open'); V2.selectedRequestId = ''; v2LoadApprovalRequests(); v2RefreshApprovalBadge();
+        }, { successMessage: 'Zahtev je odbijen.' });
+      }); } : null; }
+    panel.classList.add('open');
+  }
+
+  /* ── Smena ───────────────────────────────────────────────────── */
+  function v2LoadShifts() {
+    v2RefreshShiftStatus();
+    v2CallApi('apiGetMyActiveShifts', [], function(result) {
+      var list = document.getElementById('v2-shifts-history');
+      if (!list) return;
+      list.innerHTML = (result || []).map(function(s) {
+        return '<div class="v2-shift-card"><div class="v2-shift-head"><div><div class="v2-shift-id">' + v2Esc(s.shift_id) + '</div><div class="v2-shift-who">' + v2Esc(s.opened_by||'—') + '</div></div>' + v2Badge(s.status) + '</div><div class="v2-shift-meta">' + v2Esc(v2TimeShort(s.opened_at)) + (s.closed_at?' → '+v2TimeShort(s.closed_at):'') + '</div></div>';
+      }).join('') || '<div class="v2-empty"><i class="ti ti-transfer"></i><p>Nema smena.</p></div>';
+    }, { quiet: true });
+  }
+
+  /* ── Dnevni zaključak ────────────────────────────────────────── */
+  function v2LoadClosings() {}
+  function v2PrepareClosing() {
+    var date = (document.getElementById('v2-closing-date')||{}).value;
+    var cur  = (document.getElementById('v2-closing-currency')||{}).value || V2.session.currency;
+    if (!date) { v2ShowMsg('Izaberite datum.', 'error'); return; }
+    v2CallApi('apiPrepareDailyClosing', [V2.session.cashboxId, cur, date], function(result) {
+      var prev = document.getElementById('v2-closing-preview');
+      if (prev) {
+        prev.style.display = '';
+        document.getElementById('v2-cp-open').textContent = v2Fmt(result.opening_balance) + ' ' + cur;
+        document.getElementById('v2-cp-in').textContent   = '+' + v2Fmt(result.total_in) + ' ' + cur;
+        document.getElementById('v2-cp-out').textContent  = '-' + v2Fmt(result.total_out) + ' ' + cur;
+        document.getElementById('v2-cp-bal').textContent  = v2Fmt(result.calculated_balance) + ' ' + cur;
+        document.getElementById('v2-closing-form-card').style.display = '';
+        document.getElementById('v2-closing-calc-bal').value = result.calculated_balance;
+      }
+    }, { successMessage: 'Pregled pripremljen.' });
+  }
+  function v2CloseDay() {
+    var date = (document.getElementById('v2-closing-date')||{}).value;
+    var cur  = (document.getElementById('v2-closing-currency')||{}).value || V2.session.currency;
+    var phys = v2ParseAmt((document.getElementById('v2-closing-physical')||{}).value);
+    var note = (document.getElementById('v2-closing-note')||{}).value || '';
+    v2Confirm('Dnevni zaključak', 'Zaključiti dan ' + date + ' za blagajnu ' + V2.session.cashboxName + '? Ovo će zaključati sve proknjižene stavke za taj dan.', 'Zaključi dan', true, function() {
+      v2CallApi('apiCloseDailyCashbox', [V2.session.cashboxId, cur, date, phys, note], function() {
+        document.getElementById('v2-closing-form-card').style.display = 'none';
+        document.getElementById('v2-closing-preview').style.display = 'none';
+      }, { successMessage: 'Dnevni zaključak je kreiran.' });
+    });
+  }
+
+  /* ── Audit ───────────────────────────────────────────────────── */
+  function v2LoadAudit() {
+    var list = document.getElementById('v2-audit-list');
+    if (!list) return;
+    v2CallApi('apiGetAuditLog', [{}], function(result) {
+      var actionColors = { POST:'v2-b-posted', CREATE:'v2-b-approved', UPDATE:'v2-b-sub', SUBMIT:'v2-b-review', APPROVE:'v2-b-approved', REJECT:'v2-b-rejected', CANCEL:'v2-b-cancelled', LOCK:'v2-b-locked', REVERSE:'v2-b-reversed', BACKUP:'v2-b-locked' };
+      list.innerHTML = (result || []).map(function(a) {
+        return '<div class="v2-audit-grid">' +
+          '<span style="color:var(--v2-text-3);font-size:11px">' + v2Esc(a.timestamp) + '</span>' +
+          '<span style="font-size:11px;overflow:hidden;text-overflow:ellipsis">' + v2Esc(v2ShortUser(a.user)) + '</span>' +
+          '<span><span class="v2-badge ' + (actionColors[a.action]||'v2-b-draft') + '">' + v2Esc(a.action) + '</span></span>' +
+          '<span style="font-size:11px;color:var(--v2-text-2);overflow:hidden;text-overflow:ellipsis">' + v2Esc(a.entity_type||'') + ' / ' + v2Esc(a.entity_id||'') + (a.comment?' · '+a.comment:'') + '</span>' +
+        '</div>';
+      }).join('') || '<div class="v2-empty"><i class="ti ti-shield-check"></i><p>Nema logova.</p></div>';
+    }, { quiet: true });
+  }
+
+  /* ── Otvaranje smene ─────────────────────────────────────────── */
+  function v2OpenShift() {
+    var note = (document.getElementById('v2-open-shift-note')||{}).value || '';
+    v2CallApi('apiOpenShift', [V2.session.cashboxId, note], function(result) {
+      V2.uiState.activeShift = result;
+      v2RenderShiftStatus(result);
+      v2RefreshBalance();
+    }, { successMessage: 'Smena je otvorena.' });
+  }
+
+  function v2CloseShift() {
+    var physRSD = v2ParseAmt((document.getElementById('v2-close-phys-rsd')||{}).value);
+    var physEUR = v2ParseAmt((document.getElementById('v2-close-phys-eur')||{}).value);
+    var note = (document.getElementById('v2-close-shift-note')||{}).value || '';
+    var phys = { RSD: physRSD };
+    if (physEUR) phys.EUR = physEUR;
+    v2Confirm('Zatvaranje smene', 'Zatvoriti aktivnu smenu blagajne ' + V2.session.cashboxName + '?', 'Zatvori smenu', true, function() {
+      v2CallApi('apiCloseActiveShift', [V2.session.cashboxId, phys, note], function(result) {
+        V2.uiState.activeShift = null;
+        v2RenderShiftStatus(null);
+        v2RefreshBalance();
+        v2LoadShifts();
+      }, { successMessage: 'Smena je zatvorena.' });
+    });
+  }
+
+  /* ── Modal helpers ───────────────────────────────────────────── */
+  function v2ShowModal(html) {
+    var overlay = document.getElementById('v2-modal-overlay');
+    var body = document.getElementById('v2-modal-body');
+    if (!overlay || !body) return;
+    body.innerHTML = html;
+    overlay.classList.add('open');
+  }
+  function v2HideModal() {
+    var overlay = document.getElementById('v2-modal-overlay');
+    if (overlay) overlay.classList.remove('open');
+  }
+  function v2Confirm(title, msg, confirmLabel, danger, onConfirm) {
+    v2ShowModal(
+      '<div class="v2-modal-title">' + v2Esc(title) + '</div>' +
+      '<div class="v2-modal-msg">' + v2Esc(msg) + '</div>' +
+      '<div class="v2-modal-actions">' +
+        '<button class="v2-btn v2-btn-ghost" onclick="v2HideModal()">Otkaži</button>' +
+        '<button class="v2-btn ' + (danger?'v2-btn-out':'v2-btn-primary') + '" id="v2-modal-confirm">' + v2Esc(confirmLabel) + '</button>' +
+      '</div>'
+    );
+    document.getElementById('v2-modal-confirm').onclick = function() { v2HideModal(); onConfirm(); };
+  }
+  function v2Prompt(title, msg, label, confirmLabel, danger, onConfirm) {
+    v2ShowModal(
+      '<div class="v2-modal-title">' + v2Esc(title) + '</div>' +
+      '<div class="v2-modal-msg">' + v2Esc(msg) + '</div>' +
+      '<input class="v2-modal-input" id="v2-modal-input" type="text" placeholder="' + v2Esc(label) + '">' +
+      '<div class="v2-modal-actions">' +
+        '<button class="v2-btn v2-btn-ghost" onclick="v2HideModal()">Otkaži</button>' +
+        '<button class="v2-btn ' + (danger?'v2-btn-out':'v2-btn-primary') + '" id="v2-modal-confirm">' + v2Esc(confirmLabel) + '</button>' +
+      '</div>'
+    );
+    var inp = document.getElementById('v2-modal-input');
+    inp.focus();
+    document.getElementById('v2-modal-confirm').onclick = function() {
+      var val = inp.value.trim();
+      if (!val) { inp.style.borderColor='var(--v2-out)'; return; }
+      v2HideModal(); onConfirm(val);
+    };
+  }
+
+  /* ── Live refresh ────────────────────────────────────────────── */
+  function v2StartLiveRefresh() {
+    if (V2.liveTimer) clearInterval(V2.liveTimer);
+    V2.liveTimer = setInterval(function() {
+      if (document.hidden) return;
+      v2RefreshBalance();
+      v2LoadKnjiga(true);
+      v2RefreshUrgentAlert();
+      v2RefreshApprovalBadge();
+      v2RefreshShiftStatus();
+    }, 30000);
+  }
+
+  /* ── Bootstrap ───────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', function() {
+    if (!document.querySelector('.dv2-shell')) return; // samo za v2
+
+    v2InitTheme();
+    v2StartClock();
+
+    // Nav binding
+    document.querySelectorAll('[data-v2-nav]').forEach(function(btn) {
+      btn.addEventListener('click', function() { v2GoTo(btn.getAttribute('data-v2-nav')); });
+    });
+
+    // Theme toggle
+    var themeBtn = document.getElementById('v2-theme-btn');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', function() {
+        var current = document.documentElement.getAttribute('data-theme');
+        var next = current === 'dark' ? 'light' : 'dark';
+        v2ApplyTheme(next);
+        try { localStorage.setItem('blagajna_theme', next); } catch(e) {}
+      });
+    }
+
+    // Urgent alert nav click
+    var urgentKpi = document.getElementById('v2-urgent-kpi');
+    if (urgentKpi) urgentKpi.addEventListener('click', function() { v2GoTo('nalozi'); });
+
+    // Knjiga filters
+    ['v2-date-from','v2-date-to','v2-shift-filter'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function() { v2LoadKnjiga(); });
+    });
+    var refreshKnjiga = document.getElementById('v2-knjiga-refresh');
+    if (refreshKnjiga) refreshKnjiga.addEventListener('click', function() { v2LoadKnjiga(); });
+
+    // Quick form
+    var qfBtnIn  = document.getElementById('v2-qf-btn-in');
+    var qfBtnOut = document.getElementById('v2-qf-btn-out');
+    if (qfBtnIn)  qfBtnIn.addEventListener('click',  function() { v2SetQfType('IN'); });
+    if (qfBtnOut) qfBtnOut.addEventListener('click',  function() { v2SetQfType('OUT'); });
+    var qfSubmit = document.getElementById('v2-qf-submit');
+    if (qfSubmit) qfSubmit.addEventListener('click', v2SubmitQf);
+
+    // Detail panel close buttons
+    var detailClose = document.getElementById('v2-detail-close');
+    if (detailClose) detailClose.addEventListener('click', function() {
+      document.getElementById('v2-detail-panel').classList.remove('open');
+      document.querySelectorAll('#v2-knjiga-tbody tr').forEach(function(r) { r.classList.remove('selected'); });
+    });
+    var nalogClose = document.getElementById('v2-nalog-panel-close');
+    if (nalogClose) nalogClose.addEventListener('click', function() {
+      document.getElementById('v2-nalog-panel').classList.remove('open');
+      V2.selectedOrderId = '';
+    });
+    var zahtevClose = document.getElementById('v2-zahtev-panel-close');
+    if (zahtevClose) zahtevClose.addEventListener('click', function() {
+      document.getElementById('v2-zahtev-panel').classList.remove('open');
+      V2.selectedRequestId = '';
+    });
+
+    // Modal close on overlay click
+    var modalOverlay = document.getElementById('v2-modal-overlay');
+    if (modalOverlay) modalOverlay.addEventListener('click', function(e) {
+      if (e.target === modalOverlay) v2HideModal();
+    });
+
+    // Zahtevi tabs
+    var btnApproval = document.getElementById('v2-btn-approval');
+    var btnMy       = document.getElementById('v2-btn-my');
+    if (btnApproval) btnApproval.addEventListener('click', function() { v2LoadApprovalRequests(); btnApproval.classList.add('active'); if(btnMy) btnMy.classList.remove('active'); });
+    if (btnMy)       btnMy.addEventListener('click',       function() { v2LoadMyRequests();       btnMy.classList.add('active');       if(btnApproval) btnApproval.classList.remove('active'); });
+
+    // Bootstrap API call
+    v2CallApi('apiGetUiBootstrap', [true], function(data) {
+      V2.uiState.config                = data.config || {};
+      V2.uiState.currentUser           = data.user || null;
+      V2.uiState.activeShift           = data.activeShift || null;
+      V2.uiState.canPostDirectCashEvents = Boolean(data.canPostDirectCashEvents);
+
+      v2InitSession(V2.uiState.config);
+      v2RenderUser(V2.uiState.currentUser);
+      v2RenderShiftStatus(V2.uiState.activeShift);
+
+      // Dashboard KPI
+      if (data.dashboard) {
+        var d = data.dashboard;
+        var bal = d.balances && d.balances[0];
+        var balEl = document.getElementById('v2-topbar-balance');
+        if (balEl && bal) { balEl.textContent = v2Fmt(bal.balance) + ' ' + (bal.currency||''); balEl.className='dv2-kpi-val ' + (bal.balance>=0?'v-in':'v-out'); }
+        var nEl = document.getElementById('v2-topbar-nalozi');
+        if (nEl) { nEl.textContent = String(d.ordersWaitingPaymentCount||0); nEl.className='dv2-kpi-val '+(d.ordersWaitingPaymentCount>0?'v-warn':'v-pri'); }
+      }
+
+      // Load initial data
+      v2LoadKnjiga(true);
+      v2RefreshBalance();
+      v2RefreshUrgentAlert();
+      v2RefreshApprovalBadge();
+      v2StartLiveRefresh();
+
+      // Quick form permission indicator
+      var permCard = document.getElementById('v2-permission-card');
+      var qfCard   = document.getElementById('v2-qf-card');
+      if (permCard && qfCard) {
+        permCard.style.display = V2.uiState.canPostDirectCashEvents ? 'none' : '';
+        qfCard.style.display   = V2.uiState.canPostDirectCashEvents ? '' : 'none';
+      }
+    }, { quiet: true });
+  });
+</script>

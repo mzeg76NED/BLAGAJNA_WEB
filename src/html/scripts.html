@@ -181,7 +181,7 @@
     bindClick('load-waiting-orders-btn', loadWaitingOrders);
     bindClick('load-waiting-orders-for-execution-btn', loadWaitingOrdersForExecution);
     bindClick('cancel-execution-btn', cancelExecutionSelection);
-    bindClick('close-detail-panel-btn', closeRequestDetailPanel);
+    bindClick('d-rdp-close', closeRequestDetailPanel);
     bindClick('load-my-shifts-home-btn', loadMyShifts);
 
     bindForm('execute-payment-form', function(data) {
@@ -1622,8 +1622,8 @@
     if (!record) {
       return;
     }
-    var panel = document.getElementById('request-detail-panel');
-    var body = document.getElementById('detail-panel-body');
+    var panel = document.getElementById('d-request-detail-panel');
+    var body = document.getElementById('d-rdp-body');
     if (!panel || !body) {
       return;
     }
@@ -1646,7 +1646,7 @@
   }
 
   function closeRequestDetailPanel() {
-    var panel = document.getElementById('request-detail-panel');
+    var panel = document.getElementById('d-request-detail-panel');
     if (panel) {
       panel.style.display = 'none';
     }

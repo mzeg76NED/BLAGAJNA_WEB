@@ -6,6 +6,7 @@ function doGet(e) {
     'index',
     'mobile',
     'desktop',
+    'desktop-v2',
     'print-payment-request',
     'print-payment-order',
     'print-cash-event',
