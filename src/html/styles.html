@@ -525,13 +525,28 @@
 
   .message {
     border-radius: var(--radius-md);
+    box-shadow: 0 12px 34px rgba(15, 23, 42, 0.18);
     display: none;
     font-size: 13px;
     font-weight: 700;
+    line-height: 1.35;
+    max-width: min(520px, calc(100vw - 32px));
     padding: 10px 14px;
+    pointer-events: none;
+    position: fixed;
+    right: 20px;
+    top: 72px;
+    z-index: 700;
   }
 
   .message.show { display: block; }
+
+  #m-message {
+    left: 12px;
+    max-width: none;
+    right: 12px;
+    top: max(12px, env(safe-area-inset-top));
+  }
 
   .message.success {
     background: var(--color-in-bg);
@@ -606,10 +621,6 @@
     gap: 6px;
     margin-top: 8px;
     flex-wrap: wrap;
-  }
-
-  .m-message {
-    margin-top: 8px;
   }
 
   .m-chip {
