@@ -525,20 +525,7 @@
       <div id="dv2-section-izvestaji" class="dv2-section">
         <div class="v2-card">
           <div class="v2-card-head"><div class="v2-card-title"><i class="ti ti-chart-bar" aria-hidden="true"></i> Izveštaji</div></div>
-          <div id="v2-report-list">
-            <?php $reports = [
-              ['apiGetCashboxBalanceReport',       'Stanje blagajne',         'Pregled salda svih blagajni i valuta',    'ti-coins',             '#dcfce7','#166534'],
-              ['apiGetCashMovementsReport',         'Gotovinski pokreti',      'Svi uplivi i isplate za period',          'ti-arrows-exchange',   '#dbeafe','#1d4ed8'],
-              ['apiGetOrdersWaitingPaymentReport',  'Nalozi koji čekaju',      'Nalozi u statusu WAITING/PARTIALLY',      'ti-file-invoice',      '#fef3c7','#92400e'],
-              ['apiGetRequestsForApprovalReport',   'Zahtevi za odobrenje',   'Zahtevi u statusu SUBMITTED/IN_REVIEW',   'ti-inbox',             '#ede9fe','#5b21b6'],
-              ['apiGetMissingDocumentsReport',      'Nedostajuća dokumenta',  'Entiteti bez priložene dokumentacije',    'ti-file-off',          '#fee2e2','#991b1b'],
-              ['apiGetDailyClosingReport',          'Dnevni zaključak',       'Pregled zaključaka po datumu',            'ti-scale',             '#f1f5f9','#475569'],
-              ['apiGetDifferencesReport',           'Razlike pri zatvaranju', 'Smene i zaključci sa razlikama',          'ti-alert-triangle',    '#fef3c7','#92400e'],
-              ['apiGetCorrectionsAndReversalsReport','Korekcije i storni',    'Svi REVERSAL i CORRECTION događaji',      'ti-rotate-clockwise',  '#fee2e2','#991b1b'],
-              ['apiGetExecutedPaymentsReport',      'Izvršene isplate',       'Cash eventi tipa CASH_OUTFLOW',           'ti-cash',              '#dcfce7','#166534'],
-              ['apiGetAuditExceptionsReport',       'Audit izuzeci',          'Nestandardne akcije iz audit loga',       'ti-shield-exclamation','#fee2e2','#991b1b'],
-            ]; ?>
-          </div>
+          <div id="v2-report-list"></div>
         </div>
         <!-- Report result area -->
         <div class="v2-card" id="v2-report-result-card" style="display:none">
