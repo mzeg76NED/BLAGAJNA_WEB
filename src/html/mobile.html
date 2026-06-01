@@ -91,8 +91,6 @@
               <input name="count_type" type="hidden" value="SHIFT_OPENING">
               <label>Valuta <select name="currency" data-currency-options></select></label>
               <div class="cash-count-entry-area" data-denomination-inputs></div>
-              <label>Broj čekova <input name="check_count" type="number" min="0" step="1" value="0"></label>
-              <label>Ukupno čekovi <input name="check_total" type="text" inputmode="decimal" placeholder="0,00"></label>
               <label>Napomena pri otvaranju
                 <textarea name="opening_note" rows="2"></textarea>
               </label>
@@ -128,11 +126,9 @@
               <input name="shift_id" type="hidden" required>
               <input name="cashbox_id" type="hidden">
               <input name="count_type" type="hidden" value="SHIFT_CLOSING">
-              <div class="shift-warning">Zatvaranje smene obavezno pravi završni popis. Unesite apoene, čekove i napomenu ako postoji razlika.</div>
+              <div class="shift-warning">Zatvaranje smene obavezno pravi završni popis. Unesite apoene i napomenu ako postoji razlika.</div>
               <label>Valuta <select name="currency" data-currency-options></select></label>
               <div class="cash-count-entry-area" data-denomination-inputs></div>
-              <label>Broj čekova <input name="check_count" type="number" min="0" step="1" value="0"></label>
-              <label>Ukupno čekovi <input name="check_total" type="text" inputmode="decimal" placeholder="0,00"></label>
               <label>Napomena <textarea name="note"></textarea></label>
               <div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>
               <button class="btn-primary" type="submit">Zatvori smenu</button>
@@ -153,8 +149,6 @@
               <input name="count_type" type="hidden" value="CASHBOX_COUNT">
               <label>Valuta <select name="currency" data-currency-options></select></label>
               <div class="cash-count-entry-area" data-denomination-inputs></div>
-              <label>Broj čekova <input name="check_count" type="number" min="0" step="1" value="0"></label>
-              <label>Ukupno čekovi <input name="check_total" type="text" inputmode="decimal" placeholder="0,00"></label>
               <label>Napomena <textarea name="note"></textarea></label>
               <div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>
               <button class="btn-primary" type="submit">Sačuvaj presek</button>

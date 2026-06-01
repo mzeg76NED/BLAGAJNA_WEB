@@ -188,8 +188,8 @@ Presek sam po sebi evidentira popis. Ako postoji razlika u odnosu na obracunato 
 | shift_id | string | no | Active shift at count time |
 | currency | string | yes | Currency |
 | counted_cash_total | number | yes | Total cash from denominations |
-| check_count | number | no | Number of checks |
-| check_total | number | no | Total check amount |
+| check_count | number | no | Legacy field, no longer used because checks are entered through CURRENCIES like any other currency |
+| check_total | number | no | Legacy field, no longer used because checks are entered through CURRENCIES like any other currency |
 | calculated_balance_before | number | yes | Balance before count correction |
 | difference | number | yes | Physical count minus calculated balance |
 | denominations_json | text/json | no | Counted denominations and quantities |

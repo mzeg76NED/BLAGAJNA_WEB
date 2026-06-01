@@ -65,7 +65,7 @@ Korisnik koji otvori smenu postaje glavni blagajnik te smene. Za jednu blagajnu 
 
 ## Presek blagajne u toku smene
 
-U toku smene može se uraditi jedan ili više preseka blagajne. Presek je fizički popis gotovine i čekova po valuti.
+U toku smene može se uraditi jedan ili više preseka blagajne. Presek je fizički popis sredstava po valuti.
 
 Ako je fizički popis jednak obračunatom stanju, presek se evidentira samo u `CASH_COUNTS`.
 
@@ -101,7 +101,7 @@ Ogranicenje: sistem u ovom tasku ne otvara automatski novu smenu za korisnika ko
 
 Zatvaranje smene podrazumeva prethodni popis blagajne.
 
-Korisnik prvo radi presek blagajne za sve aktivne valute kroz unos apoena i čekova. Sistem za svaku valutu evidentira `CASH_COUNTS`, a ako postoji razlika kreira `CORRECTION` događaj sa opisom `PRESEK SMENE - KOREKCIJA - VIŠAK` ili `PRESEK SMENE - KOREKCIJA - MANJAK`.
+Korisnik prvo radi presek blagajne za sve aktivne valute kroz unos apoena. Sistem za svaku valutu evidentira `CASH_COUNTS`, a ako postoji razlika kreira `CORRECTION` događaj sa opisom `PRESEK SMENE - KOREKCIJA - VIŠAK` ili `PRESEK SMENE - KOREKCIJA - MANJAK`.
 
 `closeShiftWithLatestCashCounts(shiftId, note)` zatvara otvorenu smenu koristeći poslednji sačuvani popis po valutama kao fizičko stanje. Ako za neku aktivnu valutu ne postoji popis u smeni, smena se ne može zatvoriti.
 

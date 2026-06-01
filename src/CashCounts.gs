@@ -63,10 +63,10 @@ function createCashCount(data) {
     const countedCashTotal = denominations.reduce(function(total, item) {
       return total + item.denomination * item.quantity;
     }, 0);
-    const checkCount = toNonNegativeNumber_(data.check_count, 'check_count');
-    const checkTotal = toNonNegativeNumber_(data.check_total, 'check_total');
+    const checkCount = 0;
+    const checkTotal = 0;
     const calculatedBalance = calculateCashboxBalance(cashboxId, currency);
-    const difference = countedCashTotal + checkTotal - calculatedBalance;
+    const difference = countedCashTotal - calculatedBalance;
     const now = getCurrentTimestamp_();
     const countId = generateId_('CNT');
     const adjustmentEvent = buildCashCountAdjustmentEvent_(
@@ -144,10 +144,6 @@ function createCashCounts(data) {
     return result;
   }, {});
 
-  if (Number(data.check_total || 0) > 0 && data.currency && !grouped[data.currency]) {
-    grouped[data.currency] = [];
-  }
-
   if (!Object.keys(grouped).length) {
     grouped[data.currency] = [];
   }
@@ -156,8 +152,8 @@ function createCashCounts(data) {
     const countData = Object.assign({}, data, {
       currency: currency,
       denominations: grouped[currency],
-      check_count: currency === data.currency ? data.check_count : 0,
-      check_total: currency === data.currency ? data.check_total : 0
+      check_count: 0,
+      check_total: 0
     });
     return createCashCount(countData);
   });
@@ -215,7 +211,7 @@ function getCashCountsReport(filters) {
     .map(function(count) {
       const denominations = parseJson_(count.denominations_json || '[]');
       return Object.assign({}, count, {
-        counted_total: safeNumber_(count.counted_cash_total) + safeNumber_(count.check_total),
+        counted_total: safeNumber_(count.counted_cash_total),
         denominations: Array.isArray(denominations) ? denominations : []
       });
     })

@@ -270,7 +270,7 @@ function closeShiftWithLatestCashCounts(shiftId, note) {
 
   const physicalBalance = supportedCurrencies.reduce(function(result, currency) {
     const count = latestByCurrency[currency];
-    result[currency] = Number(count.counted_cash_total || 0) + Number(count.check_total || 0);
+    result[currency] = Number(count.counted_cash_total || 0);
     return result;
   }, {});
 

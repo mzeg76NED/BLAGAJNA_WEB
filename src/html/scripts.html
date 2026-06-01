@@ -580,7 +580,6 @@
     }, {});
     var target = form.querySelector('[data-cash-count-total]');
     var currency = (form.querySelector('[name="currency"]') || {}).value || SESSION.currency;
-    totals[currency] = Number(totals[currency] || 0) + parseAmountInput_((form.querySelector('[name="check_total"]') || {}).value || '');
     if (target) {
       var parts = Object.keys(totals).filter(function(code) { return Math.abs(Number(totals[code] || 0)) > 0.000001; })
         .map(function(code) { return formatAmount_(totals[code]) + ' ' + code; });
@@ -655,13 +654,12 @@
     var currency = (form.querySelector('[name="currency"]') || {}).value || SESSION.currency;
     var denominationCount = Number(form.dataset.denominationCount || 0);
     var cashRows = collectDenominations_(form).filter(function(row) { return Number(row.quantity || 0) > 0; });
-    var checkTotal = parseAmountInput_((form.querySelector('[name="check_total"]') || {}).value || '');
-    if (denominationCount === 0 && checkTotal <= 0 && !cashRows.length) {
-      showMessage('Za valutu ' + currency + ' nisu definisani apoeni. Popunite kolonu denominations u tabeli CURRENCIES ili unesite iznos čekova.', 'error');
+    if (denominationCount === 0 && !cashRows.length) {
+      showMessage('Za valutu ' + currency + ' nisu definisani apoeni. Popunite kolonu denominations u tabeli CURRENCIES.', 'error');
       return false;
     }
-    if (!cashRows.length && checkTotal <= 0) {
-      showMessage('Unesite makar jedan apoen ili iznos čekova za presek blagajne.', 'error');
+    if (!cashRows.length) {
+      showMessage('Unesite makar jedan apoen za presek blagajne.', 'error');
       return false;
     }
     return true;
@@ -3005,8 +3003,6 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
-      data.check_count = Number(data.check_count || 0);
-      data.check_total = parseAmountInput_(data.check_total);
       callApi('apiOpenShiftWithOpeningCount', [data], function(result) {
         uiState.activeShift = result && result.shift || null;
         uiState.canPostDirectCashEvents = true;
@@ -3023,8 +3019,6 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
-      data.check_count = Number(data.check_count || 0);
-      data.check_total = parseAmountInput_(data.check_total);
       callApi('apiOpenShiftWithOpeningCount', [data], function(result) {
         uiState.activeShift = result && result.shift || null;
         uiState.canPostDirectCashEvents = true;
@@ -3055,8 +3049,6 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
-      data.check_count = Number(data.check_count || 0);
-      data.check_total = parseAmountInput_(data.check_total);
       callApi('apiCreateCashCounts', [data], function() {
         callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
           uiState.activeShift = null;
@@ -3079,8 +3071,6 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
-      data.check_count = Number(data.check_count || 0);
-      data.check_total = parseAmountInput_(data.check_total);
       callApi('apiCreateCashCounts', [data], function() {
         callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
           uiState.activeShift = null;
@@ -3099,8 +3089,6 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
-      data.check_count = Number(data.check_count || 0);
-      data.check_total = parseAmountInput_(data.check_total);
       callApi('apiCreateCashCounts', [data], function(results) {
         var result = Array.isArray(results) ? results[0] || {} : results || {};
         var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
@@ -3108,7 +3096,6 @@
           ['ID', countIds],
           ['Valuta', Array.isArray(results) ? results.map(function(item) { return item.currency; }).join(', ') : result.currency],
           ['Popisan gotov novac', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.counted_cash_total, item.currency); }).join(' · ') : amountWithCurrency(result.counted_cash_total, result.currency)],
-          ['Čekovi', amountWithCurrency(result.check_total, result.currency)],
           ['Obračunato pre popisa', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.calculated_balance_before, item.currency); }).join(' · ') : amountWithCurrency(result.calculated_balance_before, result.currency)],
           ['Razlika', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.difference, item.currency); }).join(' · ') : amountWithCurrency(result.difference, result.currency)],
           ['Korekcija', Array.isArray(results) ? results.map(function(item) { return item.adjustment_event_id || 'Nema razlike'; }).join(', ') : result.adjustment_event_id || 'Nema razlike']
@@ -3123,8 +3110,6 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
-      data.check_count = Number(data.check_count || 0);
-      data.check_total = parseAmountInput_(data.check_total);
       callApi('apiCreateCashCounts', [data], function(results) {
         var result = Array.isArray(results) ? results[0] || {} : results || {};
         var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
@@ -3132,7 +3117,6 @@
           ['ID', countIds],
           ['Valuta', Array.isArray(results) ? results.map(function(item) { return item.currency; }).join(', ') : result.currency],
           ['Popisan gotov novac', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.counted_cash_total, item.currency); }).join(' · ') : amountWithCurrency(result.counted_cash_total, result.currency)],
-          ['Čekovi', amountWithCurrency(result.check_total, result.currency)],
           ['Obračunato pre popisa', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.calculated_balance_before, item.currency); }).join(' · ') : amountWithCurrency(result.calculated_balance_before, result.currency)],
           ['Razlika', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.difference, item.currency); }).join(' · ') : amountWithCurrency(result.difference, result.currency)],
           ['Korekcija', Array.isArray(results) ? results.map(function(item) { return item.adjustment_event_id || 'Nema razlike'; }).join(', ') : result.adjustment_event_id || 'Nema razlike']
