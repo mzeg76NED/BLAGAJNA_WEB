@@ -3052,28 +3052,48 @@
         showDesktopMessage_('Nema aktivne smene za zatvaranje. Otvorite smenu ili osvežite aplikaciju.', 'error');
         return;
       }
-      callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
-        uiState.activeShift = null;
-        uiState.canPostDirectCashEvents = false;
-        applyActiveShiftFields_();
-        applyDirectCashPermission_();
-        renderShiftSummary('d-shift-result', result, 'Smena je zatvorena');
-        refreshBalance_();
-      }, { successMessage: 'Smena je zatvorena.' });
+      if (!validateCashCountForm_(form)) return;
+      data = withUiDefaults(data);
+      data.denominations = collectDenominations_(form);
+      data.check_count = Number(data.check_count || 0);
+      data.check_total = parseAmountInput_(data.check_total);
+      callApi('apiCreateCashCounts', [data], function() {
+        callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
+          uiState.activeShift = null;
+          uiState.canPostDirectCashEvents = false;
+          applyActiveShiftFields_();
+          applyDirectCashPermission_();
+          form.dataset.countRows = '[]';
+          renderDenominationInputs_();
+          renderShiftSummary('d-shift-result', result, 'Smena je zatvorena');
+          refreshBalance_();
+          loadCashCounts_();
+        }, { successMessage: 'Smena je zatvorena.' });
+      }, { loadingMessage: 'Čuvam završni popis...', successMessage: 'Završni popis je sačuvan.' });
     });
     bindForm('m-close-shift-form', function(data, form) {
       if (!data.shift_id) {
         showMobileMessage_('Nema aktivne smene za zatvaranje. Otvorite smenu ili osvežite aplikaciju.', 'error');
         return;
       }
-      callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
-        uiState.activeShift = null;
-        uiState.canPostDirectCashEvents = false;
-        applyActiveShiftFields_();
-        applyDirectCashPermission_();
-        renderShiftSummary('m-shift-result', result, 'Smena je zatvorena');
-        refreshBalance_();
-      }, { successMessage: 'Smena je zatvorena.' });
+      if (!validateCashCountForm_(form)) return;
+      data = withUiDefaults(data);
+      data.denominations = collectDenominations_(form);
+      data.check_count = Number(data.check_count || 0);
+      data.check_total = parseAmountInput_(data.check_total);
+      callApi('apiCreateCashCounts', [data], function() {
+        callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
+          uiState.activeShift = null;
+          uiState.canPostDirectCashEvents = false;
+          applyActiveShiftFields_();
+          applyDirectCashPermission_();
+          form.dataset.countRows = '[]';
+          renderDenominationInputs_();
+          renderShiftSummary('m-shift-result', result, 'Smena je zatvorena');
+          refreshBalance_();
+          loadCashCounts_();
+        }, { successMessage: 'Smena je zatvorena.' });
+      }, { loadingMessage: 'Čuvam završni popis...', successMessage: 'Završni popis je sačuvan.' });
     });
     bindForm('d-cash-count-form', function(data, form) {
       if (!validateCashCountForm_(form)) return;

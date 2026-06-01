@@ -123,11 +123,18 @@
 
           <div class="card">
             <div class="card-head"><h3>Zatvori smenu</h3></div>
-            <form id="m-close-shift-form" class="form-grid">
+            <form id="m-close-shift-form" class="form-grid" data-cash-count-form data-count-purpose="closing">
               <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>
               <input name="shift_id" type="hidden" required>
-              <div class="shift-warning">Zatvaranje smene koristi poslednji sačuvani presek. Ako stanje nije sveže, prvo otvorite tab Presek i unesite popis.</div>
+              <input name="cashbox_id" type="hidden">
+              <input name="count_type" type="hidden" value="SHIFT_CLOSING">
+              <div class="shift-warning">Zatvaranje smene obavezno pravi završni popis. Unesite apoene, čekove i napomenu ako postoji razlika.</div>
+              <label>Valuta <select name="currency" data-currency-options></select></label>
+              <div class="cash-count-entry-area" data-denomination-inputs></div>
+              <label>Broj čekova <input name="check_count" type="number" min="0" step="1" value="0"></label>
+              <label>Ukupno čekovi <input name="check_total" type="text" inputmode="decimal" placeholder="0,00"></label>
               <label>Napomena <textarea name="note"></textarea></label>
+              <div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>
               <button class="btn-primary" type="submit">Zatvori smenu</button>
             </form>
           </div>
