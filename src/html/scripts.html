@@ -1737,7 +1737,16 @@
     var hasShift = Boolean(uiState.activeShift && uiState.activeShift.shift_id);
     ['d-cash-count-form','m-cash-count-form'].forEach(function(id) {
       var form = document.getElementById(id);
-      setWorkflowFormDisabled_(form, !hasShift);
+      if (!form) return;
+      if (hasShift) {
+        form.removeAttribute('hidden');
+        form.style.display = '';
+        setWorkflowFormDisabled_(form, false);
+      } else {
+        form.setAttribute('hidden', 'hidden');
+        form.style.display = 'none';
+        setWorkflowFormDisabled_(form, true);
+      }
     });
     ['d-count-lock','m-count-lock'].forEach(function(id) {
       var el = document.getElementById(id);
@@ -2131,35 +2140,42 @@
 
   function renderCashCountDetail_(countGroup, targetId) {
     var target = document.getElementById(targetId);
-    if (!target || !countGroup) return;
+    if (!target) return;
+    if (!countGroup) {
+      target.classList.add('empty-state');
+      target.classList.remove('count-detail-body');
+      target.innerHTML = 'Izaberite presek iz tabele.';
+      return;
+    }
+    target.classList.remove('empty-state');
+    target.classList.add('count-detail-body');
     var group = countGroup.rows ? countGroup : { rows: [countGroup] };
     var denomHtml = group.rows.map(function(count) {
       var denominations = count.denominations || [];
       var denomRows = denominations.length ? denominations.map(function(row) {
         var amount = Number(row.denomination || 0) * Number(row.quantity || 0);
-        return '<tr><td>' + escapeHtml(count.currency || '') + '</td><td>' + formatAmount_(row.denomination) + '</td><td>' + escapeHtml(row.quantity) + '</td><td>' + formatAmount_(amount) + '</td></tr>';
-      }).join('') : '<tr><td>' + escapeHtml(count.currency || '') + '</td><td colspan="3">Popisano 0,00 za ovu valutu.</td></tr>';
-      return '<div class="detail-block count-detail-card">' +
-        '<strong>' + escapeHtml(count.currency || '') + '</strong>' +
-        '<div class="detail-row"><span class="detail-key">Obračunato</span><strong>' + formatAmount_(count.calculated_balance_before) + '</strong></div>' +
-        '<div class="detail-row"><span class="detail-key">Popisano</span><strong>' + formatAmount_(count.counted_total) + '</strong></div>' +
-        '<div class="detail-row"><span class="detail-key">Razlika</span><strong class="' + (Number(count.difference || 0) >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(count.difference) + '</strong></div>' +
-        '<table class="count-table"><thead><tr><th>Valuta</th><th>Apoen</th><th>Komada</th><th>Iznos</th></tr></thead><tbody>' + denomRows + '</tbody></table>' +
-      '</div>';
+        return '<tr><td>' + escapeHtml(count.currency || '') + '</td><td class="num">' + formatAmount_(row.denomination) + '</td><td class="num">' + escapeHtml(row.quantity) + '</td><td class="num">' + formatAmount_(amount) + '</td></tr>';
+      }).join('') : '<tr><td>' + escapeHtml(count.currency || '') + '</td><td colspan="3">Nema unetih apoena za ovu valutu.</td></tr>';
+      return denomRows;
+    }).join('');
+    var totalRows = group.rows.map(function(count) {
+      var diff = Number(count.difference || 0);
+      return '<tr>' +
+        '<td>' + escapeHtml(count.currency || '') + '</td>' +
+        '<td class="num">' + formatAmount_(count.calculated_balance_before) + '</td>' +
+        '<td class="num">' + formatAmount_(count.counted_total) + '</td>' +
+        '<td class="num ' + (diff >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(diff) + '</td>' +
+      '</tr>';
     }).join('');
     target.innerHTML =
-      '<div class="count-detail-summary">' +
-        '<div><span class="detail-key">Vreme</span><strong>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</strong></div>' +
-        '<div><span class="detail-key">Vrsta</span><strong>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</strong></div>' +
-        '<div><span class="detail-key">Korisnik</span><strong>' + escapeHtml(shortUserLabel_(group.user || '')) + '</strong></div>' +
-        '<div><span class="detail-key">Valute</span><strong>' + escapeHtml(group.currencies || '') + '</strong></div>' +
-      '</div>' +
-      '<div class="count-detail-summary">' +
-        '<div><span class="detail-key">Obračunato</span><strong>' + cashCountCurrencySummary_(group.calculated_by_currency) + '</strong></div>' +
-        '<div><span class="detail-key">Popisano</span><strong>' + cashCountCurrencySummary_(group.counted_by_currency) + '</strong></div>' +
-        '<div><span class="detail-key">Razlika</span><strong>' + cashCountDifferenceSummary_(group.difference_by_currency) + '</strong></div>' +
-      '</div>' +
-      '<div class="count-detail-grid">' + denomHtml + '</div>';
+      '<table class="count-detail-meta"><tbody>' +
+        '<tr><th>Vreme</th><td>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</td><th>Vrsta</th><td>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</td></tr>' +
+        '<tr><th>Korisnik</th><td>' + escapeHtml(shortUserLabel_(group.user || '')) + '</td><th>Valute</th><td>' + escapeHtml(group.currencies || '') + '</td></tr>' +
+      '</tbody></table>' +
+      '<div class="count-detail-section-title">Rekapitulacija po valutama</div>' +
+      '<table class="count-detail-totals"><thead><tr><th>Valuta</th><th class="num">Obračunato</th><th class="num">Popisano</th><th class="num">Razlika</th></tr></thead><tbody>' + totalRows + '</tbody></table>' +
+      '<div class="count-detail-section-title">Popisani apoeni</div>' +
+      '<table class="count-table"><thead><tr><th>Valuta</th><th class="num">Apoen</th><th class="num">Komada</th><th class="num">Iznos</th></tr></thead><tbody>' + denomHtml + '</tbody></table>';
   }
 
   function renderCashCountSaveSummary_(targetId, results, title) {

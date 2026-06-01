@@ -503,7 +503,8 @@
     align-items: end;
     display: grid;
     gap: 10px;
-    grid-template-columns: minmax(160px, 1fr) minmax(140px, 1fr) minmax(92px, auto);
+    grid-template-columns: minmax(220px, 1fr) minmax(160px, 1fr) 110px;
+    max-width: 860px;
   }
 
   .count-add-control {
@@ -525,28 +526,13 @@
   }
 
   #d-cash-count-form {
-    align-items: end;
     display: grid;
     gap: 12px;
-    grid-template-columns: minmax(180px, 260px) minmax(360px, 1fr);
+    grid-template-columns: 1fr;
   }
 
   #d-cash-count-form > label:first-of-type {
-    grid-column: 1 / 2;
-  }
-
-  #d-cash-count-form .cash-count-entry-area {
-    grid-column: 2 / -1;
-  }
-
-  #d-cash-count-form > label,
-  #d-cash-count-form .cash-count-total,
-  #d-cash-count-form > button {
-    grid-column: 1 / -1;
-  }
-
-  #d-cash-count-form > label:first-of-type {
-    grid-column: 1 / 2;
+    max-width: 320px;
   }
 
   #d-cash-count-form > label textarea {
@@ -1124,6 +1110,15 @@
     text-align: left;
   }
 
+  #d-count-detail-wide.count-detail-body,
+  .count-detail-body {
+    align-items: stretch;
+    display: grid;
+    gap: 14px;
+    padding: 0;
+    text-align: left;
+  }
+
   #d-count-detail-wide .count-detail-grid {
     display: grid;
     gap: 12px;
@@ -1170,6 +1165,41 @@
 
   #d-count-detail-wide .count-table {
     font-size: 13px;
+  }
+
+  .count-detail-meta,
+  .count-detail-totals {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .count-detail-meta th,
+  .count-detail-meta td,
+  .count-detail-totals th,
+  .count-detail-totals td {
+    border-bottom: 1px solid var(--color-border-light);
+    padding: 9px 10px;
+    text-align: left;
+  }
+
+  .count-detail-meta th,
+  .count-detail-totals th {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .count-detail-totals .num,
+  .count-table .num {
+    text-align: right;
+  }
+
+  .count-detail-section-title {
+    color: var(--color-text);
+    font-size: 14px;
+    font-weight: 900;
+    margin: 4px 0 0;
   }
 
   .amount-line {
