@@ -847,6 +847,10 @@
 
   function serializeForm(formId) {
     var form = document.getElementById(formId);
+    return serializeFormElement_(form);
+  }
+
+  function serializeFormElement_(form) {
     var data = {};
     if (!form) {
       return data;
@@ -1100,26 +1104,7 @@
 
   function loadMyShiftsTo_(targetId) {
     callApi('apiGetShiftHistory', [{ cashbox_id: SESSION.cashboxId, limit: 50 }], function(result) {
-      renderActionRecords(targetId, result, ['shift_id', 'opened_by', 'opened_at', 'closed_at', 'status'], function(record) {
-        var actions = [
-          actionButton('Presek', function() {
-            callApi('apiGetShiftBalance', [record.shift_id], function(balance) {
-              renderShiftBalanceSummary(targetId, balance);
-            });
-          })
-        ];
-        if (targetId.charAt(0) !== 'm') {
-          actions.push(
-          actionButton('Knjiga', function() {
-            applyBookFiltersForShift_(record);
-          }),
-          actionButton('List', function() {
-            openCashSheetForShift_(record);
-          })
-          );
-        }
-        return actions;
-      });
+      renderShiftTable_(targetId, result || [], { empty: 'Nema smena za prikaz.' });
     });
   }
 
@@ -1422,6 +1407,80 @@
       '</table>';
   }
 
+  function shiftRowHtml_(shift, index) {
+    shift = shift || {};
+    return '<tr data-shift-index="' + index + '" role="button" tabindex="0">' +
+      '<td>' + escapeHtml(String(index + 1)) + '</td>' +
+      '<td>' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</td>' +
+      '<td>' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</td>' +
+      '<td>' + escapeHtml(formatDateTimeShort_(shift.closed_at)) + '</td>' +
+      '<td>' + renderStatusBadge_(shift.status) + '</td>' +
+      '<td>' + escapeHtml(shift.shift_id || '') + '</td>' +
+    '</tr>';
+  }
+
+  function renderShiftTable_(targetId, shifts, options) {
+    options = options || {};
+    shifts = shifts || [];
+    var target = document.getElementById(targetId);
+    if (!target) return;
+    if (!shifts.length) {
+      target.innerHTML = '<div class="empty-state">' + escapeHtml(options.empty || 'Nema smena za prikaz.') + '</div>';
+      return;
+    }
+    window.__shiftTableRecords = window.__shiftTableRecords || {};
+    window.__shiftTableRecords[targetId] = shifts;
+    target.innerHTML = '<div class="table-wrap"><table class="book-table shift-table">' +
+      '<thead><tr><th>Rb.</th><th>Blagajnik</th><th>Otvoreno</th><th>Zatvoreno</th><th>Status</th><th>ID</th></tr></thead>' +
+      '<tbody>' + shifts.map(shiftRowHtml_).join('') + '</tbody></table></div>';
+    target.querySelectorAll('[data-shift-index]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var record = (window.__shiftTableRecords[targetId] || [])[Number(row.getAttribute('data-shift-index'))];
+        renderShiftDetail_(record);
+      });
+    });
+    renderShiftDetail_(shifts[0]);
+  }
+
+  function renderShiftDetail_(shift) {
+    var target = document.getElementById('d-shift-detail-body');
+    if (!target) return;
+    if (!shift || !shift.shift_id) {
+      target.innerHTML = '<div class="empty-state">Izaberite smenu iz tabele.</div>';
+      return;
+    }
+    var opening = parseJsonSafe_(shift.opening_balance_json, {});
+    var closing = parseJsonSafe_(shift.closing_balance_json, {});
+    var physical = parseJsonSafe_(shift.physical_balance_json, {});
+    var difference = parseJsonSafe_(shift.difference_json, {});
+    function balancesHtml(label, values) {
+      var keys = Object.keys(values || {});
+      if (!keys.length) return '';
+      return '<div class="detail-block"><strong>' + escapeHtml(label) + '</strong>' +
+        keys.map(function(code) {
+          return '<div class="detail-row"><span class="detail-key">' + escapeHtml(code) + '</span><strong>' + formatAmount_(values[code]) + '</strong></div>';
+        }).join('') + '</div>';
+    }
+    target.innerHTML =
+      '<div class="detail-row"><span class="detail-key">ID smene</span><strong>' + escapeHtml(shift.shift_id || '') + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Blagajnik</span><strong>' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Otvoreno</span><strong>' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Zatvoreno</span><strong>' + escapeHtml(formatDateTimeShort_(shift.closed_at)) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Status</span><strong>' + renderStatusBadge_(shift.status) + '</strong></div>' +
+      balancesHtml('Početno stanje', opening) +
+      balancesHtml('Završno obračunsko', closing) +
+      balancesHtml('Fizički popis', physical) +
+      balancesHtml('Razlika', difference) +
+      '<div class="actions">' +
+        '<button type="button" data-shift-detail-book>Knjiga</button>' +
+        '<button type="button" data-shift-detail-sheet>Blagajnički list</button>' +
+      '</div>';
+    var bookBtn = target.querySelector('[data-shift-detail-book]');
+    var sheetBtn = target.querySelector('[data-shift-detail-sheet]');
+    if (bookBtn) bookBtn.addEventListener('click', function() { applyBookFiltersForShift_(shift); });
+    if (sheetBtn) sheetBtn.addEventListener('click', function() { openCashSheetForShift_(shift); });
+  }
+
   function applyActiveShiftFields_() {
     var shift = uiState.activeShift || {};
     document.querySelectorAll('input[name="shift_id"]').forEach(function(input) {
@@ -1440,7 +1499,11 @@
     var hasShift = Boolean(shift.shift_id);
     var owner = isCurrentActiveShiftOwner_();
     var statusHtml = hasShift
-      ? '<div class="shift-state active"><strong>Aktivna smena</strong><span>Glavni blagajnik: ' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</span><span>Status: ' + escapeHtml(STATUS_LABEL_MAP[shift.status] || shift.status || '') + '</span></div>' + renderShiftOpeningBalances_(shift)
+      ? '<div class="shift-state active"><strong>Aktivna smena</strong><span>Jedna otvorena smena za izabranu blagajnu.</span></div>' +
+        '<div class="table-wrap"><table class="book-table shift-table"><thead><tr><th>Rb.</th><th>Blagajnik</th><th>Otvoreno</th><th>Zatvoreno</th><th>Status</th><th>ID</th></tr></thead><tbody>' +
+        shiftRowHtml_(shift, 0) +
+        '</tbody></table></div>' +
+        renderShiftOpeningBalances_(shift)
       : '<div class="shift-state empty"><strong>Nema aktivne smene</strong><span>Prvo otvorite smenu da biste radili direktne uplate i isplate.</span></div>';
     ['d-shift-status','m-shift-status'].forEach(function(id) {
       var el = document.getElementById(id);
@@ -1453,11 +1516,11 @@
     });
     document.querySelectorAll('#d-close-shift-form, #m-close-shift-form').forEach(function(form) {
       var card = form.closest('.card');
-      if (card) card.style.display = hasShift ? '' : 'none';
+      if (card) card.style.display = 'none';
       setWorkflowFormDisabled_(form, !hasShift || !owner);
     });
     document.querySelectorAll('.optional-handover-card').forEach(function(card) {
-      card.style.display = hasShift && owner ? '' : 'none';
+      card.style.display = 'none';
     });
     document.querySelectorAll('.shift-work-card').forEach(function(card) {
       if (hasShift) {
@@ -1714,10 +1777,12 @@
         var shift = uiState.activeShift || {};
         openCashSheetForShift_(shift);
       }],
+      ['d-shift-action-close', function() { openShiftClosingDialog_('desktop'); }],
       ['m-shift-action-in', function() { openMobileDirectAction_('m-btn-uplata'); }],
       ['m-shift-action-out', function() { openMobileDirectAction_('m-btn-isplata'); }],
       ['m-shift-action-treasury', function() { openMobileDirectAction_('m-btn-trezor'); }],
-      ['m-shift-action-count', function() { openMobileSection_('m-section-presek'); }]
+      ['m-shift-action-count', function() { openMobileSection_('m-section-presek'); }],
+      ['m-shift-action-close', function() { openShiftClosingDialog_('mobile'); }]
     ].forEach(function(item) {
       var btn = document.getElementById(item[0]);
       if (!btn || btn.dataset.bound === '1') return;
@@ -1744,6 +1809,78 @@
     }, { quiet: true });
   }
 
+  function currencySelectOptions_() {
+    var currencies = uiState.config && uiState.config.currencies || ['RSD'];
+    return currencies.map(function(code) {
+      return '<option value="' + escapeHtml(code) + '">' + escapeHtml(code) + '</option>';
+    }).join('');
+  }
+
+  function openShiftClosingDialog_(mode) {
+    var shift = uiState.activeShift || {};
+    if (!shift.shift_id) {
+      showMessage('Nema aktivne smene za zatvaranje.', 'error');
+      return;
+    }
+    if (!isCurrentActiveShiftOwner_()) {
+      showMessage('Smenu može zatvoriti samo glavni blagajnik smene.', 'error');
+      return;
+    }
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog app-dialog-wide" role="dialog" aria-modal="true">' +
+        '<h3>Zatvaranje smene - završni popis</h3>' +
+        '<p>Unesite završni popis istom logikom kao kod preseka stanja.</p>' +
+        '<form id="shift-closing-dialog-form" class="form-grid" data-cash-count-form data-count-purpose="closing">' +
+          '<input name="shift_id" type="hidden" value="' + escapeHtml(shift.shift_id || '') + '">' +
+          '<input name="cashbox_id" type="hidden" value="' + escapeHtml(SESSION.cashboxId || shift.cashbox_id || '') + '">' +
+          '<input name="count_type" type="hidden" value="SHIFT_CLOSING">' +
+          '<label>Valuta <select name="currency" data-currency-options>' + currencySelectOptions_() + '</select></label>' +
+          '<div class="cash-count-entry-area" data-denomination-inputs></div>' +
+          '<label>Napomena <textarea name="note" rows="3"></textarea></label>' +
+          '<div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>' +
+          '<div class="app-dialog-actions">' +
+            '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
+            '<button type="submit" class="btn-primary">Zatvori smenu</button>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    var form = overlay.querySelector('#shift-closing-dialog-form');
+    form.dataset.countRows = '[]';
+    var currency = form.querySelector('[name="currency"]');
+    if (currency) currency.value = SESSION.currency;
+    renderDenominationInputs_();
+    bindAmountFormatting_();
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+      submitShiftClosingForm_(form, mode === 'mobile' ? 'm-shift-result' : 'd-shift-result', close);
+    });
+  }
+
+  function submitShiftClosingForm_(form, targetId, closeDialog) {
+    if (!validateCashCountForm_(form)) return;
+    var data = withUiDefaults(serializeFormElement_(form));
+    data.denominations = collectDenominations_(form);
+    callApi('apiCloseShiftWithClosingCount', [data], function(result) {
+      uiState.activeShift = null;
+      uiState.canPostDirectCashEvents = false;
+      applyActiveShiftFields_();
+      applyDirectCashPermission_();
+      form.dataset.countRows = '[]';
+      renderDenominationInputs_();
+      renderShiftSummary(targetId, result, 'Smena je zatvorena');
+      refreshBalance_();
+      loadCashCounts_();
+      loadMyShiftsTo_(targetId === 'm-shift-result' ? 'm-shifts-list' : 'd-shifts-list');
+      if (closeDialog) closeDialog();
+    }, { successMessage: 'Smena je zatvorena.' });
+  }
+
   function applyRoleBasedHomeMobile_(role) {
     var visibility = {
       'home-group-requests': ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','APPROVER','CASHIER','REQUESTER'],
@@ -1764,72 +1901,120 @@
 
   function loadCashCounts_() {
     var filters = withUiDefaults({
-      cashbox_id: SESSION.cashboxId,
-      currency: SESSION.currency,
-      shift_id: uiState.activeShift && uiState.activeShift.shift_id || ''
+      cashbox_id: SESSION.cashboxId
     });
     callApi('apiGetCashCountsReport', [filters], function(rows) {
       renderCashCounts_(rows || []);
     }, { quiet: true });
   }
 
+  function cashCountBatchKey_(row) {
+    return [
+      row.posted_at || row.created_at || '',
+      row.posted_by || row.created_by || '',
+      row.count_type || '',
+      row.shift_id || '',
+      row.note || ''
+    ].join('|');
+  }
+
+  function groupCashCounts_(rows) {
+    var grouped = {};
+    (rows || []).forEach(function(row) {
+      var key = cashCountBatchKey_(row);
+      if (!grouped[key]) {
+        grouped[key] = {
+          posted_at: row.posted_at || row.created_at,
+          user: row.posted_by || row.created_by,
+          count_type: row.count_type,
+          shift_id: row.shift_id,
+          note: row.note,
+          status: row.status,
+          rows: []
+        };
+      }
+      grouped[key].rows.push(row);
+    });
+    return Object.keys(grouped).map(function(key) {
+      var group = grouped[key];
+      group.currencies = group.rows.map(function(row) { return row.currency; }).filter(Boolean).join(', ');
+      group.calculated_total = group.rows.reduce(function(total, row) { return total + Number(row.calculated_balance_before || 0); }, 0);
+      group.counted_total = group.rows.reduce(function(total, row) { return total + Number(row.counted_total || row.counted_cash_total || 0); }, 0);
+      group.difference_total = group.rows.reduce(function(total, row) { return total + Number(row.difference || 0); }, 0);
+      return group;
+    }).sort(function(a, b) {
+      return new Date(b.posted_at || 0).getTime() - new Date(a.posted_at || 0).getTime();
+    });
+  }
+
   function renderCashCounts_(rows) {
+    var groups = groupCashCounts_(rows);
     var tbody = document.getElementById('d-counts-tbody');
     var list = document.getElementById('m-counts-list');
     if (tbody) {
-      tbody.innerHTML = rows.length ? rows.map(function(row, index) {
-        var cls = Math.abs(Number(row.difference || 0)) > 0.000001 ? 'row-count' : '';
+      tbody.innerHTML = groups.length ? groups.map(function(group, index) {
+        var cls = Math.abs(Number(group.difference_total || 0)) > 0.000001 ? 'row-count' : '';
         return '<tr class="' + cls + '" data-count-index="' + index + '">' +
-          '<td>' + escapeHtml(formatDateTimeShort_(row.posted_at || row.created_at)) + '</td>' +
-          '<td>' + escapeHtml(shortUserLabel_(row.posted_by || row.created_by || '—')) + '</td>' +
-          '<td>' + escapeHtml(row.currency || '') + '</td>' +
-          '<td class="cell-bal">' + formatAmount_(row.calculated_balance_before) + '</td>' +
-          '<td class="cell-bal">' + formatAmount_(row.counted_total) + '</td>' +
-          '<td class="' + (Number(row.difference || 0) >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(row.difference) + '</td>' +
-          '<td>' + renderStatusBadge_(row.status) + '</td>' +
+          '<td>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</td>' +
+          '<td>' + escapeHtml(shortUserLabel_(group.user || '—')) + '</td>' +
+          '<td>' + escapeHtml(group.currencies || '') + '</td>' +
+          '<td class="cell-bal">' + formatAmount_(group.calculated_total) + '</td>' +
+          '<td class="cell-bal">' + formatAmount_(group.counted_total) + '</td>' +
+          '<td class="' + (Number(group.difference_total || 0) >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(group.difference_total) + '</td>' +
+          '<td>' + renderStatusBadge_(group.status) + '</td>' +
         '</tr>';
-      }).join('') : '<tr><td colspan="7"><div class="empty-state">Nema preseka za aktivnu smenu.</div></td></tr>';
+      }).join('') : '<tr><td colspan="7"><div class="empty-state">Nema preseka za prikaz.</div></td></tr>';
       tbody.querySelectorAll('[data-count-index]').forEach(function(row) {
         row.addEventListener('click', function() {
-          renderCashCountDetail_(rows[Number(row.getAttribute('data-count-index'))], 'd-count-detail-body');
+          renderCashCountDetail_(groups[Number(row.getAttribute('data-count-index'))], 'd-count-detail-body');
         });
       });
     }
     if (list) {
-      list.innerHTML = rows.length ? rows.map(function(row, index) {
+      list.innerHTML = groups.length ? groups.map(function(group, index) {
         return '<div class="m-entry count" data-count-index="' + index + '">' +
           '<div class="m-entry-dot" style="background:#d99a00"></div>' +
-          '<div class="m-entry-info"><div class="m-entry-desc">' + escapeHtml(row.currency || '') + ' · ' + escapeHtml(formatDateTimeShort_(row.posted_at || row.created_at)) + '</div>' +
-          '<div class="m-entry-meta">Popisano ' + escapeHtml(formatAmount_(row.counted_total)) + ' · Razlika ' + escapeHtml(formatAmount_(row.difference)) + '</div></div>' +
+          '<div class="m-entry-info"><div class="m-entry-desc">' + escapeHtml(group.currencies || '') + ' · ' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</div>' +
+          '<div class="m-entry-meta">Popisano ' + escapeHtml(formatAmount_(group.counted_total)) + ' · Razlika ' + escapeHtml(formatAmount_(group.difference_total)) + '</div></div>' +
         '</div>';
-      }).join('') : '<div class="empty-state">Nema preseka za aktivnu smenu.</div>';
+      }).join('') : '<div class="empty-state">Nema preseka za prikaz.</div>';
       list.querySelectorAll('[data-count-index]').forEach(function(row) {
         row.addEventListener('click', function() {
-          renderCashCountDetail_(rows[Number(row.getAttribute('data-count-index'))], 'm-count-detail-body');
+          renderCashCountDetail_(groups[Number(row.getAttribute('data-count-index'))], 'm-count-detail-body');
         });
       });
     }
-    if (rows.length) {
-      renderCashCountDetail_(rows[0], document.getElementById('d-count-detail-body') ? 'd-count-detail-body' : 'm-count-detail-body');
+    if (groups.length) {
+      renderCashCountDetail_(groups[0], document.getElementById('d-count-detail-body') ? 'd-count-detail-body' : 'm-count-detail-body');
     }
   }
 
-  function renderCashCountDetail_(count, targetId) {
+  function renderCashCountDetail_(countGroup, targetId) {
     var target = document.getElementById(targetId);
-    if (!target || !count) return;
-    var denominations = count.denominations || [];
-    var denomHtml = denominations.length ? '<table class="count-table"><thead><tr><th>Apoen</th><th>Komada</th><th>Iznos</th></tr></thead><tbody>' +
-      denominations.map(function(row) {
+    if (!target || !countGroup) return;
+    var group = countGroup.rows ? countGroup : { rows: [countGroup] };
+    var denomHtml = group.rows.map(function(count) {
+      var denominations = count.denominations || [];
+      var denomRows = denominations.length ? denominations.map(function(row) {
         var amount = Number(row.denomination || 0) * Number(row.quantity || 0);
-        return '<tr><td>' + formatAmount_(row.denomination) + '</td><td>' + escapeHtml(row.quantity) + '</td><td>' + formatAmount_(amount) + '</td></tr>';
-      }).join('') + '</tbody></table>' : '<div class="empty-state">Nema apoena u ovom preseku.</div>';
+        return '<tr><td>' + escapeHtml(count.currency || '') + '</td><td>' + formatAmount_(row.denomination) + '</td><td>' + escapeHtml(row.quantity) + '</td><td>' + formatAmount_(amount) + '</td></tr>';
+      }).join('') : '<tr><td>' + escapeHtml(count.currency || '') + '</td><td colspan="3">Nema apoena.</td></tr>';
+      return '<div class="detail-block">' +
+        '<strong>' + escapeHtml(count.currency || '') + '</strong>' +
+        '<div class="detail-row"><span class="detail-key">ID</span><span>' + escapeHtml(count.count_id || '') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-key">Obračunato</span><strong>' + formatAmount_(count.calculated_balance_before) + '</strong></div>' +
+        '<div class="detail-row"><span class="detail-key">Popisano</span><strong>' + formatAmount_(count.counted_total) + '</strong></div>' +
+        '<div class="detail-row"><span class="detail-key">Razlika</span><strong>' + formatAmount_(count.difference) + '</strong></div>' +
+        '<table class="count-table"><thead><tr><th>Valuta</th><th>Apoen</th><th>Komada</th><th>Iznos</th></tr></thead><tbody>' + denomRows + '</tbody></table>' +
+      '</div>';
+    }).join('');
     target.innerHTML =
-      '<div class="detail-row"><span class="detail-key">ID</span><span>' + escapeHtml(count.count_id || '') + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">Vreme</span><span>' + escapeHtml(formatDateTimeShort_(count.posted_at || count.created_at)) + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">Valuta</span><span>' + escapeHtml(count.currency || '') + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">Obračunato</span><strong>' + formatAmount_(count.calculated_balance_before) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Popisano</span><strong>' + formatAmount_(count.counted_total) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Razlika</span><strong>' + formatAmount_(count.difference) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Vreme</span><span>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">Korisnik</span><span>' + escapeHtml(shortUserLabel_(group.user || '')) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">Valute</span><strong>' + escapeHtml(group.currencies || '') + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Ukupno obračunato</span><strong>' + formatAmount_(group.calculated_total) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Ukupno popisano</span><strong>' + formatAmount_(group.counted_total) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Ukupna razlika</span><strong>' + formatAmount_(group.difference_total) + '</strong></div>' +
       denomHtml;
   }
 

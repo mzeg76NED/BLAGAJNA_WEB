@@ -461,6 +461,14 @@
     width: 135px;
   }
 
+  .shift-table tbody tr {
+    cursor: pointer;
+  }
+
+  .shift-table tbody tr:hover td {
+    background: var(--color-primary-bg);
+  }
+
   .balance-pill {
     background: var(--color-primary-bg);
     border: 1px solid var(--color-border-light);
@@ -1435,6 +1443,13 @@
     justify-content: space-between;
   }
 
+  .detail-block {
+    border-top: 1px solid var(--color-border-light);
+    display: grid;
+    gap: 8px;
+    padding-top: 10px;
+  }
+
   .detail-key { color: var(--color-text-muted); }
 
   .list, .result-box { display: grid; gap: 10px; }
@@ -1625,6 +1640,11 @@
     max-width: 440px;
     padding: 18px;
     width: min(100%, 440px);
+  }
+
+  .app-dialog-wide {
+    max-width: 760px;
+    width: min(100%, 760px);
   }
 
   .app-dialog h3 {
