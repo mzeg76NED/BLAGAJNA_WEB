@@ -139,13 +139,29 @@ function getCashSheetReport(filters) {
   const dateKey = scoped.date || scoped.closing_date || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Europe/Belgrade', 'yyyy-MM-dd');
   scoped.date_from = scoped.date_from || dateKey;
   scoped.date_to = scoped.date_to || dateKey;
-  const events = getCashMovementsReport(Object.assign({}, scoped, { limit: 500 }));
   const shift = scoped.shift_id ? findRecordById(SHEET_NAMES.SHIFTS, 'shift_id', scoped.shift_id) : null;
   const shiftRecord = shift ? shift.record : null;
-  const currency = scoped.currency || (events[0] && events[0].currency) || 'RSD';
+  const currency = scoped.currency || 'RSD';
+  const scopedForEvents = Object.assign({}, scoped, { currency: currency, limit: 500 });
+  const events = getCashMovementsReport(scopedForEvents);
+  const cashEventsAscending = listRecords(SHEET_NAMES.CASH_EVENTS)
+    .filter(function(event) {
+      return (!scoped.cashbox_id || event.cashbox_id === scoped.cashbox_id) &&
+        event.currency === currency;
+    })
+    .sort(function(left, right) {
+      return toTime_(left.event_date || left.created_at) - toTime_(right.event_date || right.created_at);
+    });
+  const balanceScope = resolveCashSheetScope_(scoped, shiftRecord);
+  const balanceSnapshot = calculateBalanceSnapshotForScope_(cashEventsAscending, balanceScope);
   const openingBalances = shiftRecord ? parseJson_(shiftRecord.opening_balance_json || '{}') : {};
-  const openingBalance = safeNumber_(openingBalances[currency]);
+  const openingBalance = shiftRecord && Object.prototype.hasOwnProperty.call(openingBalances, currency)
+    ? safeNumber_(openingBalances[currency])
+    : balanceSnapshot.openingBalance;
   const totals = events.reduce(function(result, event) {
+    if (event.source_type === 'CASH_COUNT' || event.event_type === 'CASH_COUNT') {
+      return result;
+    }
     const amount = safeNumber_(event.display_amount !== undefined ? event.display_amount : event.amount);
     const signed = safeNumber_(event.signed_amount);
     if (event.event_type === 'TREASURY_HANDOVER') {
@@ -169,7 +185,14 @@ function getCashSheetReport(filters) {
     shortage: 0,
     reversal: 0
   });
-  const closingBalance = events.length ? safeNumber_(events[0].running_balance) : openingBalance;
+  const calculatedClosingBalance = openingBalance +
+    totals.inflow -
+    totals.outflow -
+    totals.treasury +
+    totals.surplus -
+    totals.shortage +
+    totals.reversal;
+  const closingBalance = balanceSnapshot.hasScopedEvents ? balanceSnapshot.closingBalance : calculatedClosingBalance;
   const counts = getCashCountsReport({
     cashbox_id: scoped.cashbox_id,
     currency: currency,
@@ -179,6 +202,7 @@ function getCashSheetReport(filters) {
   });
   const latestCount = counts.length ? counts[0] : null;
   const physical = latestCount ? safeNumber_(latestCount.counted_total) : null;
+  const physicalDifference = latestCount ? physical - closingBalance : null;
   return {
     document_no: 'BL-' + dateKey.replace(/-/g, '') + '-' + (scoped.shift_id || 'DAN') + '-' + currency,
     date: dateKey,
@@ -195,10 +219,81 @@ function getCashSheetReport(filters) {
     total_reversal: totals.reversal,
     calculated_closing_balance: closingBalance,
     physical_total: physical,
-    difference: latestCount ? safeNumber_(latestCount.difference) : null,
+    difference: latestCount ? physicalDifference : null,
     latest_count: latestCount,
     events: events
   };
+}
+
+function resolveCashSheetScope_(filters, shiftRecord) {
+  if (shiftRecord) {
+    return {
+      dateFrom: '',
+      dateTo: '',
+      openedAt: shiftRecord.opened_at,
+      closedAt: shiftRecord.closed_at || shiftRecord.handover_at || ''
+    };
+  }
+  return {
+    dateFrom: filters.date_from || '',
+    dateTo: filters.date_to || '',
+    openedAt: '',
+    closedAt: ''
+  };
+}
+
+function calculateBalanceSnapshotForScope_(eventsAscending, scope) {
+  let running = 0;
+  let openingBalance = 0;
+  let closingBalance = 0;
+  let seenScope = false;
+
+  eventsAscending.forEach(function(event) {
+    const eventTime = toTime_(event.event_date || event.created_at);
+    const inScope = isEventInCashSheetScope_(event, eventTime, scope);
+    if (!seenScope && inScope) {
+      openingBalance = running;
+      seenScope = true;
+    }
+    if (isCashEventBalanceAffecting(event)) {
+      running += event.direction === 'OUT' ? -safeNumber_(event.amount) : safeNumber_(event.amount);
+    }
+    if (inScope) {
+      closingBalance = running;
+    } else if (!seenScope && isEventBeforeCashSheetScope_(event, eventTime, scope)) {
+      openingBalance = running;
+      closingBalance = running;
+    }
+  });
+
+  if (!seenScope) {
+    closingBalance = openingBalance;
+  }
+
+  return {
+    openingBalance: openingBalance,
+    closingBalance: closingBalance,
+    hasScopedEvents: seenScope
+  };
+}
+
+function isEventInCashSheetScope_(event, eventTime, scope) {
+  if (scope.openedAt) {
+    const opened = toTime_(scope.openedAt);
+    const closed = scope.closedAt ? toTime_(scope.closedAt) : Number.MAX_SAFE_INTEGER;
+    return eventTime >= opened && eventTime <= closed;
+  }
+  return isDateInRange_(event.event_date || event.created_at, scope.dateFrom, scope.dateTo);
+}
+
+function isEventBeforeCashSheetScope_(event, eventTime, scope) {
+  if (scope.openedAt) {
+    return eventTime < toTime_(scope.openedAt);
+  }
+  if (!scope.dateFrom) {
+    return false;
+  }
+  return normalizeReportDateKey_(event.event_date || event.created_at) < scope.dateFrom;
 }
 
 function getOpenPaymentRequestsReport(filters) {
