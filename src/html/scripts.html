@@ -232,7 +232,7 @@
     bindForm('open-shift-form', function(data) {
       data = withUiDefaults(data);
       callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
-        renderShiftSummary('shift-result', result, 'Smena je otvorena');
+        renderHtml('shift-result', '');
         refreshDashboardInBackground();
       }, { successMessage: 'Smena je otvorena.' });
     });
@@ -497,7 +497,7 @@
             return '<option value="' + escapeHtml(value) + '">' + escapeHtml(formatAmount_(value)) + '</option>';
           }).join('') + '</select></label>' +
           '<label>Komada <input data-count-quantity type="number" min="0" step="1" inputmode="numeric" value=""></label>' +
-          '<button class="btn-primary" data-count-add type="button">Upiši</button>' +
+          '<label class="count-add-control"><span>&nbsp;</span><button class="btn-primary" data-count-add type="button">Upiši</button></label>' +
         '</div>' +
         '<div data-count-rows></div>';
       var addBtn = container.querySelector('[data-count-add]');
@@ -1499,8 +1499,7 @@
         '<div class="actions shift-inline-actions">' +
           '<button type="button" data-shift-status-count><i class="ti ti-calculator" aria-hidden="true"></i> Presek stanja</button>' +
           '<button type="button" class="btn-primary" data-shift-status-close><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
-        '</div>' +
-        renderShiftOpeningBalances_(shift)
+        '</div>'
       : '<div class="shift-state empty"><strong>Nema aktivne smene</strong><span>Otvorite smenu kroz popis apoena da bi blagajna počela rad.</span></div>';
     ['d-shift-status','m-shift-status'].forEach(function(id) {
       var el = document.getElementById(id);
@@ -1543,13 +1542,8 @@
       card.style.display = 'none';
     });
     document.querySelectorAll('.shift-work-card').forEach(function(card) {
-      if (hasShift) {
-        card.removeAttribute('hidden');
-        card.style.display = '';
-      } else {
-        card.setAttribute('hidden', 'hidden');
-        card.style.display = 'none';
-      }
+      card.setAttribute('hidden', 'hidden');
+      card.style.display = 'none';
     });
     ['d-shift-action-in','d-shift-action-out','d-shift-action-treasury','m-shift-action-in','m-shift-action-out','m-shift-action-treasury'].forEach(function(id) {
       var btn = document.getElementById(id);
@@ -1936,7 +1930,7 @@
       applyDirectCashPermission_();
       form.dataset.countRows = '[]';
       renderDenominationInputs_();
-      renderShiftSummary(targetId, uiState.activeShift, 'Smena je otvorena');
+      renderHtml(targetId, '');
       loadCashbookFilterOptions_();
       refreshBalance_();
       loadCashCounts_();
@@ -2101,7 +2095,7 @@
     var currencies = Object.keys(values || {});
     if (!currencies.length) return '—';
     return currencies.map(function(code) {
-      return '<span class="balance-pill">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(values[code])) + '</span>';
+      return '<span class="amount-line">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(values[code])) + '</span>';
     }).join(' ');
   }
 
@@ -2111,7 +2105,7 @@
     return currencies.map(function(code) {
       var value = Number(values[code] || 0);
       var cls = value >= 0 ? 'cell-in' : 'cell-out';
-      return '<span class="balance-pill ' + cls + '">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(value)) + '</span>';
+      return '<span class="amount-line ' + cls + '">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(value)) + '</span>';
     }).join(' ');
   }
 
@@ -2124,25 +2118,50 @@
       var denomRows = denominations.length ? denominations.map(function(row) {
         var amount = Number(row.denomination || 0) * Number(row.quantity || 0);
         return '<tr><td>' + escapeHtml(count.currency || '') + '</td><td>' + formatAmount_(row.denomination) + '</td><td>' + escapeHtml(row.quantity) + '</td><td>' + formatAmount_(amount) + '</td></tr>';
-      }).join('') : '<tr><td>' + escapeHtml(count.currency || '') + '</td><td colspan="3">Nema apoena.</td></tr>';
-      return '<div class="detail-block">' +
+      }).join('') : '<tr><td>' + escapeHtml(count.currency || '') + '</td><td colspan="3">Popisano 0,00 za ovu valutu.</td></tr>';
+      return '<div class="detail-block count-detail-card">' +
         '<strong>' + escapeHtml(count.currency || '') + '</strong>' +
-        '<div class="detail-row"><span class="detail-key">ID</span><span>' + escapeHtml(count.count_id || '') + '</span></div>' +
         '<div class="detail-row"><span class="detail-key">Obračunato</span><strong>' + formatAmount_(count.calculated_balance_before) + '</strong></div>' +
         '<div class="detail-row"><span class="detail-key">Popisano</span><strong>' + formatAmount_(count.counted_total) + '</strong></div>' +
-        '<div class="detail-row"><span class="detail-key">Razlika</span><strong>' + formatAmount_(count.difference) + '</strong></div>' +
+        '<div class="detail-row"><span class="detail-key">Razlika</span><strong class="' + (Number(count.difference || 0) >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(count.difference) + '</strong></div>' +
         '<table class="count-table"><thead><tr><th>Valuta</th><th>Apoen</th><th>Komada</th><th>Iznos</th></tr></thead><tbody>' + denomRows + '</tbody></table>' +
       '</div>';
     }).join('');
     target.innerHTML =
-      '<div class="detail-row"><span class="detail-key">Vreme</span><span>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">Vrsta</span><strong>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Korisnik</span><span>' + escapeHtml(shortUserLabel_(group.user || '')) + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">Valute</span><strong>' + escapeHtml(group.currencies || '') + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Obračunato</span><strong>' + cashCountCurrencySummary_(group.calculated_by_currency) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Popisano</span><strong>' + cashCountCurrencySummary_(group.counted_by_currency) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Razlika</span><strong>' + cashCountDifferenceSummary_(group.difference_by_currency) + '</strong></div>' +
-      denomHtml;
+      '<div class="count-detail-summary">' +
+        '<div><span class="detail-key">Vreme</span><strong>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</strong></div>' +
+        '<div><span class="detail-key">Vrsta</span><strong>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</strong></div>' +
+        '<div><span class="detail-key">Korisnik</span><strong>' + escapeHtml(shortUserLabel_(group.user || '')) + '</strong></div>' +
+        '<div><span class="detail-key">Valute</span><strong>' + escapeHtml(group.currencies || '') + '</strong></div>' +
+      '</div>' +
+      '<div class="count-detail-summary">' +
+        '<div><span class="detail-key">Obračunato</span><strong>' + cashCountCurrencySummary_(group.calculated_by_currency) + '</strong></div>' +
+        '<div><span class="detail-key">Popisano</span><strong>' + cashCountCurrencySummary_(group.counted_by_currency) + '</strong></div>' +
+        '<div><span class="detail-key">Razlika</span><strong>' + cashCountDifferenceSummary_(group.difference_by_currency) + '</strong></div>' +
+      '</div>' +
+      '<div class="count-detail-grid">' + denomHtml + '</div>';
+  }
+
+  function renderCashCountSaveSummary_(targetId, results, title) {
+    var rows = Array.isArray(results) ? results : [results || {}];
+    var currencies = rows.map(function(item) { return item.currency; }).filter(Boolean).join(', ');
+    var counted = rows.map(function(item) {
+      return amountWithCurrency(item.counted_cash_total, item.currency);
+    }).join(' · ');
+    var calculated = rows.map(function(item) {
+      return amountWithCurrency(item.calculated_balance_before, item.currency);
+    }).join(' · ');
+    var difference = rows.map(function(item) {
+      return amountWithCurrency(item.difference, item.currency);
+    }).join(' · ');
+    var type = rows[0] && rows[0].count_type ? cashCountTypeLabel_(rows[0].count_type) : 'Presek stanja';
+    renderSummaryCard(targetId, title || 'Presek blagajne je sačuvan', [
+      ['Vrsta', type],
+      ['Valute', currencies || '—'],
+      ['Popisano', counted || '0,00'],
+      ['Obračunato pre popisa', calculated || '0,00'],
+      ['Razlika', difference || '0,00']
+    ]);
   }
 
   function loadCashSheet_() {
@@ -2178,11 +2197,8 @@
       cashsheetCalcRow_('+ Ukupne uplate', sheet.total_in, sheet.currency, 'cell-in') +
       cashsheetCalcRow_('- Ukupne isplate', sheet.total_out, sheet.currency, 'cell-out') +
       cashsheetCalcRow_('- Predato u trezor', sheet.total_treasury, sheet.currency, 'cell-out') +
-      cashsheetCalcRow_('+ Korekcije viška', sheet.total_surplus, sheet.currency, 'cell-in') +
-      cashsheetCalcRow_('- Korekcije manjka', sheet.total_shortage, sheet.currency, 'cell-out') +
-      cashsheetCalcRow_('Storno efekat', sheet.total_reversal, sheet.currency) +
       cashsheetCalcRow_('= Obračunsko završno stanje', sheet.calculated_closing_balance, sheet.currency, 'cell-bal') +
-      cashsheetCalcRow_('Fizički popis', sheet.physical_total == null ? 'Fizički popis nije unet' : sheet.physical_total, sheet.currency) +
+      cashsheetCalcRow_('Završni presek / fizički popis', sheet.physical_total == null ? 'Fizički popis nije unet' : sheet.physical_total, sheet.currency) +
       cashsheetCalcRow_('Razlika', sheet.difference == null ? '—' : sheet.difference, sheet.currency, Number(sheet.difference || 0) === 0 ? 'cell-in' : 'cell-out') +
     '</div>';
     side.innerHTML =
@@ -2199,11 +2215,13 @@
       var isOut = dir === 'OUT';
       var isCount = ev.event_type === 'CASH_COUNT' || /presek|popis/i.test(String(ev.description || ''));
       var rowClass = isCount ? 'row-count' : isIn ? 'row-in' : isOut ? 'row-out' : '';
+      var displayName = cashEventUserLabel_(ev);
+      var displayReason = cashEventReasonLabel_(ev);
       return '<tr class="' + rowClass + '">' +
         '<td>' + (events.length - idx) + '</td>' +
         '<td>' + escapeHtml(formatTimeShort_(ev.event_date || ev.created_at)) + '</td>' +
         '<td>' + escapeHtml(ev.event_type || '') + '</td>' +
-        '<td><div class="desc-main">' + escapeHtml(ev.partner_name || ev.description || '—') + '</div><div class="desc-reason">' + escapeHtml(ev.description || '') + '</div></td>' +
+        '<td><div class="desc-main">' + escapeHtml(displayName || '—') + '</div><div class="desc-reason">' + escapeHtml(displayReason || '') + '</div></td>' +
         '<td class="cell-in">' + (isIn ? formatAmount_(Math.abs(amount)) : '—') + '</td>' +
         '<td class="cell-out">' + (isOut ? formatAmount_(Math.abs(amount)) : '—') + '</td>' +
         '<td class="cell-bal">' + formatAmount_(ev.running_balance) + '</td>' +
@@ -2767,6 +2785,45 @@
     };
   }
 
+  function cashCountEventKindFromDescription_(description) {
+    var text = String(description || '').toUpperCase();
+    if (text.indexOf('POČETAK SMENE') !== -1 || text.indexOf('POCETAK SMENE') !== -1) return 'Otvaranje smene';
+    if (text.indexOf('ZAVRŠNI POPIS') !== -1 || text.indexOf('ZAVRSNI POPIS') !== -1 || text.indexOf('ZATVARANJE') !== -1) return 'Zatvaranje smene';
+    return 'Kontrolni presek';
+  }
+
+  function cashCountDifferenceText_(ev) {
+    var amount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+    var direction = ev.display_direction || ev.direction;
+    if (!amount) return 'Bez razlike';
+    var label = direction === 'OUT' ? 'Manjak' : 'Višak';
+    return label + ': ' + formatAmount_(Math.abs(amount)) + ' ' + escapeHtml(ev.currency || SESSION.currency || '');
+  }
+
+  function cleanBusinessDescription_(description) {
+    return String(description || '')
+      .replace(/CNT-\d{8}-\d{6}-[A-F0-9]+/gi, '')
+      .replace(/CEV-\d{8}-\d{6}-[A-F0-9]+/gi, '')
+      .replace(/PRESEK SMENE\s*-\s*KOREKCIJA\s*-\s*/gi, '')
+      .replace(/\s*\.\s*Razlika:/gi, '. Razlika:')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\s+\./g, '.')
+      .trim();
+  }
+
+  function cashEventUserLabel_(ev) {
+    var isCount = ev.event_type === 'CASH_COUNT' || (ev.event_type === 'CORRECTION' && /presek|popis|početak smene|završni popis/i.test(String(ev.description || '')));
+    if (isCount) return cashCountEventKindFromDescription_(ev.description);
+    if (ev.event_type === 'TREASURY_HANDOVER') return 'Predaja u trezor';
+    return ev.partner_name || ev.description || '—';
+  }
+
+  function cashEventReasonLabel_(ev) {
+    var isCount = ev.event_type === 'CASH_COUNT' || (ev.event_type === 'CORRECTION' && /presek|popis|početak smene|završni popis/i.test(String(ev.description || '')));
+    if (isCount) return cashCountDifferenceText_(ev);
+    return cleanBusinessDescription_(ev.description || '—');
+  }
+
   function renderKnjigaRow_(ev, index, balance) {
     var displayDirection = ev.display_direction || ev.direction;
     var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
@@ -2778,16 +2835,16 @@
     var amtFmt  = formatAmount_(displayAmount);
     var balFmt  = formatAmount_(balance);
     var dateStr = formatDateShort_(ev.event_date || ev.created_at);
-    var label   = escapeHtml(ev.partner_name || ev.description || '—');
-    var reason  = escapeHtml(ev.description || '—');
+    var label   = escapeHtml(cashEventUserLabel_(ev));
+    var reason  = escapeHtml(cashEventReasonLabel_(ev));
     var createdBy = escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—'));
     var timeStr = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date));
-    var trace = ev.reversal_of_event_id ? ' · Veza: ' + escapeHtml(ev.reversal_of_event_id) : '';
+    var trace = ev.reversal_of_event_id ? ' · Stornirano' : '';
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     return '<tr class="' + rowClass + '" data-event-id="' + escapeHtml(ev.event_id) + '">' +
       '<td>' + index + '</td>' +
       '<td>' + dateStr + '</td>' +
-      '<td><div class="desc-main">' + label + '</div><div class="desc-reason">' + reason + '</div><div class="desc-sub">' + timeStr + ' · ' + createdBy + ' · ' + escapeHtml(ev.event_id) + trace + statusHint + '</div></td>' +
+      '<td><div class="desc-main">' + label + '</div><div class="desc-reason">' + reason + '</div><div class="desc-sub">' + timeStr + ' · ' + createdBy + trace + statusHint + '</div></td>' +
       '<td class="' + (isIn  ? 'cell-in'   : 'cell-dash') + '">' + (isIn  ? amtFmt : '—') + '</td>' +
       '<td class="' + (isOut ? 'cell-out'  : 'cell-dash') + '">' + (isOut ? amtFmt : '—') + '</td>' +
       '<td class="cell-bal">' + balFmt + '</td>' +
@@ -2843,12 +2900,11 @@
     var dotBg  = isCount || isTreasury ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
     var color  = isCount || isTreasury ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
     var prefix = isCount ? '' : isTreasury ? 'Trezor ' : displayAmount < 0 ? '−' : (isIn ? '+' : '−');
-    var label  = escapeHtml(ev.partner_name || ev.description || '—');
-    var reason = escapeHtml(ev.description || '—');
+    var label  = escapeHtml(cashEventUserLabel_(ev));
+    var reason = escapeHtml(cashEventReasonLabel_(ev));
     var meta   = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) +
       ' · ' + escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—')) +
-      ' · ' + escapeHtml(ev.event_id) +
-      (ev.reversal_of_event_id ? ' · Veza: ' + escapeHtml(ev.reversal_of_event_id) : '');
+      (ev.reversal_of_event_id ? ' · Stornirano' : '');
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     return '<div class="m-entry' + (isCount ? ' count' : '') + (ev.optimistic_id ? ' optimistic' : '') + '" data-event-id="' + escapeHtml(ev.event_id) + '">' +
       '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
@@ -3458,7 +3514,7 @@
         uiState.canPostDirectCashEvents = true;
         applyActiveShiftFields_();
         applyDirectCashPermission_();
-        renderShiftSummary('d-shift-result', uiState.activeShift, 'Smena je otvorena');
+        renderHtml('d-shift-result', '');
         form.dataset.countRows = '[]';
         renderDenominationInputs_();
         loadCashbookFilterOptions_();
@@ -3475,7 +3531,7 @@
         uiState.canPostDirectCashEvents = true;
         applyActiveShiftFields_();
         applyDirectCashPermission_();
-        renderShiftSummary('m-shift-result', uiState.activeShift, 'Smena je otvorena');
+        renderHtml('m-shift-result', '');
         form.dataset.countRows = '[]';
         renderDenominationInputs_();
         loadCashbookFilterOptions_();
@@ -3542,16 +3598,7 @@
       data.denominations = collectDenominations_(form);
       data.include_all_currencies = true;
       callApi('apiCreateCashCounts', [data], function(results) {
-        var result = Array.isArray(results) ? results[0] || {} : results || {};
-        var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
-        renderSummaryCard('d-count-result', 'Presek blagajne je sačuvan', [
-          ['ID', countIds],
-          ['Valuta', Array.isArray(results) ? results.map(function(item) { return item.currency; }).join(', ') : result.currency],
-          ['Popisan gotov novac', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.counted_cash_total, item.currency); }).join(' · ') : amountWithCurrency(result.counted_cash_total, result.currency)],
-          ['Obračunato pre popisa', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.calculated_balance_before, item.currency); }).join(' · ') : amountWithCurrency(result.calculated_balance_before, result.currency)],
-          ['Razlika', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.difference, item.currency); }).join(' · ') : amountWithCurrency(result.difference, result.currency)],
-          ['Korekcija', Array.isArray(results) ? results.map(function(item) { return item.adjustment_event_id || 'Nema razlike'; }).join(', ') : result.adjustment_event_id || 'Nema razlike']
-        ]);
+        renderCashCountSaveSummary_('d-count-result', results, 'Presek blagajne je sačuvan');
         form.dataset.countRows = '[]';
         renderDenominationInputs_();
         refreshBalance_();
@@ -3564,16 +3611,7 @@
       data.denominations = collectDenominations_(form);
       data.include_all_currencies = true;
       callApi('apiCreateCashCounts', [data], function(results) {
-        var result = Array.isArray(results) ? results[0] || {} : results || {};
-        var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
-        renderSummaryCard('m-count-result', 'Presek blagajne je sačuvan', [
-          ['ID', countIds],
-          ['Valuta', Array.isArray(results) ? results.map(function(item) { return item.currency; }).join(', ') : result.currency],
-          ['Popisan gotov novac', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.counted_cash_total, item.currency); }).join(' · ') : amountWithCurrency(result.counted_cash_total, result.currency)],
-          ['Obračunato pre popisa', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.calculated_balance_before, item.currency); }).join(' · ') : amountWithCurrency(result.calculated_balance_before, result.currency)],
-          ['Razlika', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.difference, item.currency); }).join(' · ') : amountWithCurrency(result.difference, result.currency)],
-          ['Korekcija', Array.isArray(results) ? results.map(function(item) { return item.adjustment_event_id || 'Nema razlike'; }).join(', ') : result.adjustment_event_id || 'Nema razlike']
-        ]);
+        renderCashCountSaveSummary_('m-count-result', results, 'Presek blagajne je sačuvan');
         form.dataset.countRows = '[]';
         renderDenominationInputs_();
         refreshBalance_();

@@ -87,7 +87,6 @@ function openShiftWithOpeningCount(data) {
   lock.waitLock(30000);
 
   try {
-    initializeDatabase();
     const currentUser = requireActiveUserWithRole_(SHIFT_OPEN_ROLES_);
     const cashboxId = data.cashbox_id;
     assertNonEmptyString(cashboxId, 'cashbox_id');

@@ -43,7 +43,6 @@ function createCashCount(data) {
   lock.waitLock(30000);
 
   try {
-    initializeDatabase();
     const currentUser = requireActiveUserWithRole_(CASH_COUNT_ROLES_);
     const countData = data || {};
     const balances = calculateCashboxBalances(countData.cashbox_id, [countData.currency]);
@@ -58,7 +57,6 @@ function createCashCounts(data) {
   lock.waitLock(30000);
 
   try {
-    initializeDatabase();
     const currentUser = requireActiveUserWithRole_(CASH_COUNT_ROLES_);
     data = data || {};
     const grouped = groupCashCountDenominationsByCurrency_(data);
