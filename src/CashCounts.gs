@@ -45,94 +45,44 @@ function createCashCount(data) {
   try {
     initializeDatabase();
     const currentUser = requireActiveUserWithRole_(CASH_COUNT_ROLES_);
-    data = data || {};
-    const cashboxId = data.cashbox_id;
-    const currency = data.currency;
-    const countType = data.count_type || CASH_COUNT_TYPES.CASHBOX_COUNT;
-
-    assertNonEmptyString(cashboxId, 'cashbox_id');
-    assertActiveCashbox(cashboxId);
-    assertActiveCurrency(currency);
-    assertAllowedValue(countType, objectValues_(CASH_COUNT_TYPES), 'count_type');
-
-    const activeShift = getActiveShiftForCashbox(cashboxId);
-    if (countType !== CASH_COUNT_TYPES.SHIFT_OPENING && !activeShift) {
-      throw new Error('Presek stanja nije dozvoljen bez aktivne smene.');
-    }
-    const denominations = normalizeDenominations_(currency, data.denominations || []);
-    const countedCashTotal = denominations.reduce(function(total, item) {
-      return total + item.denomination * item.quantity;
-    }, 0);
-    const checkCount = 0;
-    const checkTotal = 0;
-    const calculatedBalance = calculateCashboxBalance(cashboxId, currency);
-    const difference = countedCashTotal - calculatedBalance;
-    const now = getCurrentTimestamp_();
-    const countId = generateId_('CNT');
-    const adjustmentEvent = buildCashCountAdjustmentEvent_(
-      countId,
-      cashboxId,
-      currency,
-      difference,
-      currentUser.email,
-      now,
-      data.note
-    );
-    const record = {
-      count_id: countId,
-      created_at: now,
-      created_by: currentUser.email,
-      count_type: countType,
-      cashbox_id: cashboxId,
-      shift_id: activeShift ? activeShift.shift_id : '',
-      currency: currency,
-      counted_cash_total: countedCashTotal,
-      check_count: checkCount,
-      check_total: checkTotal,
-      calculated_balance_before: calculatedBalance,
-      difference: difference,
-      denominations_json: serializeJson_(denominations),
-      adjustment_event_id: adjustmentEvent ? adjustmentEvent.event_id : '',
-      note: data.note || '',
-      status: CASH_COUNT_STATUSES.POSTED,
-      posted_by: currentUser.email,
-      posted_at: now,
-      updated_at: ''
-    };
-
-    appendRecord(SHEET_NAMES.CASH_COUNTS, record);
-    writeAuditLog(
-      AUDIT_ACTIONS.POST,
-      SHEET_NAMES.CASH_COUNTS,
-      record.count_id,
-      null,
-      record,
-      adjustmentEvent
-        ? 'Cash count posted with automatic balance correction.'
-        : 'Cash count posted without difference.'
-    );
-
-    if (adjustmentEvent) {
-      appendRecord(SHEET_NAMES.CASH_EVENTS, adjustmentEvent);
-      writeAuditLog(
-        AUDIT_ACTIONS.POST,
-        SHEET_NAMES.CASH_EVENTS,
-        adjustmentEvent.event_id,
-        null,
-        adjustmentEvent,
-        'Automatic correction created from cash count: ' + countId
-      );
-    }
-
-    return record;
+    const countData = data || {};
+    const balances = calculateCashboxBalances(countData.cashbox_id, [countData.currency]);
+    return createCashCountRecord_(countData, currentUser, getCurrentTimestamp_(), undefined, balances);
   } finally {
     lock.releaseLock();
   }
 }
 
 function createCashCounts(data) {
-  data = data || {};
-  const grouped = (data.denominations || []).reduce(function(result, row) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    initializeDatabase();
+    const currentUser = requireActiveUserWithRole_(CASH_COUNT_ROLES_);
+    data = data || {};
+    const grouped = groupCashCountDenominationsByCurrency_(data);
+    const currencies = Object.keys(grouped);
+    const balances = calculateCashboxBalances(data.cashbox_id, currencies);
+    const now = getCurrentTimestamp_();
+    const activeShift = getActiveShiftForCashbox(data.cashbox_id);
+
+    return currencies.map(function(currency) {
+      const countData = Object.assign({}, data, {
+        currency: currency,
+        denominations: grouped[currency],
+        check_count: 0,
+        check_total: 0
+      });
+      return createCashCountRecord_(countData, currentUser, now, activeShift, balances);
+    });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function groupCashCountDenominationsByCurrency_(data) {
+  const grouped = ((data && data.denominations) || []).reduce(function(result, row) {
     const currency = row.currency || data.currency;
     if (!currency) {
       return result;
@@ -144,19 +94,105 @@ function createCashCounts(data) {
     return result;
   }, {});
 
-  if (!Object.keys(grouped).length) {
-    grouped[data.currency] = [];
+  if (data && isTruthy_(data.include_all_currencies)) {
+    listSupportedCurrencies().forEach(function(currency) {
+      if (!grouped[currency]) {
+        grouped[currency] = [];
+      }
+    });
   }
 
-  return Object.keys(grouped).map(function(currency) {
-    const countData = Object.assign({}, data, {
-      currency: currency,
-      denominations: grouped[currency],
-      check_count: 0,
-      check_total: 0
-    });
-    return createCashCount(countData);
-  });
+  if (!Object.keys(grouped).length) {
+    grouped[(data && data.currency) || getDefaultCurrencyCode()] = [];
+  }
+
+  return grouped;
+}
+
+function createCashCountRecord_(data, currentUser, timestamp, activeShiftOverride, calculatedBalances) {
+  data = data || {};
+  const cashboxId = data.cashbox_id;
+  const currency = data.currency;
+  const countType = data.count_type || CASH_COUNT_TYPES.CASHBOX_COUNT;
+
+  assertNonEmptyString(cashboxId, 'cashbox_id');
+  assertActiveCashbox(cashboxId);
+  assertActiveCurrency(currency);
+  assertAllowedValue(countType, objectValues_(CASH_COUNT_TYPES), 'count_type');
+
+  const activeShift = activeShiftOverride === undefined
+    ? getActiveShiftForCashbox(cashboxId)
+    : activeShiftOverride;
+  if (countType !== CASH_COUNT_TYPES.SHIFT_OPENING && !activeShift) {
+    throw new Error('Presek stanja nije dozvoljen bez aktivne smene.');
+  }
+
+  const denominations = normalizeDenominations_(currency, data.denominations || []);
+  const countedCashTotal = denominations.reduce(function(total, item) {
+    return total + item.denomination * item.quantity;
+  }, 0);
+  const now = timestamp || getCurrentTimestamp_();
+  const calculatedBalance = calculatedBalances && Object.prototype.hasOwnProperty.call(calculatedBalances, currency)
+    ? Number(calculatedBalances[currency] || 0)
+    : calculateCashboxBalance(cashboxId, currency);
+  const difference = countedCashTotal - calculatedBalance;
+  const countId = generateId_('CNT');
+  const adjustmentEvent = buildCashCountAdjustmentEvent_(
+    countId,
+    cashboxId,
+    currency,
+    difference,
+    currentUser.email,
+    now,
+    data.note
+  );
+  const record = {
+    count_id: countId,
+    created_at: now,
+    created_by: currentUser.email,
+    count_type: countType,
+    cashbox_id: cashboxId,
+    shift_id: activeShift ? activeShift.shift_id : (data.shift_id || ''),
+    currency: currency,
+    counted_cash_total: countedCashTotal,
+    check_count: 0,
+    check_total: 0,
+    calculated_balance_before: calculatedBalance,
+    difference: difference,
+    denominations_json: serializeJson_(denominations),
+    adjustment_event_id: adjustmentEvent ? adjustmentEvent.event_id : '',
+    note: data.note || '',
+    status: CASH_COUNT_STATUSES.POSTED,
+    posted_by: currentUser.email,
+    posted_at: now,
+    updated_at: ''
+  };
+
+  appendRecord(SHEET_NAMES.CASH_COUNTS, record);
+  writeAuditLog(
+    AUDIT_ACTIONS.POST,
+    SHEET_NAMES.CASH_COUNTS,
+    record.count_id,
+    null,
+    record,
+    adjustmentEvent
+      ? 'Cash count posted with automatic balance correction.'
+      : 'Cash count posted without difference.'
+  );
+
+  if (adjustmentEvent) {
+    appendRecord(SHEET_NAMES.CASH_EVENTS, adjustmentEvent);
+    writeAuditLog(
+      AUDIT_ACTIONS.POST,
+      SHEET_NAMES.CASH_EVENTS,
+      adjustmentEvent.event_id,
+      null,
+      adjustmentEvent,
+      'Automatic correction created from cash count: ' + countId
+    );
+  }
+
+  return record;
 }
 
 function buildCashCountAdjustmentEvent_(countId, cashboxId, currency, difference, userEmail, timestamp, note) {

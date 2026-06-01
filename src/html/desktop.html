@@ -327,6 +327,12 @@
                 <div class="card-head"><h3>Smene</h3></div>
                 <div id="d-shift-status" class="shift-status-body"></div>
               </div>
+              <div class="card shift-open-action-card" style="grid-column:1 / -1">
+                <div class="card-head"><h3>Nova smena</h3></div>
+                <button class="btn-primary" id="d-shift-action-open" type="button">
+                  <i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu
+                </button>
+              </div>
               <div class="card shift-work-card" style="grid-column:1 / -1" hidden>
                 <div class="card-head"><h3>Rad u smeni</h3></div>
                 <div class="actions">
@@ -350,7 +356,7 @@
                   </button>
                 </div>
               </div>
-              <div class="card" style="grid-column:1 / -1">
+              <div class="card shift-open-card" style="grid-column:1 / -1" hidden>
                 <div class="card-head"><h3>Početak smene - popis blagajne</h3></div>
                 <form id="d-opening-count-form" class="form-grid" data-cash-count-form data-count-purpose="opening">
                   <input name="cashbox_id" type="hidden">
@@ -419,6 +425,7 @@
                     <thead>
                       <tr>
                         <th>Vreme</th>
+                        <th>Vrsta</th>
                         <th>Korisnik</th>
                         <th>Valuta</th>
                         <th class="num">Obračunato</th>
@@ -429,6 +436,10 @@
                     </thead>
                     <tbody id="d-counts-tbody"></tbody>
                   </table>
+                </div>
+                <div class="card" style="margin-top:12px">
+                  <div class="card-head"><h3>Detalji izabranog preseka</h3></div>
+                  <div id="d-count-detail-wide" class="empty-state">Izaberite presek iz tabele.</div>
                 </div>
               </div>
               <div class="knjiga-side">

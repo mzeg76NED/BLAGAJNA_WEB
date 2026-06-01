@@ -111,7 +111,15 @@ function openShiftWithOpeningCount(data) {
     if (!Object.keys(grouped).length) {
       grouped[data.currency] = [];
     }
+    if (isTruthy_(data.include_all_currencies)) {
+      listSupportedCurrencies().forEach(function(currency) {
+        if (!grouped[currency]) {
+          grouped[currency] = [];
+        }
+      });
+    }
 
+    const balanceBeforeByCurrency = calculateCashboxBalances(cashboxId, Object.keys(grouped));
     const openingNote = data.opening_note ? String(data.opening_note).trim() : '';
     const countResults = Object.keys(grouped).map(function(currency) {
       assertActiveCurrency(currency);
@@ -119,7 +127,7 @@ function openShiftWithOpeningCount(data) {
       const countedCashTotal = denominations.reduce(function(total, item) {
         return total + item.denomination * item.quantity;
       }, 0);
-      const calculatedBalance = calculateCashboxBalance(cashboxId, currency);
+      const calculatedBalance = Number(balanceBeforeByCurrency[currency] || 0);
       const difference = countedCashTotal - calculatedBalance;
       const countId = generateId_('CNT');
       const countNote = 'POČETAK SMENE - POPIS' + (openingNote ? '. ' + openingNote : '');
@@ -383,6 +391,42 @@ function closeShiftWithLatestCashCounts(shiftId, note) {
   return closeShift(shift.shift_id, physicalBalance, note);
 }
 
+function closeShiftWithClosingCount(data) {
+  data = data || {};
+  const shiftId = data.shift_id;
+  assertNonEmptyString(shiftId, 'shift_id');
+  const counts = createCashCounts(Object.assign({}, data, {
+    count_type: CASH_COUNT_TYPES.SHIFT_CLOSING
+  }));
+  return closeShiftWithCountRecords_(shiftId, counts, data.note);
+}
+
+function closeShiftWithCountRecords_(shiftId, counts, note) {
+  assertNonEmptyString(shiftId, 'shiftId');
+  const shift = getShiftMatchOrThrow_(shiftId).record;
+  assertEntityStatus(shift, [SHIFT_STATUSES.OPEN], 'Shift');
+  assertShiftOwnerOrElevated_(shift);
+
+  const supportedCurrencies = listSupportedCurrencies();
+  const byCurrency = (counts || []).reduce(function(result, count) {
+    if (count.currency) {
+      result[count.currency] = count;
+    }
+    return result;
+  }, {});
+  const missing = supportedCurrencies.filter(function(currency) {
+    return !byCurrency[currency];
+  });
+  if (missing.length) {
+    throw new Error('Pre zatvaranja smene unesite popis za valute: ' + missing.join(', ') + '.');
+  }
+  const physicalBalance = supportedCurrencies.reduce(function(result, currency) {
+    result[currency] = Number(byCurrency[currency].counted_cash_total || 0);
+    return result;
+  }, {});
+  return closeShift(shift.shift_id, physicalBalance, note);
+}
+
 function cancelShift(shiftId, reason) {
   requireActiveUserWithRole_(SHIFT_CANCEL_ROLES_);
   assertNonEmptyString(shiftId, 'shiftId');
@@ -417,11 +461,7 @@ function calculateBalanceBySupportedCurrencies_(cashboxId) {
   assertNonEmptyString(cashboxId, 'cashboxId');
   assertActiveCashbox(cashboxId);
 
-  return listSupportedCurrencies().reduce(function(result, currency) {
-    assertActiveCurrency(currency);
-    result[currency] = calculateCashboxBalance(cashboxId, currency);
-    return result;
-  }, {});
+  return calculateCashboxBalances(cashboxId, listSupportedCurrencies());
 }
 
 function calculateDifferenceByCurrency_(calculatedBalance, physicalBalance) {

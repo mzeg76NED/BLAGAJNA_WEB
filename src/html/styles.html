@@ -506,6 +506,10 @@
     grid-template-columns: minmax(90px, 0.8fr) minmax(120px, 1fr) minmax(100px, 0.8fr) auto;
   }
 
+  .shift-inline-actions {
+    margin-top: 10px;
+  }
+
   .count-table {
     border-collapse: collapse;
     margin-top: 10px;
@@ -1637,7 +1641,9 @@
     border-radius: var(--radius-lg);
     box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
     color: var(--color-text);
+    max-height: calc(100dvh - 36px);
     max-width: 440px;
+    overflow-y: auto;
     padding: 18px;
     width: min(100%, 440px);
   }
@@ -1658,7 +1664,8 @@
   }
 
   .app-dialog textarea,
-  .app-dialog input {
+  .app-dialog input,
+  .app-dialog select {
     font-size: 16px;
     margin-bottom: 12px;
     min-height: 46px;
@@ -1696,6 +1703,9 @@
   }
 
   html.mobile-view .app-dialog {
+    align-self: flex-end;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 86dvh;
     max-width: none;
     padding: calc(22px * var(--mobile-scale));
   }
@@ -1706,7 +1716,10 @@
 
   html.mobile-view .app-dialog p,
   html.mobile-view .app-dialog textarea,
-  html.mobile-view .app-dialog input {
+  html.mobile-view .app-dialog input,
+  html.mobile-view .app-dialog select,
+  html.mobile-view .count-table,
+  html.mobile-view .count-entry-form {
     font-size: calc(19px * var(--mobile-scale));
   }
 

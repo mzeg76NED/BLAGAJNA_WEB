@@ -231,6 +231,39 @@ function calculateCashboxBalance(cashboxId, currency) {
   }, 0);
 }
 
+function calculateCashboxBalances(cashboxId, currencies) {
+  assertNonEmptyString(cashboxId, 'cashboxId');
+  const requestedCurrencies = (currencies && currencies.length ? currencies : listSupportedCurrencies())
+    .map(function(currency) {
+      return String(currency || '').trim();
+    })
+    .filter(function(currency) {
+      return currency !== '';
+    });
+  const result = requestedCurrencies.reduce(function(index, currency) {
+    assertActiveCurrency(currency);
+    index[currency] = 0;
+    return index;
+  }, {});
+
+  listRecords(SHEET_NAMES.CASH_EVENTS, {
+    cashbox_id: cashboxId
+  }).forEach(function(event) {
+    const currency = String(event.currency || '').trim();
+    if (!Object.prototype.hasOwnProperty.call(result, currency) || !isCashEventBalanceAffecting(event)) {
+      return;
+    }
+    const amount = Number(event.amount || 0);
+    if (event.direction === 'IN') {
+      result[currency] += amount;
+    } else if (event.direction === 'OUT') {
+      result[currency] -= amount;
+    }
+  });
+
+  return result;
+}
+
 function getCashEventsForCashbox(cashboxId, currency) {
   requireActiveUserWithRole_(CASH_EVENT_VIEW_ROLES_);
   assertNonEmptyString(cashboxId, 'cashboxId');

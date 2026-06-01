@@ -84,6 +84,13 @@
             <div id="m-shift-status" class="shift-status-body"></div>
           </div>
 
+          <div class="card shift-open-action-card">
+            <div class="card-head"><h3>Nova smena</h3></div>
+            <button class="btn-primary btn-lg" id="m-shift-action-open" type="button">
+              <i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu
+            </button>
+          </div>
+
           <div class="card shift-work-card" hidden>
             <div class="card-head"><h3>Rad u smeni</h3></div>
             <div class="actions">
@@ -105,7 +112,7 @@
             </div>
           </div>
 
-          <div class="card">
+          <div class="card shift-open-card" hidden>
             <div class="card-head"><h3>Početak smene - popis blagajne</h3></div>
             <form id="m-opening-count-form" class="form-grid" data-cash-count-form data-count-purpose="opening">
               <input name="cashbox_id" type="hidden">

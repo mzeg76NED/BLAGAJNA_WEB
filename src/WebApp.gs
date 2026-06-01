@@ -367,11 +367,9 @@ function apiCloseShiftWithLatestCashCounts(shiftId, note) {
 function apiCloseShiftWithClosingCount(data) {
   return apiWrap_(function() {
     data = data || {};
-    const shiftId = data.shift_id;
-    data.count_type = CASH_COUNT_TYPES.SHIFT_CLOSING;
+    data = withDefaultCashbox_(data);
     data.note = data.note || 'ZAVRŠNI POPIS SMENE';
-    createCashCounts(data);
-    return closeShiftWithLatestCashCounts(shiftId, data.note);
+    return closeShiftWithClosingCount(data);
   });
 }
 

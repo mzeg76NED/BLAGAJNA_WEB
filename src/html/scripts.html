@@ -655,12 +655,7 @@
     var denominationCount = Number(form.dataset.denominationCount || 0);
     var cashRows = collectDenominations_(form).filter(function(row) { return Number(row.quantity || 0) > 0; });
     if (denominationCount === 0 && !cashRows.length) {
-      showMessage('Za valutu ' + currency + ' nisu definisani apoeni. Popunite kolonu denominations u tabeli CURRENCIES.', 'error');
-      return false;
-    }
-    if (!cashRows.length) {
-      showMessage('Unesite makar jedan apoen za presek blagajne.', 'error');
-      return false;
+      showMessage('Za valutu ' + currency + ' nisu definisani apoeni. Popis će biti sačuvan kao 0,00 ako nastavite.', 'info');
     }
     return true;
   }
@@ -1495,24 +1490,49 @@
 
   function renderShiftWorkflowState_() {
     var shift = uiState.activeShift || {};
-    var user = uiState.currentUser || {};
     var hasShift = Boolean(shift.shift_id);
     var owner = isCurrentActiveShiftOwner_();
     var statusHtml = hasShift
-      ? '<div class="shift-state active"><strong>Aktivna smena</strong><span>Jedna otvorena smena za izabranu blagajnu.</span></div>' +
-        '<div class="table-wrap"><table class="book-table shift-table"><thead><tr><th>Rb.</th><th>Blagajnik</th><th>Otvoreno</th><th>Zatvoreno</th><th>Status</th><th>ID</th></tr></thead><tbody>' +
+      ? '<div class="table-wrap"><table class="book-table shift-table"><thead><tr><th>Rb.</th><th>Blagajnik</th><th>Otvoreno</th><th>Zatvoreno</th><th>Status</th><th>ID</th></tr></thead><tbody>' +
         shiftRowHtml_(shift, 0) +
         '</tbody></table></div>' +
+        '<div class="actions shift-inline-actions">' +
+          '<button type="button" data-shift-status-count><i class="ti ti-calculator" aria-hidden="true"></i> Presek stanja</button>' +
+          '<button type="button" class="btn-primary" data-shift-status-close><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
+        '</div>' +
         renderShiftOpeningBalances_(shift)
-      : '<div class="shift-state empty"><strong>Nema aktivne smene</strong><span>Prvo otvorite smenu da biste radili direktne uplate i isplate.</span></div>';
+      : '<div class="shift-state empty"><strong>Nema aktivne smene</strong><span>Otvorite smenu kroz popis apoena da bi blagajna počela rad.</span></div>';
     ['d-shift-status','m-shift-status'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.innerHTML = statusHtml;
     });
+    document.querySelectorAll('[data-shift-status-count]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var mobile = Boolean(btn.closest('#m-shift-status'));
+        if (mobile) openMobileSection_('m-section-presek');
+        else openDesktopSection_('presek');
+      });
+    });
+    document.querySelectorAll('[data-shift-status-close]').forEach(function(btn) {
+      btn.disabled = !owner;
+      btn.title = owner ? '' : 'Smenu može zatvoriti samo korisnik koji ju je otvorio.';
+      btn.addEventListener('click', function() {
+        openShiftClosingDialog_(btn.closest('#m-shift-status') ? 'mobile' : 'desktop');
+      });
+    });
     document.querySelectorAll('#d-opening-count-form, #m-opening-count-form').forEach(function(form) {
       var card = form.closest('.card');
-      if (card) card.style.display = hasShift ? 'none' : '';
+      if (card) card.style.display = 'none';
       setWorkflowFormDisabled_(form, hasShift);
+    });
+    document.querySelectorAll('.shift-open-action-card').forEach(function(card) {
+      if (!hasShift) {
+        card.removeAttribute('hidden');
+        card.style.display = '';
+      } else {
+        card.setAttribute('hidden', 'hidden');
+        card.style.display = 'none';
+      }
     });
     document.querySelectorAll('#d-close-shift-form, #m-close-shift-form').forEach(function(form) {
       var card = form.closest('.card');
@@ -1769,6 +1789,7 @@
 
   function bindShiftWorkActions_() {
     [
+      ['d-shift-action-open', function() { openShiftOpeningDialog_('desktop'); }],
       ['d-shift-action-in', function() { openDesktopDirectAction_('d-btn-uplata'); }],
       ['d-shift-action-out', function() { openDesktopDirectAction_('d-btn-isplata'); }],
       ['d-shift-action-treasury', function() { openDesktopDirectAction_('d-btn-trezor'); }],
@@ -1778,6 +1799,7 @@
         openCashSheetForShift_(shift);
       }],
       ['d-shift-action-close', function() { openShiftClosingDialog_('desktop'); }],
+      ['m-shift-action-open', function() { openShiftOpeningDialog_('mobile'); }],
       ['m-shift-action-in', function() { openMobileDirectAction_('m-btn-uplata'); }],
       ['m-shift-action-out', function() { openMobileDirectAction_('m-btn-isplata'); }],
       ['m-shift-action-treasury', function() { openMobileDirectAction_('m-btn-trezor'); }],
@@ -1862,10 +1884,72 @@
     });
   }
 
+  function openShiftOpeningDialog_(mode) {
+    if (uiState.activeShift && uiState.activeShift.shift_id) {
+      showMessage('Smena je već otvorena za ovu blagajnu.', 'error');
+      return;
+    }
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog app-dialog-wide" role="dialog" aria-modal="true">' +
+        '<h3>Otvaranje smene - početni popis</h3>' +
+        '<p>Unesite početno stanje blagajne kroz valutu, apoen i broj komada.</p>' +
+        '<form id="shift-opening-dialog-form" class="form-grid" data-cash-count-form data-count-purpose="opening">' +
+          '<input name="cashbox_id" type="hidden" value="' + escapeHtml(SESSION.cashboxId || '') + '">' +
+          '<input name="count_type" type="hidden" value="SHIFT_OPENING">' +
+          '<label>Valuta <select name="currency" data-currency-options>' + currencySelectOptions_() + '</select></label>' +
+          '<div class="cash-count-entry-area" data-denomination-inputs></div>' +
+          '<label>Napomena <textarea name="opening_note" rows="3"></textarea></label>' +
+          '<div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>' +
+          '<div class="app-dialog-actions">' +
+            '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
+            '<button type="submit" class="btn-primary">Otvori smenu</button>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    var form = overlay.querySelector('#shift-opening-dialog-form');
+    form.dataset.countRows = '[]';
+    var currency = form.querySelector('[name="currency"]');
+    if (currency) currency.value = SESSION.currency;
+    renderDenominationInputs_();
+    bindAmountFormatting_();
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+      submitShiftOpeningForm_(form, mode === 'mobile' ? 'm-shift-result' : 'd-shift-result', close);
+    });
+  }
+
+  function submitShiftOpeningForm_(form, targetId, closeDialog) {
+    if (!validateCashCountForm_(form)) return;
+    var data = withUiDefaults(serializeFormElement_(form));
+    data.denominations = collectDenominations_(form);
+    data.include_all_currencies = true;
+    callApi('apiOpenShiftWithOpeningCount', [data], function(result) {
+      uiState.activeShift = result && result.shift || null;
+      uiState.canPostDirectCashEvents = true;
+      applyActiveShiftFields_();
+      applyDirectCashPermission_();
+      form.dataset.countRows = '[]';
+      renderDenominationInputs_();
+      renderShiftSummary(targetId, uiState.activeShift, 'Smena je otvorena');
+      loadCashbookFilterOptions_();
+      refreshBalance_();
+      loadCashCounts_();
+      loadMyShiftsTo_(targetId === 'm-shift-result' ? 'm-shifts-list' : 'd-shifts-list');
+      if (closeDialog) closeDialog();
+    }, { successMessage: 'Smena je otvorena.' });
+  }
+
   function submitShiftClosingForm_(form, targetId, closeDialog) {
     if (!validateCashCountForm_(form)) return;
     var data = withUiDefaults(serializeFormElement_(form));
     data.denominations = collectDenominations_(form);
+    data.include_all_currencies = true;
     callApi('apiCloseShiftWithClosingCount', [data], function(result) {
       uiState.activeShift = null;
       uiState.canPostDirectCashEvents = false;
@@ -1938,13 +2022,33 @@
     return Object.keys(grouped).map(function(key) {
       var group = grouped[key];
       group.currencies = group.rows.map(function(row) { return row.currency; }).filter(Boolean).join(', ');
+      group.calculated_by_currency = group.rows.reduce(function(result, row) {
+        result[row.currency] = Number(row.calculated_balance_before || 0);
+        return result;
+      }, {});
+      group.counted_by_currency = group.rows.reduce(function(result, row) {
+        result[row.currency] = Number(row.counted_total || row.counted_cash_total || 0);
+        return result;
+      }, {});
+      group.difference_by_currency = group.rows.reduce(function(result, row) {
+        result[row.currency] = Number(row.difference || 0);
+        return result;
+      }, {});
       group.calculated_total = group.rows.reduce(function(total, row) { return total + Number(row.calculated_balance_before || 0); }, 0);
       group.counted_total = group.rows.reduce(function(total, row) { return total + Number(row.counted_total || row.counted_cash_total || 0); }, 0);
       group.difference_total = group.rows.reduce(function(total, row) { return total + Number(row.difference || 0); }, 0);
+      group.has_difference = group.rows.some(function(row) { return Math.abs(Number(row.difference || 0)) > 0.000001; });
       return group;
     }).sort(function(a, b) {
       return new Date(b.posted_at || 0).getTime() - new Date(a.posted_at || 0).getTime();
     });
+  }
+
+  function cashCountTypeLabel_(type) {
+    if (type === 'SHIFT_OPENING') return 'Otvaranje smene';
+    if (type === 'SHIFT_CLOSING') return 'Zatvaranje smene';
+    if (type === 'CASHBOX_COUNT') return 'Kontrolni presek';
+    return type || 'Presek';
   }
 
   function renderCashCounts_(rows) {
@@ -1953,20 +2057,22 @@
     var list = document.getElementById('m-counts-list');
     if (tbody) {
       tbody.innerHTML = groups.length ? groups.map(function(group, index) {
-        var cls = Math.abs(Number(group.difference_total || 0)) > 0.000001 ? 'row-count' : '';
+        var cls = group.has_difference ? 'row-count' : '';
         return '<tr class="' + cls + '" data-count-index="' + index + '">' +
           '<td>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</td>' +
+          '<td>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</td>' +
           '<td>' + escapeHtml(shortUserLabel_(group.user || '—')) + '</td>' +
           '<td>' + escapeHtml(group.currencies || '') + '</td>' +
-          '<td class="cell-bal">' + formatAmount_(group.calculated_total) + '</td>' +
-          '<td class="cell-bal">' + formatAmount_(group.counted_total) + '</td>' +
-          '<td class="' + (Number(group.difference_total || 0) >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(group.difference_total) + '</td>' +
+          '<td class="cell-bal">' + cashCountCurrencySummary_(group.calculated_by_currency) + '</td>' +
+          '<td class="cell-bal">' + cashCountCurrencySummary_(group.counted_by_currency) + '</td>' +
+          '<td>' + cashCountDifferenceSummary_(group.difference_by_currency) + '</td>' +
           '<td>' + renderStatusBadge_(group.status) + '</td>' +
         '</tr>';
-      }).join('') : '<tr><td colspan="7"><div class="empty-state">Nema preseka za prikaz.</div></td></tr>';
+      }).join('') : '<tr><td colspan="8"><div class="empty-state">Nema preseka za prikaz.</div></td></tr>';
       tbody.querySelectorAll('[data-count-index]').forEach(function(row) {
         row.addEventListener('click', function() {
           renderCashCountDetail_(groups[Number(row.getAttribute('data-count-index'))], 'd-count-detail-body');
+          renderCashCountDetail_(groups[Number(row.getAttribute('data-count-index'))], 'd-count-detail-wide');
         });
       });
     }
@@ -1974,8 +2080,9 @@
       list.innerHTML = groups.length ? groups.map(function(group, index) {
         return '<div class="m-entry count" data-count-index="' + index + '">' +
           '<div class="m-entry-dot" style="background:#d99a00"></div>' +
-          '<div class="m-entry-info"><div class="m-entry-desc">' + escapeHtml(group.currencies || '') + ' · ' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</div>' +
-          '<div class="m-entry-meta">Popisano ' + escapeHtml(formatAmount_(group.counted_total)) + ' · Razlika ' + escapeHtml(formatAmount_(group.difference_total)) + '</div></div>' +
+          '<div class="m-entry-info"><div class="m-entry-desc">' + escapeHtml(cashCountTypeLabel_(group.count_type)) + ' · ' + escapeHtml(group.currencies || '') + ' · ' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</div>' +
+          '<div class="m-entry-meta">Popisano ' + cashCountCurrencySummary_(group.counted_by_currency) + '</div>' +
+          '<div class="m-entry-meta">Razlika ' + cashCountDifferenceSummary_(group.difference_by_currency) + '</div></div>' +
         '</div>';
       }).join('') : '<div class="empty-state">Nema preseka za prikaz.</div>';
       list.querySelectorAll('[data-count-index]').forEach(function(row) {
@@ -1986,7 +2093,26 @@
     }
     if (groups.length) {
       renderCashCountDetail_(groups[0], document.getElementById('d-count-detail-body') ? 'd-count-detail-body' : 'm-count-detail-body');
+      if (document.getElementById('d-count-detail-wide')) renderCashCountDetail_(groups[0], 'd-count-detail-wide');
     }
+  }
+
+  function cashCountCurrencySummary_(values) {
+    var currencies = Object.keys(values || {});
+    if (!currencies.length) return '—';
+    return currencies.map(function(code) {
+      return '<span class="balance-pill">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(values[code])) + '</span>';
+    }).join(' ');
+  }
+
+  function cashCountDifferenceSummary_(values) {
+    var currencies = Object.keys(values || {});
+    if (!currencies.length) return '—';
+    return currencies.map(function(code) {
+      var value = Number(values[code] || 0);
+      var cls = value >= 0 ? 'cell-in' : 'cell-out';
+      return '<span class="balance-pill ' + cls + '">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(value)) + '</span>';
+    }).join(' ');
   }
 
   function renderCashCountDetail_(countGroup, targetId) {
@@ -2010,11 +2136,12 @@
     }).join('');
     target.innerHTML =
       '<div class="detail-row"><span class="detail-key">Vreme</span><span>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">Vrsta</span><strong>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</strong></div>' +
       '<div class="detail-row"><span class="detail-key">Korisnik</span><span>' + escapeHtml(shortUserLabel_(group.user || '')) + '</span></div>' +
       '<div class="detail-row"><span class="detail-key">Valute</span><strong>' + escapeHtml(group.currencies || '') + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Ukupno obračunato</span><strong>' + formatAmount_(group.calculated_total) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Ukupno popisano</span><strong>' + formatAmount_(group.counted_total) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Ukupna razlika</span><strong>' + formatAmount_(group.difference_total) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Obračunato</span><strong>' + cashCountCurrencySummary_(group.calculated_by_currency) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Popisano</span><strong>' + cashCountCurrencySummary_(group.counted_by_currency) + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Razlika</span><strong>' + cashCountDifferenceSummary_(group.difference_by_currency) + '</strong></div>' +
       denomHtml;
   }
 
@@ -2558,8 +2685,9 @@
     events.forEach(function(ev, idx) {
       var displayDirection = ev.display_direction || ev.direction;
       var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+      var isTreasury = ev.event_type === 'TREASURY_HANDOVER';
       if (displayDirection === 'IN')  totalIn  += displayAmount;
-      if (displayDirection === 'OUT') totalOut += displayAmount;
+      if (displayDirection === 'OUT' && !isTreasury) totalOut += displayAmount;
       var rowNumber = events.length - idx;
       rows.push(isMobile ? renderMobileEntry_(ev, rowNumber) : renderKnjigaRow_(ev, rowNumber, Number(ev.running_balance || 0)));
     });
@@ -2642,10 +2770,11 @@
   function renderKnjigaRow_(ev, index, balance) {
     var displayDirection = ev.display_direction || ev.direction;
     var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+    var isTreasury = ev.event_type === 'TREASURY_HANDOVER';
     var isIn  = displayDirection === 'IN';
-    var isOut = displayDirection === 'OUT';
+    var isOut = displayDirection === 'OUT' && !isTreasury;
     var isCount = ev.event_type === 'CASH_COUNT' || (ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || '')));
-    var rowClass = (isCount ? 'row-count' : isIn ? 'row-in' : isOut ? 'row-out' : 'row-opening') + (ev.optimistic_id ? ' optimistic' : '');
+    var rowClass = (isCount || isTreasury ? 'row-count' : isIn ? 'row-in' : isOut ? 'row-out' : 'row-opening') + (ev.optimistic_id ? ' optimistic' : '');
     var amtFmt  = formatAmount_(displayAmount);
     var balFmt  = formatAmount_(balance);
     var dateStr = formatDateShort_(ev.event_date || ev.created_at);
@@ -2708,11 +2837,12 @@
   function renderMobileEntry_(ev, index) {
     var displayDirection = ev.display_direction || ev.direction;
     var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+    var isTreasury = ev.event_type === 'TREASURY_HANDOVER';
     var isIn   = displayDirection === 'IN';
     var isCount = ev.event_type === 'CASH_COUNT' || (ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || '')));
-    var dotBg  = isCount ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
-    var color  = isCount ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
-    var prefix = isCount ? '' : displayAmount < 0 ? '−' : (isIn ? '+' : '−');
+    var dotBg  = isCount || isTreasury ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
+    var color  = isCount || isTreasury ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
+    var prefix = isCount ? '' : isTreasury ? 'Trezor ' : displayAmount < 0 ? '−' : (isIn ? '+' : '−');
     var label  = escapeHtml(ev.partner_name || ev.description || '—');
     var reason = escapeHtml(ev.description || '—');
     var meta   = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) +
@@ -2748,9 +2878,10 @@
     }
 
     var isCount  = ev.event_type === 'CASH_COUNT';
+    var isTreasury = ev.event_type === 'TREASURY_HANDOVER';
     var isIn     = ev.direction === 'IN';
-    var dirLabel = isCount ? 'PRESEK' : isIn ? '↓ UPLATA' : '↑ ISPLATA';
-    var dirColor = isCount ? '#d99a00' : isIn ? 'var(--color-in)' : 'var(--color-out)';
+    var dirLabel = isCount ? 'PRESEK' : isTreasury ? 'TREZOR' : isIn ? '↓ UPLATA' : '↑ ISPLATA';
+    var dirColor = isCount || isTreasury ? '#d99a00' : isIn ? 'var(--color-in)' : 'var(--color-out)';
 
     title.innerHTML = '<span style="color:' + dirColor + '">' + dirLabel + '</span> · ' + escapeHtml(ev.event_id);
 
@@ -3321,6 +3452,7 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
+      data.include_all_currencies = true;
       callApi('apiOpenShiftWithOpeningCount', [data], function(result) {
         uiState.activeShift = result && result.shift || null;
         uiState.canPostDirectCashEvents = true;
@@ -3337,6 +3469,7 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
+      data.include_all_currencies = true;
       callApi('apiOpenShiftWithOpeningCount', [data], function(result) {
         uiState.activeShift = result && result.shift || null;
         uiState.canPostDirectCashEvents = true;
@@ -3367,19 +3500,19 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
-      callApi('apiCreateCashCounts', [data], function() {
-        callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
-          uiState.activeShift = null;
-          uiState.canPostDirectCashEvents = false;
-          applyActiveShiftFields_();
-          applyDirectCashPermission_();
-          form.dataset.countRows = '[]';
-          renderDenominationInputs_();
-          renderShiftSummary('d-shift-result', result, 'Smena je zatvorena');
-          refreshBalance_();
-          loadCashCounts_();
-        }, { successMessage: 'Smena je zatvorena.' });
-      }, { loadingMessage: 'Čuvam završni popis...', successMessage: 'Završni popis je sačuvan.' });
+      data.include_all_currencies = true;
+      callApi('apiCloseShiftWithClosingCount', [data], function(result) {
+        uiState.activeShift = null;
+        uiState.canPostDirectCashEvents = false;
+        applyActiveShiftFields_();
+        applyDirectCashPermission_();
+        form.dataset.countRows = '[]';
+        renderDenominationInputs_();
+        renderShiftSummary('d-shift-result', result, 'Smena je zatvorena');
+        refreshBalance_();
+        loadCashCounts_();
+        loadMyShiftsTo_('d-shifts-list');
+      }, { successMessage: 'Smena je zatvorena.' });
     });
     bindForm('m-close-shift-form', function(data, form) {
       if (!data.shift_id) {
@@ -3389,24 +3522,25 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
-      callApi('apiCreateCashCounts', [data], function() {
-        callApi('apiCloseShiftWithLatestCashCounts', [data.shift_id, data.note], function(result) {
-          uiState.activeShift = null;
-          uiState.canPostDirectCashEvents = false;
-          applyActiveShiftFields_();
-          applyDirectCashPermission_();
-          form.dataset.countRows = '[]';
-          renderDenominationInputs_();
-          renderShiftSummary('m-shift-result', result, 'Smena je zatvorena');
-          refreshBalance_();
-          loadCashCounts_();
-        }, { successMessage: 'Smena je zatvorena.' });
-      }, { loadingMessage: 'Čuvam završni popis...', successMessage: 'Završni popis je sačuvan.' });
+      data.include_all_currencies = true;
+      callApi('apiCloseShiftWithClosingCount', [data], function(result) {
+        uiState.activeShift = null;
+        uiState.canPostDirectCashEvents = false;
+        applyActiveShiftFields_();
+        applyDirectCashPermission_();
+        form.dataset.countRows = '[]';
+        renderDenominationInputs_();
+        renderShiftSummary('m-shift-result', result, 'Smena je zatvorena');
+        refreshBalance_();
+        loadCashCounts_();
+        loadMyShiftsTo_('m-shifts-list');
+      }, { successMessage: 'Smena je zatvorena.' });
     });
     bindForm('d-cash-count-form', function(data, form) {
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
+      data.include_all_currencies = true;
       callApi('apiCreateCashCounts', [data], function(results) {
         var result = Array.isArray(results) ? results[0] || {} : results || {};
         var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
@@ -3428,6 +3562,7 @@
       if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
       data.denominations = collectDenominations_(form);
+      data.include_all_currencies = true;
       callApi('apiCreateCashCounts', [data], function(results) {
         var result = Array.isArray(results) ? results[0] || {} : results || {};
         var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
