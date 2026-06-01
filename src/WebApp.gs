@@ -254,6 +254,32 @@ function apiGetMyActiveShifts() {
   });
 }
 
+function apiGetShiftHistory(filters) {
+  return apiWrap_(function() {
+    const user = assertCurrentUserActive();
+    const scoped = filters || {};
+    const targetCashboxId = scoped.cashbox_id || getDefaultCashboxIdForCurrentUser_();
+    const elevatedRoles = [
+      USER_ROLES.ADMIN,
+      USER_ROLES.DIRECTOR,
+      USER_ROLES.FINANCE,
+      USER_ROLES.CASHIER_SUPERVISOR
+    ];
+    const canSeeAll = elevatedRoles.indexOf(user.role) !== -1;
+    return listRecords(SHEET_NAMES.SHIFTS)
+      .filter(function(shift) {
+        if (targetCashboxId && shift.cashbox_id !== targetCashboxId) return false;
+        if (scoped.status && shift.status !== scoped.status) return false;
+        if (!canSeeAll && shift.opened_by !== user.email && shift.handover_to !== user.email) return false;
+        return true;
+      })
+      .sort(function(a, b) {
+        return new Date(b.opened_at || 0).getTime() - new Date(a.opened_at || 0).getTime();
+      })
+      .slice(0, Number(scoped.limit || 50));
+  });
+}
+
 function apiGetCashbookFilterOptions(cashboxId) {
   return apiWrap_(function() {
     assertCurrentUserActive();

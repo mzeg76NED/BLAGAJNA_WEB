@@ -1099,17 +1099,60 @@
   }
 
   function loadMyShiftsTo_(targetId) {
-    callApi('apiGetMyActiveShifts', [], function(result) {
-      renderActionRecords(targetId, result, ['shift_id', 'opened_at', 'status'], function(record) {
-        return [
+    callApi('apiGetShiftHistory', [{ cashbox_id: SESSION.cashboxId, limit: 50 }], function(result) {
+      renderActionRecords(targetId, result, ['shift_id', 'opened_by', 'opened_at', 'closed_at', 'status'], function(record) {
+        var actions = [
           actionButton('Presek', function() {
             callApi('apiGetShiftBalance', [record.shift_id], function(balance) {
               renderShiftBalanceSummary(targetId, balance);
             });
           })
         ];
+        if (targetId.charAt(0) !== 'm') {
+          actions.push(
+          actionButton('Knjiga', function() {
+            applyBookFiltersForShift_(record);
+          }),
+          actionButton('List', function() {
+            openCashSheetForShift_(record);
+          })
+          );
+        }
+        return actions;
       });
     });
+  }
+
+  function applyBookFiltersForShift_(shift) {
+    if (!shift) return;
+    var opened = parseDateSafe_(shift.opened_at);
+    var closed = parseDateSafe_(shift.closed_at) || new Date();
+    var from = opened ? toInputDate_(opened) : '';
+    var to = closed ? toInputDate_(closed) : from;
+    if (document.getElementById('d-date-from')) document.getElementById('d-date-from').value = from;
+    if (document.getElementById('d-date-to')) document.getElementById('d-date-to').value = to;
+    if (document.getElementById('d-shift-filter')) document.getElementById('d-shift-filter').value = shift.shift_id || '';
+    document.querySelectorAll('.d-section').forEach(function(section) {
+      section.classList.toggle('active', section.id === 'd-section-knjiga');
+    });
+    document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'knjiga');
+    });
+    loadKnjiga_(true);
+  }
+
+  function openCashSheetForShift_(shift) {
+    if (!shift) return;
+    var opened = parseDateSafe_(shift.opened_at);
+    if (document.getElementById('d-cashsheet-date') && opened) document.getElementById('d-cashsheet-date').value = toInputDate_(opened);
+    if (document.getElementById('d-cashsheet-shift')) document.getElementById('d-cashsheet-shift').value = shift.shift_id || '';
+    document.querySelectorAll('.d-section').forEach(function(section) {
+      section.classList.toggle('active', section.id === 'd-section-blagajnicki-list');
+    });
+    document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'blagajnicki-list');
+    });
+    loadCashSheet_();
   }
 
   function loadActiveShiftBalanceTo_(targetId) {
@@ -1404,9 +1447,13 @@
       if (el) el.innerHTML = statusHtml;
     });
     document.querySelectorAll('#d-opening-count-form, #m-opening-count-form').forEach(function(form) {
+      var card = form.closest('.card');
+      if (card) card.style.display = hasShift ? 'none' : '';
       setWorkflowFormDisabled_(form, hasShift);
     });
     document.querySelectorAll('#d-close-shift-form, #m-close-shift-form').forEach(function(form) {
+      var card = form.closest('.card');
+      if (card) card.style.display = hasShift ? '' : 'none';
       setWorkflowFormDisabled_(form, !hasShift || !owner);
     });
     document.querySelectorAll('.optional-handover-card').forEach(function(card) {
@@ -2159,6 +2206,18 @@
     var d = value instanceof Date ? value : new Date(value);
     if (isNaN(d.getTime())) return String(value).substring(0, 10);
     return d.getDate() + '.' + (d.getMonth() + 1) + '.';
+  }
+
+  function parseDateSafe_(value) {
+    if (!value) return null;
+    var date = value instanceof Date ? value : new Date(value);
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  function toInputDate_(date) {
+    var d = parseDateSafe_(date);
+    if (!d) return '';
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
   function formatDateTimeShort_(value) {

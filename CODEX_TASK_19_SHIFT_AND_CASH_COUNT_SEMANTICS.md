@@ -13,7 +13,7 @@ Uskladiti aplikaciju sa stvarnim poslovnim značenjem smene i preseka blagajne.
 5. Direktno knjiženje gotovinskih događaja dozvoljeno je samo glavnom blagajniku smene.
 6. Ostali korisnici u toku smene koriste zahteve za uplatu ili isplatu.
 7. U toku jedne smene može postojati više preseka blagajne.
-8. Presek blagajne je fizički popis gotovine i čekova po valutama.
+8. Presek blagajne je fizički popis sredstava po valutama. Čekovi se, ako se koriste, vode kroz `CURRENCIES` kao posebna valuta/instrument, bez posebnih polja za čekove.
 9. Ako presek utvrdi razliku u odnosu na obračunato stanje, sistem mora evidentirati razliku.
 10. Posle preseka, blagajna nastavlja od fizički utvrđenog stanja.
 11. U event-based modelu to se radi kroz automatski korektivni cash event, a ne ručnim menjanjem salda.
