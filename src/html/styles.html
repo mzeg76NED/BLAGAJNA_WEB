@@ -503,7 +503,7 @@
     align-items: end;
     display: grid;
     gap: 10px;
-    grid-template-columns: minmax(90px, 0.8fr) minmax(120px, 1fr) minmax(100px, 0.8fr) auto;
+    grid-template-columns: minmax(160px, 1fr) minmax(140px, 1fr) minmax(92px, auto);
   }
 
   .count-add-control {
@@ -522,6 +522,35 @@
 
   .shift-inline-actions {
     margin-top: 10px;
+  }
+
+  #d-cash-count-form {
+    align-items: end;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(180px, 260px) minmax(360px, 1fr);
+  }
+
+  #d-cash-count-form > label:first-of-type {
+    grid-column: 1 / 2;
+  }
+
+  #d-cash-count-form .cash-count-entry-area {
+    grid-column: 2 / -1;
+  }
+
+  #d-cash-count-form > label,
+  #d-cash-count-form .cash-count-total,
+  #d-cash-count-form > button {
+    grid-column: 1 / -1;
+  }
+
+  #d-cash-count-form > label:first-of-type {
+    grid-column: 1 / 2;
+  }
+
+  #d-cash-count-form > label textarea {
+    min-height: 52px;
   }
 
   .count-table {
@@ -556,6 +585,15 @@
     }
 
     .count-add-control {
+      grid-column: 1 / -1;
+    }
+
+    #d-cash-count-form {
+      grid-template-columns: 1fr;
+    }
+
+    #d-cash-count-form > label:first-of-type,
+    #d-cash-count-form .cash-count-entry-area {
       grid-column: 1 / -1;
     }
   }
@@ -1069,6 +1107,15 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  #d-section-presek .knjiga-main {
+    display: block;
+    max-height: none;
+  }
+
+  #d-section-presek .table-wrap {
+    max-height: 320px;
+  }
+
   #d-count-detail-panel {
     display: none;
   }
@@ -1090,11 +1137,24 @@
     margin-bottom: 12px;
   }
 
+  #d-count-detail-wide .count-detail-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .count-detail-summary > div {
     background: var(--color-bg);
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-sm);
+    display: grid;
+    gap: 4px;
     padding: 10px 12px;
+  }
+
+  .count-detail-summary .detail-key {
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
   }
 
   .count-detail-card {
@@ -1102,6 +1162,14 @@
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-md);
     padding: 12px;
+  }
+
+  #d-count-detail-wide .detail-row {
+    justify-content: space-between;
+  }
+
+  #d-count-detail-wide .count-table {
+    font-size: 13px;
   }
 
   .amount-line {

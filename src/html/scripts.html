@@ -14,7 +14,7 @@
   var AUTOLOAD_MAP = {};
   var CURRENT_SELECTED_EVENT_ID = '';
   var PENDING_OPTIMISTIC_EVENTS = [];
-  var OPTIMISTIC_REFRESH_DELAY_MS = 1800;
+  var OPTIMISTIC_REFRESH_DELAY_MS = 4200;
   var LAST_KNJIGA_EVENTS = [];
   var REPORT_CACHE = {};
   var MESSAGE_HIDE_TIMERS = {};
@@ -29,6 +29,27 @@
     finalBalance: 0,
     count: 0
   };
+
+  function getDisplayedBalanceRaw_() {
+    var el = document.getElementById('d-topbar-balance') || document.getElementById('m-balance');
+    return el ? Number(el.dataset.rawValue || 0) : 0;
+  }
+
+  function hasPendingOptimisticForSession_() {
+    return PENDING_OPTIMISTIC_EVENTS.some(function(ev) {
+      return ev.cashbox_id === SESSION.cashboxId && ev.currency === SESSION.currency;
+    });
+  }
+
+  function assertClientSideCashAmount_(direction, amount, currency) {
+    if (direction !== 'OUT' || currency !== SESSION.currency) return true;
+    var available = getDisplayedBalanceRaw_();
+    if (amount > available + 0.000001) {
+      showMessage('Nedozvoljena akcija: pokušaj isplate preko raspoloživog stanja blagajne. Raspoloživo je ' + formatAmount_(available) + ' ' + currency + '.', 'error');
+      return false;
+    }
+    return true;
+  }
 
   var STATUS_BADGE_MAP = {
     'DRAFT': 'badge-draft',
@@ -492,7 +513,6 @@
       }
       container.innerHTML =
         '<div class="count-entry-form">' +
-          '<label>Valuta <input type="text" value="' + escapeHtml(currency) + '" readonly></label>' +
           '<label>Apoen <select data-count-denomination>' + denominations.map(function(value) {
             return '<option value="' + escapeHtml(value) + '">' + escapeHtml(formatAmount_(value)) + '</option>';
           }).join('') + '</select></label>' +
@@ -2763,6 +2783,8 @@
 
   function buildOptimisticEvent_(tempId, direction, amount, currency, partner, desc, statusText) {
     var now = new Date();
+    var signed = direction === 'OUT' ? -Number(amount || 0) : Number(amount || 0);
+    var projectedBalance = currency === SESSION.currency ? getDisplayedBalanceRaw_() + signed : 0;
     return {
       optimistic_id: tempId,
       event_id: tempId,
@@ -2781,7 +2803,7 @@
       partner_name: partner || '',
       description: desc || partner || '',
       status: statusText || 'KNJIŽENJE',
-      running_balance: 0
+      running_balance: projectedBalance
     };
   }
 
@@ -3157,6 +3179,7 @@
 
     if (!amount || amount <= 0) { var a = document.getElementById('d-qf-amount'); if (a) a.focus(); return; }
     if (!isTreasury && !desc && !partner) { var d2 = document.getElementById('d-qf-description'); if (d2) d2.focus(); return; }
+    if (!assertClientSideCashAmount_(direction, amount, cur)) return;
     if (isTreasury) {
       partner = 'Trezor';
       desc = desc || 'Predaja u trezor';
@@ -3179,6 +3202,7 @@
           var realEvent = resp.data || resp;
           if (realEvent && realEvent.event_id) {
             realEvent.optimistic_id = realEvent.event_id;
+            realEvent.running_balance = cur === SESSION.currency ? getDisplayedBalanceRaw_() : Number(realEvent.running_balance || 0);
             rememberOptimisticEvent_(realEvent);
           }
           resetDesktopQuickForm_();
@@ -3320,6 +3344,7 @@
 
     if (!amount || amount <= 0) { var a = document.getElementById('sheet-amount'); if (a) a.focus(); return; }
     if (!isTreasury && !desc && !partner) { var d2 = document.getElementById('sheet-description'); if (d2) d2.focus(); return; }
+    if (!assertClientSideCashAmount_(direction, amount, cur)) return;
     if (isTreasury) {
       partner = 'Trezor';
       desc = desc || 'Predaja u trezor';
@@ -3344,6 +3369,7 @@
           var realEvent = resp.data || resp;
           if (realEvent && realEvent.event_id) {
             realEvent.optimistic_id = realEvent.event_id;
+            realEvent.running_balance = cur === SESSION.currency ? getDisplayedBalanceRaw_() : Number(realEvent.running_balance || 0);
             rememberOptimisticEvent_(realEvent);
           }
           renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
@@ -3410,6 +3436,7 @@
 
   function refreshBalance_() {
     if (!SESSION.cashboxId || !SESSION.currency) return;
+    if (hasPendingOptimisticForSession_()) return;
     callApi('apiCalculateCashboxBalance', [SESSION.cashboxId, SESSION.currency], function(result) {
       var val = Number(result) || 0;
       ['d-topbar-balance','m-balance'].forEach(function(id) {
