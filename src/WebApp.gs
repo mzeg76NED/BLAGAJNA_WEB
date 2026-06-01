@@ -2,6 +2,18 @@
  * Web App entry point and thin API wrappers for the frontend.
  */
 function doGet(e) {
+  const params = e && e.parameter ? e.parameter : {};
+  const specialView = params.view || params.page || '';
+  if (specialView === 'manifest') {
+    return ContentService
+      .createTextOutput(JSON.stringify(buildPwaManifest_()))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  if (specialView === 'sw') {
+    return ContentService
+      .createTextOutput(buildServiceWorker_())
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
   const allowedViews = [
     'index',
     'mobile',
@@ -14,7 +26,6 @@ function doGet(e) {
     'print-daily-closing',
     'print-report'
   ];
-  const params = e && e.parameter ? e.parameter : {};
   const requestedView = params.view || params.page || detectDefaultView_(e);
   const view = allowedViews.indexOf(requestedView) === -1 ? 'mobile' : requestedView;
   const template = HtmlService.createTemplateFromFile('html/' + view);
@@ -25,6 +36,38 @@ function doGet(e) {
   return template.evaluate()
     .setTitle(APP_CONFIG.APP_NAME)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function buildPwaManifest_() {
+  return {
+    name: APP_CONFIG.APP_NAME || 'BLAGAJNA WEB',
+    short_name: 'Blagajna',
+    start_url: ScriptApp.getService().getUrl() + '?view=mobile',
+    scope: ScriptApp.getService().getUrl(),
+    display: 'standalone',
+    background_color: '#0f1319',
+    theme_color: '#0f1319',
+    icons: [
+      {
+        src: 'https://ssl.gstatic.com/docs/script/images/logo/script-192.png',
+        sizes: '192x192',
+        type: 'image/png'
+      },
+      {
+        src: 'https://ssl.gstatic.com/docs/script/images/logo/script-512.png',
+        sizes: '512x512',
+        type: 'image/png'
+      }
+    ]
+  };
+}
+
+function buildServiceWorker_() {
+  return [
+    'self.addEventListener("install", function(event) { self.skipWaiting(); });',
+    'self.addEventListener("activate", function(event) { event.waitUntil(self.clients.claim()); });',
+    'self.addEventListener("fetch", function(event) { event.respondWith(fetch(event.request)); });'
+  ].join('\n');
 }
 
 function detectDefaultView_(e) {
@@ -302,6 +345,20 @@ function apiCloseActiveShift(cashboxId, physicalBalanceByCurrency, note) {
       throw new Error('No active shift for cashbox.');
     }
     return closeShift(activeShift.shift_id, parseJsonInput_(physicalBalanceByCurrency), note);
+  });
+}
+
+function apiGetCashCountsReport(filters) {
+  return apiWrap_(function() {
+    return getCashCountsReport(filters || {});
+  });
+}
+
+function apiGetCashSheetReport(filters) {
+  return apiWrap_(function() {
+    filters = filters || {};
+    filters.cashbox_id = filters.cashbox_id || getDefaultCashboxIdForCurrentUser_();
+    return getCashSheetReport(filters);
   });
 }
 

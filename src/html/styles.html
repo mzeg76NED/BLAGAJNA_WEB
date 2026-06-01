@@ -982,6 +982,11 @@
     z-index: 100;
   }
 
+  html.mobile-view .sheet-overlay {
+    align-items: center;
+    padding: 16px 0 calc(120px + env(safe-area-inset-bottom));
+  }
+
   @keyframes slideUp {
     from { transform: translateY(100%); }
     to   { transform: translateY(0); }
@@ -997,6 +1002,37 @@
     padding: 16px;
     padding-bottom: max(20px, env(safe-area-inset-bottom));
     width: 100%;
+  }
+
+  .cashsheet-header {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    padding: 12px;
+  }
+
+  .cashsheet-header div,
+  .cashsheet-calc-row {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 11px;
+  }
+
+  .cashsheet-header span,
+  .cashsheet-calc-row span {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .cashsheet-calc {
+    display: grid;
+    gap: 6px;
+    padding: 0 12px 12px;
   }
 
   .sheet-handle {

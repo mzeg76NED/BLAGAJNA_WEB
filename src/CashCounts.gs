@@ -56,6 +56,9 @@ function createCashCount(data) {
     assertAllowedValue(countType, objectValues_(CASH_COUNT_TYPES), 'count_type');
 
     const activeShift = getActiveShiftForCashbox(cashboxId);
+    if (countType !== CASH_COUNT_TYPES.SHIFT_OPENING && !activeShift) {
+      throw new Error('Presek stanja nije dozvoljen bez aktivne smene.');
+    }
     const denominations = normalizeDenominations_(currency, data.denominations || []);
     const countedCashTotal = denominations.reduce(function(total, item) {
       return total + item.denomination * item.quantity;
@@ -195,6 +198,30 @@ function buildCashCountAdjustmentEvent_(countId, cashboxId, currency, difference
     reversal_of_event_id: '',
     updated_at: ''
   };
+}
+
+function getCashCountsReport(filters) {
+  requireActiveUserWithRole_(CASH_COUNT_ROLES_);
+  const scoped = filters || {};
+  const range = getDateRangeFilter_(scoped);
+  const shiftFilter = String(scoped.shift_id || '').trim();
+  return listRecords(SHEET_NAMES.CASH_COUNTS)
+    .filter(function(count) {
+      return (!scoped.cashbox_id || count.cashbox_id === scoped.cashbox_id) &&
+        (!scoped.currency || count.currency === scoped.currency) &&
+        (!shiftFilter || count.shift_id === shiftFilter) &&
+        isDateInRange_(count.posted_at || count.created_at, range.dateFrom, range.dateTo);
+    })
+    .map(function(count) {
+      const denominations = parseJson_(count.denominations_json || '[]');
+      return Object.assign({}, count, {
+        counted_total: safeNumber_(count.counted_cash_total) + safeNumber_(count.check_total),
+        denominations: Array.isArray(denominations) ? denominations : []
+      });
+    })
+    .sort(function(left, right) {
+      return toTime_(right.posted_at || right.created_at) - toTime_(left.posted_at || left.created_at);
+    });
 }
 
 function normalizeDenominations_(currency, rows) {

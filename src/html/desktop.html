@@ -4,6 +4,7 @@
     <base target="_top">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="manifest" href="?view=manifest">
     <?!= include('html/styles'); ?>
     <script>
       window.BLAGAJNA_WEB_APP_URL = '<?= ScriptApp.getService().getUrl() ?>';
@@ -211,11 +212,42 @@
 
           <!-- SEKCIJA: BLAGAJNIČKI LIST -->
           <section id="d-section-blagajnicki-list" class="d-section">
-            <div class="card">
-              <div class="card-head">
-                <i class="ti ti-file-description" aria-hidden="true"></i>
-                <h2>Pretraži blagajnički list</h2>
+            <div class="knjiga-layout">
+              <div class="card knjiga-main">
+                <div class="card-head">
+                  <i class="ti ti-file-description" aria-hidden="true"></i>
+                  <h2 style="flex:1">Blagajnički list</h2>
+                  <input type="date" id="d-cashsheet-date" data-today style="width:140px;min-height:32px;font-size:12px">
+                  <select id="d-cashsheet-shift" style="width:210px;min-height:32px;font-size:12px"></select>
+                  <button id="d-cashsheet-load" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">Prikaži</button>
+                  <button id="d-cashsheet-book" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">Otvori knjigu</button>
+                </div>
+                <div id="d-cashsheet-document"></div>
+                <div class="table-wrap" style="margin-top:12px">
+                  <table class="book-table">
+                    <thead>
+                      <tr>
+                        <th style="width:42px">Rb.</th>
+                        <th style="width:72px">Vreme</th>
+                        <th style="width:110px">Tip</th>
+                        <th>Opis / primalac</th>
+                        <th class="num">Uplata</th>
+                        <th class="num">Isplata</th>
+                        <th class="num">Stanje</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="d-cashsheet-events"></tbody>
+                  </table>
+                </div>
               </div>
+              <div class="knjiga-side">
+                <div class="card">
+                  <div class="card-head"><h3>Status lista</h3></div>
+                  <div id="d-cashsheet-side" class="empty-state">Kliknite Prikaži.</div>
+                </div>
+                <div class="card">
+                  <div class="card-head"><h3>Povezani dokumenti</h3></div>
               <form id="print-tools-form" class="form-grid" style="grid-template-columns:1fr 1fr;gap:10px">
                 <label>ID zahteva <input name="payment_request_id" placeholder="REQ-..."></label>
                 <label>ID naloga <input name="payment_order_id" placeholder="ORD-..."></label>
@@ -241,6 +273,8 @@
                 <button id="print-shift-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Primopredaja</button>
                 <button id="print-daily-closing-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Zaključak</button>
                 <button id="print-report-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Izveštaj</button>
+              </div>
+                </div>
               </div>
             </div>
           </section>
@@ -342,24 +376,52 @@
 
           <!-- SEKCIJA: PRESEK -->
           <section id="d-section-presek" class="d-section">
-            <div class="card">
-              <div class="card-head">
-                <i class="ti ti-calculator" aria-hidden="true"></i>
-                <h2>Presek stanja - popis blagajne</h2>
+            <div class="knjiga-layout">
+              <div class="card knjiga-main">
+                <div class="card-head">
+                  <i class="ti ti-calculator" aria-hidden="true"></i>
+                  <h2 style="flex:1">Presek stanja - popis blagajne</h2>
+                  <button id="d-count-refresh" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">
+                    <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
+                  </button>
+                </div>
+                <div id="d-count-lock" class="shift-warning" hidden>Presek stanja je dostupan tek kada postoji aktivna smena.</div>
+                <form id="d-cash-count-form" class="form-grid" data-cash-count-form data-count-purpose="count">
+                    <input name="cashbox_id" type="hidden">
+                    <input name="count_type" type="hidden" value="CASHBOX_COUNT">
+                    <label>Valuta <select name="currency" data-currency-options></select></label>
+                    <div class="cash-count-entry-area" data-denomination-inputs></div>
+                    <label>Broj čekova <input name="check_count" type="number" min="0" step="1" value="0"></label>
+                    <label>Ukupno čekovi <input name="check_total" type="text" inputmode="decimal" placeholder="0,00"></label>
+                    <label>Napomena <textarea name="note"></textarea></label>
+                    <div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>
+                    <button class="btn-primary" type="submit">Sačuvaj presek</button>
+                </form>
+                <div id="d-count-result" class="result-box"></div>
+                <div class="table-wrap" style="margin-top:12px">
+                  <table class="book-table">
+                    <thead>
+                      <tr>
+                        <th>Vreme</th>
+                        <th>Korisnik</th>
+                        <th>Valuta</th>
+                        <th class="num">Obračunato</th>
+                        <th class="num">Popisano</th>
+                        <th class="num">Razlika</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="d-counts-tbody"></tbody>
+                  </table>
+                </div>
               </div>
-              <form id="d-cash-count-form" class="form-grid" data-cash-count-form data-count-purpose="count">
-                  <input name="cashbox_id" type="hidden">
-                  <input name="count_type" type="hidden" value="CASHBOX_COUNT">
-                  <label>Valuta <select name="currency" data-currency-options></select></label>
-                  <div class="cash-count-entry-area" data-denomination-inputs></div>
-                  <label>Broj čekova <input name="check_count" type="number" min="0" step="1" value="0"></label>
-                  <label>Ukupno čekovi <input name="check_total" type="text" inputmode="decimal" placeholder="0,00"></label>
-                  <label>Napomena <textarea name="note"></textarea></label>
-                  <div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>
-                  <button class="btn-primary" type="submit">Sačuvaj presek</button>
-              </form>
+              <div class="knjiga-side">
+                <div class="card" id="d-count-detail-panel">
+                  <div class="card-head"><h3>Detalji preseka</h3></div>
+                  <div id="d-count-detail-body" class="empty-state">Izaberite presek iz tabele.</div>
+                </div>
+              </div>
             </div>
-            <div id="d-count-result" class="result-box"></div>
           </section>
 
           <!-- SEKCIJA: ZAKLJUČAK -->

@@ -134,6 +134,73 @@ function getCashboxBalanceReport(filters) {
   return rows;
 }
 
+function getCashSheetReport(filters) {
+  const scoped = normalizeReportFilters_(filters || {});
+  const dateKey = scoped.date || scoped.closing_date || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Europe/Belgrade', 'yyyy-MM-dd');
+  scoped.date_from = scoped.date_from || dateKey;
+  scoped.date_to = scoped.date_to || dateKey;
+  const events = getCashMovementsReport(Object.assign({}, scoped, { limit: 500 }));
+  const shift = scoped.shift_id ? findRecordById(SHEET_NAMES.SHIFTS, 'shift_id', scoped.shift_id) : null;
+  const shiftRecord = shift ? shift.record : null;
+  const currency = scoped.currency || (events[0] && events[0].currency) || 'RSD';
+  const openingBalances = shiftRecord ? parseJson_(shiftRecord.opening_balance_json || '{}') : {};
+  const openingBalance = safeNumber_(openingBalances[currency]);
+  const totals = events.reduce(function(result, event) {
+    const amount = safeNumber_(event.display_amount !== undefined ? event.display_amount : event.amount);
+    const signed = safeNumber_(event.signed_amount);
+    if (event.event_type === 'TREASURY_HANDOVER') {
+      result.treasury += Math.abs(amount);
+    } else if (event.event_type === CASH_EVENT_TYPES.CORRECTION) {
+      if ((event.display_direction || event.direction) === 'IN') result.surplus += Math.abs(amount);
+      if ((event.display_direction || event.direction) === 'OUT') result.shortage += Math.abs(amount);
+    } else if (event.event_type === CASH_EVENT_TYPES.REVERSAL) {
+      result.reversal += signed;
+    } else if ((event.display_direction || event.direction) === 'IN') {
+      result.inflow += Math.abs(amount);
+    } else if ((event.display_direction || event.direction) === 'OUT') {
+      result.outflow += Math.abs(amount);
+    }
+    return result;
+  }, {
+    inflow: 0,
+    outflow: 0,
+    treasury: 0,
+    surplus: 0,
+    shortage: 0,
+    reversal: 0
+  });
+  const closingBalance = events.length ? safeNumber_(events[0].running_balance) : openingBalance;
+  const counts = getCashCountsReport({
+    cashbox_id: scoped.cashbox_id,
+    currency: currency,
+    shift_id: scoped.shift_id,
+    date_from: scoped.date_from,
+    date_to: scoped.date_to
+  });
+  const latestCount = counts.length ? counts[0] : null;
+  const physical = latestCount ? safeNumber_(latestCount.counted_total) : null;
+  return {
+    document_no: 'BL-' + dateKey.replace(/-/g, '') + '-' + (scoped.shift_id || 'DAN') + '-' + currency,
+    date: dateKey,
+    cashbox_id: scoped.cashbox_id || '',
+    currency: currency,
+    shift: shiftRecord,
+    status: latestCount ? (Math.abs(safeNumber_(latestCount.difference)) < 0.000001 ? 'SPREMAN ZA ZAKLJUČENJE' : 'NEUSAGLAŠEN') : 'U TOKU',
+    opening_balance: openingBalance,
+    total_in: totals.inflow,
+    total_out: totals.outflow,
+    total_treasury: totals.treasury,
+    total_surplus: totals.surplus,
+    total_shortage: totals.shortage,
+    total_reversal: totals.reversal,
+    calculated_closing_balance: closingBalance,
+    physical_total: physical,
+    difference: latestCount ? safeNumber_(latestCount.difference) : null,
+    latest_count: latestCount,
+    events: events
+  };
+}
+
 function getOpenPaymentRequestsReport(filters) {
   const scopedFilters = normalizeReportFilters_(filters);
   const openStatuses = [
