@@ -162,7 +162,6 @@
                 <div class="card permission-card" id="d-direct-permission-card" hidden>
                   <div class="card-head"><h3>Direktan rad blagajne</h3></div>
                   <p id="d-direct-permission-text">Direktne uplate i isplate može knjižiti samo glavni blagajnik aktivne smene.</p>
-                  <button class="btn-primary" type="button" data-d-nav="smena">Otvori / proveri smenu</button>
                 </div>
                 <!-- Quick form card -->
                 <div class="card" id="d-quick-form-card" hidden>
@@ -328,8 +327,28 @@
                 <div class="card-head"><h3>Aktivna smena</h3></div>
                 <div id="d-shift-status" class="shift-status-body"></div>
               </div>
+              <div class="card shift-work-card" style="grid-column:1 / -1" hidden>
+                <div class="card-head"><h3>Rad u smeni</h3></div>
+                <div class="actions">
+                  <button class="btn-in" id="d-shift-action-in" type="button">
+                    <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Nova uplata
+                  </button>
+                  <button class="btn-out" id="d-shift-action-out" type="button">
+                    <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Nova isplata
+                  </button>
+                  <button class="btn-out" id="d-shift-action-treasury" type="button">
+                    <i class="ti ti-building-bank" aria-hidden="true"></i> Predaja u trezor
+                  </button>
+                  <button id="d-shift-action-count" type="button">
+                    <i class="ti ti-calculator" aria-hidden="true"></i> Presek stanja
+                  </button>
+                  <button id="d-shift-action-sheet" type="button">
+                    <i class="ti ti-file-description" aria-hidden="true"></i> Blagajnički list
+                  </button>
+                </div>
+              </div>
               <div class="card" style="grid-column:1 / -1">
-                <div class="card-head"><h3>Otvori smenu - početni popis</h3></div>
+                <div class="card-head"><h3>Početak smene - popis blagajne</h3></div>
                 <form id="d-opening-count-form" class="form-grid" data-cash-count-form data-count-purpose="opening">
                   <input name="cashbox_id" type="hidden">
                   <input name="count_type" type="hidden" value="SHIFT_OPENING">

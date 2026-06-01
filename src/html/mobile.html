@@ -84,8 +84,26 @@
             <div id="m-shift-status" class="shift-status-body"></div>
           </div>
 
+          <div class="card shift-work-card" hidden>
+            <div class="card-head"><h3>Rad u smeni</h3></div>
+            <div class="actions">
+              <button class="btn-in btn-lg" id="m-shift-action-in" type="button">
+                <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
+              </button>
+              <button class="btn-out btn-lg" id="m-shift-action-out" type="button">
+                <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Isplata
+              </button>
+              <button class="btn-out btn-lg" id="m-shift-action-treasury" type="button">
+                <i class="ti ti-building-bank" aria-hidden="true"></i> Trezor
+              </button>
+              <button class="btn-lg" id="m-shift-action-count" type="button">
+                <i class="ti ti-calculator" aria-hidden="true"></i> Presek
+              </button>
+            </div>
+          </div>
+
           <div class="card">
-            <div class="card-head"><h3>Otvori smenu - početni popis</h3></div>
+            <div class="card-head"><h3>Početak smene - popis blagajne</h3></div>
             <form id="m-opening-count-form" class="form-grid" data-cash-count-form data-count-purpose="opening">
               <input name="cashbox_id" type="hidden">
               <input name="count_type" type="hidden" value="SHIFT_OPENING">

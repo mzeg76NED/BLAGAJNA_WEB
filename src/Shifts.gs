@@ -83,39 +83,145 @@ function openShift(cashboxId, openingNote) {
 
 function openShiftWithOpeningCount(data) {
   data = data || {};
-  const cashboxId = data.cashbox_id;
-  assertNonEmptyString(cashboxId, 'cashbox_id');
-  assertActiveCashbox(cashboxId);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
 
-  const existingShift = getActiveShiftForCashbox(cashboxId);
-  if (existingShift) {
-    throw new Error('Cashbox already has an open shift: ' + existingShift.shift_id);
-  }
+  try {
+    initializeDatabase();
+    const currentUser = requireActiveUserWithRole_(SHIFT_OPEN_ROLES_);
+    const cashboxId = data.cashbox_id;
+    assertNonEmptyString(cashboxId, 'cashbox_id');
+    assertActiveCashbox(cashboxId);
 
-  const countResults = createCashCounts(Object.assign({}, data, {
-    count_type: CASH_COUNT_TYPES.SHIFT_OPENING,
-    note: 'POČETAK SMENE - POPIS' + (data.opening_note ? '. ' + String(data.opening_note).trim() : '')
-  }));
-  const countIds = (countResults || []).map(function(count) {
-    return count.count_id;
-  }).join(', ');
-  const shift = openShift(
-    cashboxId,
-    'Početno stanje uneto kroz popis apoena' + (countIds ? ': ' + countIds : '') +
-      (data.opening_note ? '. Napomena: ' + String(data.opening_note).trim() : '')
-  );
+    const existingShift = getActiveShiftForCashbox(cashboxId);
+    if (existingShift) {
+      throw new Error('Cashbox already has an open shift: ' + existingShift.shift_id);
+    }
 
-  (countResults || []).forEach(function(count) {
-    updateRecordById(SHEET_NAMES.CASH_COUNTS, 'count_id', count.count_id, {
-      shift_id: shift.shift_id,
-      updated_at: getCurrentTimestamp_()
+    const now = getCurrentTimestamp_();
+    const shiftId = generateId_('SHF');
+    const grouped = (data.denominations || []).reduce(function(result, row) {
+      const currency = row.currency || data.currency;
+      if (!currency) return result;
+      if (!result[currency]) result[currency] = [];
+      result[currency].push(row);
+      return result;
+    }, {});
+
+    if (!Object.keys(grouped).length) {
+      grouped[data.currency] = [];
+    }
+
+    const openingNote = data.opening_note ? String(data.opening_note).trim() : '';
+    const countResults = Object.keys(grouped).map(function(currency) {
+      assertActiveCurrency(currency);
+      const denominations = normalizeDenominations_(currency, grouped[currency]);
+      const countedCashTotal = denominations.reduce(function(total, item) {
+        return total + item.denomination * item.quantity;
+      }, 0);
+      const calculatedBalance = calculateCashboxBalance(cashboxId, currency);
+      const difference = countedCashTotal - calculatedBalance;
+      const countId = generateId_('CNT');
+      const countNote = 'POČETAK SMENE - POPIS' + (openingNote ? '. ' + openingNote : '');
+      const adjustmentEvent = buildCashCountAdjustmentEvent_(
+        countId,
+        cashboxId,
+        currency,
+        difference,
+        currentUser.email,
+        now,
+        countNote
+      );
+      const record = {
+        count_id: countId,
+        created_at: now,
+        created_by: currentUser.email,
+        count_type: CASH_COUNT_TYPES.SHIFT_OPENING,
+        cashbox_id: cashboxId,
+        shift_id: shiftId,
+        currency: currency,
+        counted_cash_total: countedCashTotal,
+        check_count: 0,
+        check_total: 0,
+        calculated_balance_before: calculatedBalance,
+        difference: difference,
+        denominations_json: serializeJson_(denominations),
+        adjustment_event_id: adjustmentEvent ? adjustmentEvent.event_id : '',
+        note: countNote,
+        status: CASH_COUNT_STATUSES.POSTED,
+        posted_by: currentUser.email,
+        posted_at: now,
+        updated_at: ''
+      };
+      appendRecord(SHEET_NAMES.CASH_COUNTS, record);
+      writeAuditLog(
+        AUDIT_ACTIONS.POST,
+        SHEET_NAMES.CASH_COUNTS,
+        record.count_id,
+        null,
+        record,
+        adjustmentEvent
+          ? 'Opening shift cash count posted with automatic balance correction.'
+          : 'Opening shift cash count posted without difference.'
+      );
+      if (adjustmentEvent) {
+        appendRecord(SHEET_NAMES.CASH_EVENTS, adjustmentEvent);
+        writeAuditLog(
+          AUDIT_ACTIONS.POST,
+          SHEET_NAMES.CASH_EVENTS,
+          adjustmentEvent.event_id,
+          null,
+          adjustmentEvent,
+          'Automatic correction created from opening shift count: ' + countId
+        );
+      }
+      return record;
     });
-  });
 
-  return {
-    shift: shift,
-    counts: countResults
-  };
+    const openingBalance = countResults.reduce(function(result, count) {
+      result[count.currency] = Number(count.counted_cash_total || 0);
+      return result;
+    }, {});
+    const countIds = countResults.map(function(count) {
+      return count.count_id;
+    }).join(', ');
+    const shift = {
+      shift_id: shiftId,
+      cashbox_id: cashboxId,
+      opened_by: currentUser.email,
+      opened_at: now,
+      opening_note: 'Početno stanje uneto kroz popis apoena' + (countIds ? ': ' + countIds : '') +
+        (openingNote ? '. Napomena: ' + openingNote : ''),
+      opening_balance_json: serializeJson_(openingBalance),
+      closed_by: '',
+      closed_at: '',
+      handover_to: '',
+      handover_at: '',
+      closing_balance_json: '',
+      physical_balance_json: '',
+      difference_json: '',
+      status: SHIFT_STATUSES.OPEN,
+      note: '',
+      updated_at: ''
+    };
+
+    appendRecord(SHEET_NAMES.SHIFTS, shift);
+    writeAuditLog(
+      AUDIT_ACTIONS.CREATE,
+      SHEET_NAMES.SHIFTS,
+      shift.shift_id,
+      null,
+      shift,
+      'Shift opened with opening cash count.'
+    );
+
+    return {
+      shift: shift,
+      counts: countResults
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function getActiveShiftForCashbox(cashboxId) {

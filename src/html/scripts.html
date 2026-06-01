@@ -1459,6 +1459,21 @@
     document.querySelectorAll('.optional-handover-card').forEach(function(card) {
       card.style.display = hasShift && owner ? '' : 'none';
     });
+    document.querySelectorAll('.shift-work-card').forEach(function(card) {
+      if (hasShift) {
+        card.removeAttribute('hidden');
+        card.style.display = '';
+      } else {
+        card.setAttribute('hidden', 'hidden');
+        card.style.display = 'none';
+      }
+    });
+    ['d-shift-action-in','d-shift-action-out','d-shift-action-treasury','m-shift-action-in','m-shift-action-out','m-shift-action-treasury'].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.disabled = !owner;
+      btn.title = owner ? '' : 'Direktno knjiženje može da radi samo glavni blagajnik smene.';
+    });
     document.querySelectorAll('#d-active-shift-balance-btn, #m-active-shift-balance-btn').forEach(function(btn) {
       btn.disabled = !hasShift;
       btn.title = hasShift ? '' : 'Nema aktivne smene.';
@@ -1470,6 +1485,43 @@
       });
     }
     updateCountWorkflowVisibility_();
+  }
+
+  function openDesktopSection_(navKey) {
+    var sectionId = 'd-section-' + navKey;
+    document.querySelectorAll('.d-section').forEach(function(section) {
+      section.classList.toggle('active', section.id === sectionId);
+    });
+    document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-d-nav') === navKey);
+    });
+    updateDesktopDirectActionsVisibility_();
+  }
+
+  function openMobileSection_(sectionId) {
+    document.querySelectorAll('.m-section').forEach(function(section) {
+      section.classList.toggle('active', section.id === sectionId);
+    });
+    document.querySelectorAll('[data-m-nav]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-m-nav') === sectionId);
+    });
+    updateMobileDirectActionsVisibility_();
+  }
+
+  function openDesktopDirectAction_(buttonId) {
+    openDesktopSection_('knjiga');
+    window.setTimeout(function() {
+      var btn = document.getElementById(buttonId);
+      if (btn) btn.click();
+    }, 0);
+  }
+
+  function openMobileDirectAction_(buttonId) {
+    openMobileSection_('m-section-knjiga');
+    window.setTimeout(function() {
+      var btn = document.getElementById(buttonId);
+      if (btn) btn.click();
+    }, 0);
   }
 
   function setWorkflowFormDisabled_(form, disabled) {
@@ -1649,6 +1701,28 @@
       if (!btn || btn.dataset.bound === '1') return;
       btn.dataset.bound = '1';
       btn.addEventListener('click', showAllCurrencyBalances_);
+    });
+  }
+
+  function bindShiftWorkActions_() {
+    [
+      ['d-shift-action-in', function() { openDesktopDirectAction_('d-btn-uplata'); }],
+      ['d-shift-action-out', function() { openDesktopDirectAction_('d-btn-isplata'); }],
+      ['d-shift-action-treasury', function() { openDesktopDirectAction_('d-btn-trezor'); }],
+      ['d-shift-action-count', function() { openDesktopSection_('presek'); }],
+      ['d-shift-action-sheet', function() {
+        var shift = uiState.activeShift || {};
+        openCashSheetForShift_(shift);
+      }],
+      ['m-shift-action-in', function() { openMobileDirectAction_('m-btn-uplata'); }],
+      ['m-shift-action-out', function() { openMobileDirectAction_('m-btn-isplata'); }],
+      ['m-shift-action-treasury', function() { openMobileDirectAction_('m-btn-trezor'); }],
+      ['m-shift-action-count', function() { openMobileSection_('m-section-presek'); }]
+    ].forEach(function(item) {
+      var btn = document.getElementById(item[0]);
+      if (!btn || btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', item[1]);
     });
   }
 
@@ -3532,6 +3606,7 @@
     if (isDesktop) { bindDesktopNav_(); bindDesktopQuickForm_(); }
     if (isMobile)  { bindModernShellForms_(); }
     bindBalanceOverviewButtons_();
+    bindShiftWorkActions_();
     bindAmountFormatting_();
     startHeaderClock_();
     registerPwa_();
@@ -3572,6 +3647,7 @@
       applyDirectCashPermission_();
       loadCashbookFilterOptions_();
       bindBalanceOverviewButtons_();
+      bindShiftWorkActions_();
       bindAmountFormatting_();
       enforceShiftStartup_(isDesktop, isMobile);
 

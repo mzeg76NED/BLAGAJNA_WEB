@@ -13,7 +13,7 @@ Ovo je novi poslovni blok i ne sme se uvoditi tako da pokvari direktnu uplatu, d
 3. STORNO se u prikazu blagajničke knjige prikazuje u istoj koloni kao stavka koja se stornira, ali sa suprotnim predznakom.
 4. Stanje blagajne se računa iz događaja, ali poslednji važeći popis/presek može biti nova obračunska osnova.
 5. Popis se unosi po valutama, apoenima i količinama.
-6. Čekovi se unose kao broj čekova i ukupna vrednost čekova po valuti.
+6. Čekovi se ne unose kroz posebna polja; ako se koriste, vode se kroz `CURRENCIES` kao posebna valuta/instrument i popisuju istom logikom kao ostale valute.
 7. Početak smene prikazuje prethodni kraj/popisan saldo i traži potvrdu ili novi popis.
 8. Zatvorena smena i zaključan dnevni zaključak ostaju nepromenljivi.
 
@@ -61,7 +61,7 @@ DAILY_CLOSING_COUNT
 
 1. Dodati akciju `PRESEK BLAGAJNE - POPIS`.
 2. Forma mora prikazati valutu, apoene, količine i automatski total.
-3. Dodati unos broja čekova i ukupnog iznosa čekova.
+3. Ne dodavati posebna polja za čekove; koristiti isti unos apoena/valuta kao kod preseka stanja.
 4. Početak smene mora prikazati prethodni kraj/presek i tražiti potvrdu.
 5. Mobilni prikaz mora imati velika polja i dugmad pogodna za rad na telefonu.
 
