@@ -256,24 +256,16 @@ function getCashMovementsReport(filters) {
   const userFilter = String(scopedFilters.user || scopedFilters.posted_by || scopedFilters.created_by || '').toLowerCase();
   const shiftFilter = String(scopedFilters.shift_id || '').trim();
   const shiftRange = shiftFilter ? getShiftDateRangeForReport_(shiftFilter) : null;
-  const eventsWithBalance = listRecords(SHEET_NAMES.CASH_EVENTS)
+  const allCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS)
     .filter(function(event) {
       return (!scopedFilters.cashbox_id || event.cashbox_id === scopedFilters.cashbox_id) &&
-        (!scopedFilters.currency || event.currency === scopedFilters.currency) &&
-        (!scopedFilters.status || event.status === scopedFilters.status) &&
-        (!userFilter || String(event.posted_by || event.created_by || '').toLowerCase().indexOf(userFilter) !== -1) &&
-        (!shiftRange || (
-          event.cashbox_id === shiftRange.cashbox_id &&
-          isDateTimeInShiftRange_(event.event_date || event.created_at, shiftRange)
-        ));
+        (!scopedFilters.currency || event.currency === scopedFilters.currency);
     })
     .sort(function(left, right) {
       return toTime_(left.event_date || left.created_at) - toTime_(right.event_date || right.created_at);
     });
   const runningByKey = {};
-
-  return eventsWithBalance
-    .map(function(event, index) {
+  const eventRows = allCashEvents.map(function(event, index) {
       const amount = safeNumber_(event.amount);
       const key = event.cashbox_id + '|' + event.currency;
       if (!Object.prototype.hasOwnProperty.call(runningByKey, key)) {
@@ -298,6 +290,7 @@ function getCashMovementsReport(filters) {
         display_direction: displayDirection,
         display_amount: displayAmount,
         running_balance: runningByKey[key],
+        cashbox_id: event.cashbox_id,
         currency: event.currency,
         partner_name: event.partner_name,
         description: event.description,
@@ -308,11 +301,61 @@ function getCashMovementsReport(filters) {
         posted_by: event.posted_by,
         posted_at: event.posted_at,
         created_by: event.created_by,
-        created_at: event.created_at
+        created_at: event.created_at,
+        source_type: 'CASH_EVENT'
       };
+    });
+  const adjustedCountIds = eventRows.reduce(function(index, event) {
+    const match = String(event.description || '').match(/CNT-\d{8}-\d{6}-[A-F0-9]+/);
+    if (event.event_type === CASH_EVENT_TYPES.CORRECTION && match) {
+      index[match[0]] = true;
+    }
+    return index;
+  }, {});
+  const countRows = listRecords(SHEET_NAMES.CASH_COUNTS)
+    .filter(function(count) {
+      return !count.adjustment_event_id &&
+        !adjustedCountIds[count.count_id] &&
+        (!scopedFilters.cashbox_id || count.cashbox_id === scopedFilters.cashbox_id) &&
+        (!scopedFilters.currency || count.currency === scopedFilters.currency);
     })
-    .filter(function(event) {
-      return isDateInRange_(event.event_date || event.created_at, range.dateFrom, range.dateTo);
+    .map(function(count) {
+      return {
+        event_date: count.posted_at || count.created_at,
+        event_id: count.count_id,
+        entry_number: '',
+        event_type: 'CASH_COUNT',
+        direction: 'COUNT',
+        amount: safeNumber_(count.counted_cash_total) + safeNumber_(count.check_total),
+        signed_amount: 0,
+        display_direction: 'COUNT',
+        display_amount: 0,
+        running_balance: safeNumber_(count.counted_cash_total) + safeNumber_(count.check_total),
+        cashbox_id: count.cashbox_id,
+        currency: count.currency,
+        partner_name: 'Presek blagajne',
+        description: 'PRESEK BLAGAJNE - POPIS ' + count.count_id,
+        linked_order_id: '',
+        reversal_of_event_id: '',
+        status: count.status,
+        document_status: '',
+        posted_by: count.posted_by || count.created_by,
+        posted_at: count.posted_at || count.created_at,
+        created_by: count.created_by,
+        created_at: count.created_at,
+        source_type: 'CASH_COUNT'
+      };
+    });
+
+  return eventRows.concat(countRows)
+    .filter(function(row) {
+      return (!scopedFilters.status || row.status === scopedFilters.status) &&
+        (!userFilter || String(row.posted_by || row.created_by || '').toLowerCase().indexOf(userFilter) !== -1) &&
+        (!shiftRange || (
+          row.cashbox_id === shiftRange.cashbox_id &&
+          isDateTimeInShiftRange_(row.event_date || row.created_at, shiftRange)
+        )) &&
+        isDateInRange_(row.event_date || row.created_at, range.dateFrom, range.dateTo);
     })
     .sort(sortByEventDateDesc_)
     .slice(0, isFinite(limit) && limit > 0 ? limit : 100);

@@ -2114,7 +2114,7 @@
     var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
     var isIn  = displayDirection === 'IN';
     var isOut = displayDirection === 'OUT';
-    var isCount = ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || ''));
+    var isCount = ev.event_type === 'CASH_COUNT' || (ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || '')));
     var rowClass = (isCount ? 'row-count' : isIn ? 'row-in' : isOut ? 'row-out' : 'row-opening') + (ev.optimistic_id ? ' optimistic' : '');
     var amtFmt  = formatAmount_(displayAmount);
     var balFmt  = formatAmount_(balance);
@@ -2179,9 +2179,10 @@
     var displayDirection = ev.display_direction || ev.direction;
     var displayAmount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
     var isIn   = displayDirection === 'IN';
-    var dotBg  = isIn ? 'var(--color-in)'  : 'var(--color-out)';
-    var color  = isIn ? 'var(--color-in)'  : 'var(--color-out)';
-    var prefix = displayAmount < 0 ? '−' : (isIn ? '+' : '−');
+    var isCount = ev.event_type === 'CASH_COUNT' || (ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || '')));
+    var dotBg  = isCount ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
+    var color  = isCount ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
+    var prefix = isCount ? '' : displayAmount < 0 ? '−' : (isIn ? '+' : '−');
     var label  = escapeHtml(ev.partner_name || ev.description || '—');
     var reason = escapeHtml(ev.description || '—');
     var meta   = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) +
@@ -2189,7 +2190,6 @@
       ' · ' + escapeHtml(ev.event_id) +
       (ev.reversal_of_event_id ? ' · Veza: ' + escapeHtml(ev.reversal_of_event_id) : '');
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
-    var isCount = ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || ''));
     return '<div class="m-entry' + (isCount ? ' count' : '') + (ev.optimistic_id ? ' optimistic' : '') + '" data-event-id="' + escapeHtml(ev.event_id) + '">' +
       '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
       '<div class="m-entry-info">' +
@@ -2197,7 +2197,7 @@
         '<div class="m-entry-meta">' + reason + '</div>' +
         '<div class="m-entry-meta">' + meta + statusHint + '</div>' +
       '</div>' +
-      '<div class="m-entry-amt" style="color:' + color + '">' + prefix + formatAmount_(Math.abs(displayAmount)) + '</div>' +
+      '<div class="m-entry-amt" style="color:' + color + '">' + (isCount ? 'POPIS' : prefix + formatAmount_(Math.abs(displayAmount))) + '</div>' +
     '</div>';
   }
 
@@ -2217,9 +2217,10 @@
       printEventInput.value = CURRENT_SELECTED_EVENT_ID;
     }
 
+    var isCount  = ev.event_type === 'CASH_COUNT';
     var isIn     = ev.direction === 'IN';
-    var dirLabel = isIn ? '↓ UPLATA' : '↑ ISPLATA';
-    var dirColor = isIn ? 'var(--color-in)' : 'var(--color-out)';
+    var dirLabel = isCount ? 'PRESEK' : isIn ? '↓ UPLATA' : '↑ ISPLATA';
+    var dirColor = isCount ? '#d99a00' : isIn ? 'var(--color-in)' : 'var(--color-out)';
 
     title.innerHTML = '<span style="color:' + dirColor + '">' + dirLabel + '</span> · ' + escapeHtml(ev.event_id);
 
@@ -2243,9 +2244,15 @@
 
     var printBtn  = document.getElementById('d-detail-print');
     var stornoBtn = document.getElementById('d-detail-storno');
-    if (printBtn)  printBtn.onclick  = function() { openPrintView('print-cash-event', ev.event_id); };
+    if (printBtn) {
+      printBtn.disabled = isCount;
+      printBtn.title = isCount ? 'Popis se evidentira u preseku smene, bez blagajničkog lista za uplatu/isplatu.' : '';
+      printBtn.onclick  = function() {
+        if (!isCount) openPrintView('print-cash-event', ev.event_id);
+      };
+    }
     if (stornoBtn) {
-      var canReverse = ev.status !== 'REVERSED' && ev.event_type !== 'REVERSAL';
+      var canReverse = !isCount && ev.status !== 'REVERSED' && ev.event_type !== 'REVERSAL';
       stornoBtn.disabled = !canReverse;
       stornoBtn.title = canReverse ? '' : 'Ova stavka je već storno ili storno događaj.';
       stornoBtn.onclick = function() {
@@ -2286,9 +2293,10 @@
     var title = document.getElementById('m-detail-title');
     var body = document.getElementById('m-detail-body');
     if (!overlay || !title || !body) return;
+    var isCount = ev.event_type === 'CASH_COUNT';
     var isIn = ev.direction === 'IN';
-    var dirColor = isIn ? 'var(--color-in)' : 'var(--color-out)';
-    title.innerHTML = '<span style="color:' + dirColor + '">' + (isIn ? 'UPLATA' : 'ISPLATA') + '</span>';
+    var dirColor = isCount ? '#d99a00' : isIn ? 'var(--color-in)' : 'var(--color-out)';
+    title.innerHTML = '<span style="color:' + dirColor + '">' + (isCount ? 'PRESEK' : isIn ? 'UPLATA' : 'ISPLATA') + '</span>';
     var rows = [
       ['ID', escapeHtml(ev.event_id || '—')],
       ['Iznos', '<strong style="color:' + dirColor + '">' + formatAmount_(ev.amount) + ' ' + escapeHtml(ev.currency || SESSION.currency) + '</strong>'],
@@ -2311,9 +2319,12 @@
     var stornoBtn = document.getElementById('m-detail-storno');
     if (closeBtn) closeBtn.onclick = function() { overlay.style.display = 'none'; };
     overlay.onclick = function(e) { if (e.target === overlay) overlay.style.display = 'none'; };
-    if (printBtn) printBtn.onclick = function() { openPrintView('print-cash-event', ev.event_id); };
+    if (printBtn) {
+      printBtn.disabled = isCount;
+      printBtn.onclick = function() { if (!isCount) openPrintView('print-cash-event', ev.event_id); };
+    }
     if (stornoBtn) {
-      var canReverse = ev.status !== 'REVERSED' && ev.event_type !== 'REVERSAL' && !ev.optimistic_id;
+      var canReverse = !isCount && ev.status !== 'REVERSED' && ev.event_type !== 'REVERSAL' && !ev.optimistic_id;
       stornoBtn.disabled = !canReverse;
       stornoBtn.onclick = function() {
         if (!canReverse) return;
