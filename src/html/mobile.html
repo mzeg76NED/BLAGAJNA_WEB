@@ -79,20 +79,23 @@
           <h2>Smena</h2>
 
           <div class="card shift-status-card">
-            <div class="card-head"><h3>Status smene</h3></div>
+            <div class="card-head"><h3>Aktivna smena</h3></div>
             <div id="m-shift-status" class="shift-status-body"></div>
-            <button id="m-active-shift-balance-btn" type="button">
-              <i class="ti ti-scale" aria-hidden="true"></i> Presek aktivne smene
-            </button>
           </div>
 
           <div class="card">
-            <div class="card-head"><h3>Otvori smenu</h3></div>
-            <form id="m-open-shift-form" class="form-grid">
+            <div class="card-head"><h3>Otvori smenu - početni popis</h3></div>
+            <form id="m-opening-count-form" class="form-grid" data-cash-count-form data-count-purpose="opening">
               <input name="cashbox_id" type="hidden">
+              <input name="count_type" type="hidden" value="SHIFT_OPENING">
+              <label>Valuta <select name="currency" data-currency-options></select></label>
+              <div class="cash-count-entry-area" data-denomination-inputs></div>
+              <label>Broj čekova <input name="check_count" type="number" min="0" step="1" value="0"></label>
+              <label>Ukupno čekovi <input name="check_total" type="text" inputmode="decimal" placeholder="0,00"></label>
               <label>Napomena pri otvaranju
                 <textarea name="opening_note" rows="2"></textarea>
               </label>
+              <div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>
               <button class="btn-primary" type="submit">Otvori smenu</button>
             </form>
           </div>
@@ -122,19 +125,25 @@
             <form id="m-close-shift-form" class="form-grid">
               <div class="shift-current-label" data-active-shift-label>Aktivna smena će biti učitana automatski.</div>
               <input name="shift_id" type="hidden" required>
-              <div class="shift-warning">Pre zatvaranja smene sačuvajte presek blagajne za sve aktivne valute. Zatvaranje koristi poslednji sačuvani popis.</div>
+              <div class="shift-warning">Zatvaranje smene koristi poslednji sačuvani presek. Ako stanje nije sveže, prvo otvorite tab Presek i unesite popis.</div>
               <label>Napomena <textarea name="note"></textarea></label>
               <button class="btn-primary" type="submit">Zatvori smenu</button>
             </form>
           </div>
 
+          <div id="m-shift-result" class="result-box"></div>
+        </section>
+
+        <!-- PRESEK -->
+        <section id="m-section-presek" class="m-section" data-section>
+          <h2>Presek stanja</h2>
           <div class="card">
             <div class="card-head"><h3>Presek blagajne - popis</h3></div>
-            <form id="m-cash-count-form" class="form-grid">
+            <form id="m-cash-count-form" class="form-grid" data-cash-count-form data-count-purpose="count">
               <input name="cashbox_id" type="hidden">
               <input name="count_type" type="hidden" value="CASHBOX_COUNT">
               <label>Valuta <select name="currency" data-currency-options></select></label>
-              <div class="denomination-grid" data-denomination-inputs></div>
+              <div class="cash-count-entry-area" data-denomination-inputs></div>
               <label>Broj čekova <input name="check_count" type="number" min="0" step="1" value="0"></label>
               <label>Ukupno čekovi <input name="check_total" type="text" inputmode="decimal" placeholder="0,00"></label>
               <label>Napomena <textarea name="note"></textarea></label>
@@ -143,7 +152,7 @@
             </form>
           </div>
 
-          <div id="m-shift-result" class="result-box"></div>
+          <div id="m-count-result" class="result-box"></div>
         </section>
 
         <!-- ZAKLJUČAK -->
@@ -191,6 +200,10 @@
         <button class="m-tab" data-m-nav="m-section-smena" type="button">
           <i class="ti ti-transfer" aria-hidden="true"></i>
           <span>Smena</span>
+        </button>
+        <button class="m-tab" data-m-nav="m-section-presek" type="button">
+          <i class="ti ti-calculator" aria-hidden="true"></i>
+          <span>Presek</span>
         </button>
         <button class="m-tab" data-m-nav="m-section-zakljucak" type="button">
           <i class="ti ti-scale" aria-hidden="true"></i>

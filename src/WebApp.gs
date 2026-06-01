@@ -197,6 +197,14 @@ function apiOpenShift(cashboxId, openingNote) {
   });
 }
 
+function apiOpenShiftWithOpeningCount(data) {
+  return apiWrap_(function() {
+    data = data || {};
+    data.cashbox_id = data.cashbox_id || getDefaultCashboxIdForCurrentUser_();
+    return openShiftWithOpeningCount(data);
+  });
+}
+
 function apiGetMyActiveShifts() {
   return apiWrap_(function() {
     return getMyActiveShifts();

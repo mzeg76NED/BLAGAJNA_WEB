@@ -81,6 +81,43 @@ function openShift(cashboxId, openingNote) {
   }
 }
 
+function openShiftWithOpeningCount(data) {
+  data = data || {};
+  const cashboxId = data.cashbox_id;
+  assertNonEmptyString(cashboxId, 'cashbox_id');
+  assertActiveCashbox(cashboxId);
+
+  const existingShift = getActiveShiftForCashbox(cashboxId);
+  if (existingShift) {
+    throw new Error('Cashbox already has an open shift: ' + existingShift.shift_id);
+  }
+
+  const countResults = createCashCounts(Object.assign({}, data, {
+    count_type: CASH_COUNT_TYPES.SHIFT_OPENING,
+    note: 'POČETAK SMENE - POPIS' + (data.opening_note ? '. ' + String(data.opening_note).trim() : '')
+  }));
+  const countIds = (countResults || []).map(function(count) {
+    return count.count_id;
+  }).join(', ');
+  const shift = openShift(
+    cashboxId,
+    'Početno stanje uneto kroz popis apoena' + (countIds ? ': ' + countIds : '') +
+      (data.opening_note ? '. Napomena: ' + String(data.opening_note).trim() : '')
+  );
+
+  (countResults || []).forEach(function(count) {
+    updateRecordById(SHEET_NAMES.CASH_COUNTS, 'count_id', count.count_id, {
+      shift_id: shift.shift_id,
+      updated_at: getCurrentTimestamp_()
+    });
+  });
+
+  return {
+    shift: shift,
+    counts: countResults
+  };
+}
+
 function getActiveShiftForCashbox(cashboxId) {
   assertNonEmptyString(cashboxId, 'cashboxId');
   assertActiveCashbox(cashboxId);

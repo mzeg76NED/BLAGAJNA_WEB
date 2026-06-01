@@ -475,7 +475,7 @@
   }
 
   function renderDenominationInputs_() {
-    document.querySelectorAll('form[id$="cash-count-form"]').forEach(function(form) {
+    document.querySelectorAll('form[data-cash-count-form]').forEach(function(form) {
       var currencySelect = form.querySelector('[name="currency"]');
       var container = form.querySelector('[data-denomination-inputs]');
       if (!container) return;
@@ -519,6 +519,14 @@
           }
         });
       }
+      var qtyInput = container.querySelector('[data-count-quantity]');
+      if (qtyInput) {
+        qtyInput.addEventListener('keydown', function(event) {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          if (addBtn) addBtn.click();
+        });
+      }
       bindCashCountTotal_(form);
       renderCashCountRows_(form);
     });
@@ -538,6 +546,21 @@
       return;
     }
     form.dataset.cashCountBound = '1';
+    form.addEventListener('keydown', function(event) {
+      if (event.key !== 'Enter' || event.target.tagName === 'TEXTAREA') return;
+      event.preventDefault();
+      var fields = Array.prototype.slice.call(form.querySelectorAll('select, input:not([type="hidden"]), textarea, button'))
+        .filter(function(el) { return !el.disabled && el.offsetParent !== null; });
+      var index = fields.indexOf(event.target);
+      var addButton = form.querySelector('[data-count-add]');
+      if (event.target.hasAttribute('data-count-quantity') && addButton) {
+        addButton.click();
+        return;
+      }
+      if (index >= 0 && fields[index + 1]) {
+        fields[index + 1].focus();
+      }
+    });
     form.addEventListener('input', function() { updateCashCountTotal_(form); });
     var currencySelect = form.querySelector('[name="currency"]');
     if (currencySelect) {
@@ -663,6 +686,9 @@
     }
     if (/shift_id|ID smene/i.test(text)) {
       return 'Aktivna smena nije pronađena. Otvorite smenu ili osvežite aplikaciju pre nastavka.';
+    }
+    if (/Pre zatvaranja smene uradite presek blagajne|presek blagajne za valute/i.test(text)) {
+      return 'Pre zatvaranja smene morate uraditi popis u meniju Presek stanja za sve aktivne valute.';
     }
     return text || 'Poziv nije uspeo.';
   }
@@ -1327,6 +1353,34 @@
     return 'Aktivna smena: ' + shortUserLabel_(shift.opened_by || '') + ' · otvorena ' + formatDateTimeShort_(shift.opened_at) + ' · ' + shift.shift_id;
   }
 
+  function parseJsonSafe_(value, fallback) {
+    if (!value) return fallback;
+    if (typeof value === 'object') return value;
+    try {
+      return JSON.parse(String(value));
+    } catch (err) {
+      return fallback;
+    }
+  }
+
+  function renderShiftOpeningBalances_(shift) {
+    var balances = parseJsonSafe_(shift && shift.opening_balance_json, {});
+    var currencies = Object.keys(balances || {});
+    if (!currencies.length) return '<div class="shift-warning">Početno stanje nije zabeleženo.</div>';
+    var mainCurrency = SESSION.currency || currencies[0];
+    var mainValue = Object.prototype.hasOwnProperty.call(balances, mainCurrency) ? balances[mainCurrency] : balances[currencies[0]];
+    var mainCode = Object.prototype.hasOwnProperty.call(balances, mainCurrency) ? mainCurrency : currencies[0];
+    return '<table class="shift-info-table">' +
+      '<tr><th>Otvorio</th><td>' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</td></tr>' +
+      '<tr><th>Smena</th><td>' + escapeHtml(shift.shift_id || '') + '</td></tr>' +
+      '<tr><th>Početak</th><td>' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</td></tr>' +
+      '<tr><th>Početno stanje</th><td><strong>' + escapeHtml(formatAmount_(mainValue)) + ' ' + escapeHtml(mainCode) + '</strong></td></tr>' +
+      '<tr><th>Sve valute</th><td>' + currencies.map(function(code) {
+        return '<span class="balance-pill">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(balances[code])) + '</span>';
+      }).join(' ') + '</td></tr>' +
+      '</table>';
+  }
+
   function applyActiveShiftFields_() {
     var shift = uiState.activeShift || {};
     document.querySelectorAll('input[name="shift_id"]').forEach(function(input) {
@@ -1345,13 +1399,13 @@
     var hasShift = Boolean(shift.shift_id);
     var owner = isCurrentActiveShiftOwner_();
     var statusHtml = hasShift
-      ? '<div class="shift-state active"><strong>Aktivna smena</strong><span>Glavni blagajnik: ' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</span><span>Otvorena: ' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</span><span>Status: ' + escapeHtml(STATUS_LABEL_MAP[shift.status] || shift.status || '') + '</span></div>'
+      ? '<div class="shift-state active"><strong>Aktivna smena</strong><span>Glavni blagajnik: ' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</span><span>Status: ' + escapeHtml(STATUS_LABEL_MAP[shift.status] || shift.status || '') + '</span></div>' + renderShiftOpeningBalances_(shift)
       : '<div class="shift-state empty"><strong>Nema aktivne smene</strong><span>Prvo otvorite smenu da biste radili direktne uplate i isplate.</span></div>';
     ['d-shift-status','m-shift-status'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.innerHTML = statusHtml;
     });
-    document.querySelectorAll('#d-open-shift-form, #m-open-shift-form').forEach(function(form) {
+    document.querySelectorAll('#d-opening-count-form, #m-opening-count-form').forEach(function(form) {
       setWorkflowFormDisabled_(form, hasShift);
     });
     document.querySelectorAll('#d-close-shift-form, #m-close-shift-form').forEach(function(form) {
@@ -2769,25 +2823,39 @@
   }
 
   function bindModernShellForms_() {
-    bindForm('d-open-shift-form', function(data) {
+    bindForm('d-opening-count-form', function(data, form) {
+      if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
-      callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
-        uiState.activeShift = result || null;
+      data.denominations = collectDenominations_(form);
+      data.check_count = Number(data.check_count || 0);
+      data.check_total = parseAmountInput_(data.check_total);
+      callApi('apiOpenShiftWithOpeningCount', [data], function(result) {
+        uiState.activeShift = result && result.shift || null;
         uiState.canPostDirectCashEvents = true;
         applyActiveShiftFields_();
         applyDirectCashPermission_();
-        renderShiftSummary('d-shift-result', result, 'Smena je otvorena');
+        renderShiftSummary('d-shift-result', uiState.activeShift, 'Smena je otvorena');
+        form.dataset.countRows = '[]';
+        renderDenominationInputs_();
+        loadCashbookFilterOptions_();
         refreshBalance_();
       }, { successMessage: 'Smena je otvorena.' });
     });
-    bindForm('m-open-shift-form', function(data) {
+    bindForm('m-opening-count-form', function(data, form) {
+      if (!validateCashCountForm_(form)) return;
       data = withUiDefaults(data);
-      callApi('apiOpenShift', [data.cashbox_id, data.opening_note], function(result) {
-        uiState.activeShift = result || null;
+      data.denominations = collectDenominations_(form);
+      data.check_count = Number(data.check_count || 0);
+      data.check_total = parseAmountInput_(data.check_total);
+      callApi('apiOpenShiftWithOpeningCount', [data], function(result) {
+        uiState.activeShift = result && result.shift || null;
         uiState.canPostDirectCashEvents = true;
         applyActiveShiftFields_();
         applyDirectCashPermission_();
-        renderShiftSummary('m-shift-result', result, 'Smena je otvorena');
+        renderShiftSummary('m-shift-result', uiState.activeShift, 'Smena je otvorena');
+        form.dataset.countRows = '[]';
+        renderDenominationInputs_();
+        loadCashbookFilterOptions_();
         refreshBalance_();
       }, { successMessage: 'Smena je otvorena.' });
     });
@@ -2838,7 +2906,7 @@
       callApi('apiCreateCashCounts', [data], function(results) {
         var result = Array.isArray(results) ? results[0] || {} : results || {};
         var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
-        renderSummaryCard('d-shift-result', 'Presek blagajne je sačuvan', [
+        renderSummaryCard('d-count-result', 'Presek blagajne je sačuvan', [
           ['ID', countIds],
           ['Valuta', Array.isArray(results) ? results.map(function(item) { return item.currency; }).join(', ') : result.currency],
           ['Popisan gotov novac', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.counted_cash_total, item.currency); }).join(' · ') : amountWithCurrency(result.counted_cash_total, result.currency)],
@@ -2861,7 +2929,7 @@
       callApi('apiCreateCashCounts', [data], function(results) {
         var result = Array.isArray(results) ? results[0] || {} : results || {};
         var countIds = Array.isArray(results) ? results.map(function(item) { return item.count_id; }).join(', ') : result.count_id;
-        renderSummaryCard('m-shift-result', 'Presek blagajne je sačuvan', [
+        renderSummaryCard('m-count-result', 'Presek blagajne je sačuvan', [
           ['ID', countIds],
           ['Valuta', Array.isArray(results) ? results.map(function(item) { return item.currency; }).join(', ') : result.currency],
           ['Popisan gotov novac', Array.isArray(results) ? results.map(function(item) { return amountWithCurrency(item.counted_cash_total, item.currency); }).join(' · ') : amountWithCurrency(result.counted_cash_total, result.currency)],
