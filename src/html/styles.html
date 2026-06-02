@@ -1919,6 +1919,600 @@
     top: 0;
   }
 
+  /* ─── Cashbook final UI ───────────────────────────────── */
+
+  .cashbook-page {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .cashbook-page-head {
+    align-items: center;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(220px, 1fr) minmax(620px, 1.4fr);
+  }
+
+  .cashbook-title {
+    align-items: center;
+    color: var(--color-text);
+    display: flex;
+    gap: 10px;
+  }
+
+  .cashbook-title i {
+    color: #c7dbff;
+    font-size: 24px;
+  }
+
+  .cashbook-title h2 {
+    font-size: 26px;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  .cashbook-filters {
+    align-items: center;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 130px auto 130px minmax(150px, 1fr) minmax(150px, 1fr) minmax(230px, 1.25fr) 42px;
+  }
+
+  .cashbook-filter,
+  .cashbook-search {
+    align-items: center;
+    background: rgba(5, 20, 38, 0.62);
+    border: 1px solid rgba(98, 139, 184, 0.26);
+    border-radius: 10px;
+    display: flex;
+    min-height: 42px;
+    min-width: 0;
+  }
+
+  :root:not([data-theme="dark"]) .cashbook-filter,
+  :root:not([data-theme="dark"]) .cashbook-search {
+    background: #f8fbff;
+  }
+
+  .cashbook-filter input,
+  .cashbook-filter select,
+  .cashbook-search input {
+    background: transparent;
+    border: 0;
+    color: var(--color-text);
+    font-size: 13px;
+    min-height: 40px;
+    padding: 0 12px;
+    width: 100%;
+  }
+
+  .cashbook-search {
+    gap: 8px;
+    padding-left: 12px;
+  }
+
+  .cashbook-search i {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .cashbook-search input {
+    padding-left: 0;
+  }
+
+  .cashbook-filter-sep {
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  .cashbook-refresh {
+    align-items: center;
+    background: rgba(5, 20, 38, 0.62);
+    border-color: rgba(98, 139, 184, 0.3);
+    border-radius: 10px;
+    display: inline-flex;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0;
+  }
+
+  .cashbook-kpis {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .cashbook-kpi-card {
+    align-items: center;
+    background: linear-gradient(145deg, rgba(12, 46, 78, 0.92), rgba(8, 31, 55, 0.92));
+    border: 1px solid rgba(99, 147, 195, 0.24);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 52px minmax(0, 1fr);
+    min-height: 96px;
+    padding: 16px;
+  }
+
+  :root:not([data-theme="dark"]) .cashbook-kpi-card {
+    background: linear-gradient(145deg, #ffffff, #eef6ff);
+  }
+
+  .cashbook-kpi-card span {
+    color: var(--color-text-muted);
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .cashbook-kpi-card strong {
+    color: var(--color-text);
+    display: block;
+    font-size: 18px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    margin-top: 4px;
+  }
+
+  .cashbook-kpi-card small {
+    color: var(--color-text-muted);
+    display: block;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .cashbook-kpi-icon {
+    align-items: center;
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 27px;
+    height: 52px;
+    justify-content: center;
+    width: 52px;
+  }
+
+  .kpi-blue { background: rgba(59, 130, 246, 0.16); color: #60a5fa; }
+  .kpi-green { background: rgba(34, 197, 94, 0.16); color: var(--color-in); }
+  .kpi-red { background: rgba(239, 68, 68, 0.16); color: var(--color-out); }
+  .kpi-cyan { background: rgba(56, 189, 248, 0.16); color: #38bdf8; }
+  .kpi-gold { background: rgba(245, 158, 11, 0.16); color: #fbbf24; }
+
+  .cashbook-layout {
+    align-items: start;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 38%);
+  }
+
+  .cashbook-table-panel,
+  .cashbook-details-panel,
+  .cashbook-quick-actions,
+  .cashbook-transaction-details {
+    background: linear-gradient(145deg, rgba(10, 34, 58, 0.9), rgba(8, 25, 43, 0.94));
+    border: 1px solid rgba(99, 147, 195, 0.24);
+    border-radius: 12px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+  }
+
+  :root:not([data-theme="dark"]) .cashbook-table-panel,
+  :root:not([data-theme="dark"]) .cashbook-details-panel,
+  :root:not([data-theme="dark"]) .cashbook-quick-actions,
+  :root:not([data-theme="dark"]) .cashbook-transaction-details {
+    background: #ffffff;
+  }
+
+  .cashbook-table-panel {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .cashbook-context {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 10px 14px 0;
+  }
+
+  .cashbook-period {
+    color: var(--color-text-muted);
+    display: block;
+    font-size: 11px;
+    padding: 2px 14px 8px;
+  }
+
+  .cashbook-table-wrap {
+    max-height: calc(100vh - 315px);
+    min-height: 520px;
+    overflow: auto;
+  }
+
+  .cashbook-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    min-width: 760px;
+  }
+
+  .cashbook-table th {
+    background: rgba(20, 49, 79, 0.96);
+    border-bottom: 1px solid rgba(99, 147, 195, 0.22);
+    color: #bed0e5;
+    height: 42px;
+    padding: 10px 14px;
+    text-transform: none;
+  }
+
+  .cashbook-total-row { display: none; }
+
+  .cashbook-table td {
+    background: rgba(8, 28, 49, 0.46);
+    border-bottom: 1px solid rgba(99, 147, 195, 0.12);
+    padding: 11px 14px;
+  }
+
+  :root:not([data-theme="dark"]) .cashbook-table td {
+    background: #ffffff;
+  }
+
+  .cashbook-row {
+    cursor: pointer;
+    position: relative;
+  }
+
+  .cashbook-row td:first-child {
+    position: relative;
+  }
+
+  .cashbook-row td:first-child::before {
+    background: rgba(99, 147, 195, 0.25);
+    bottom: -18px;
+    content: "";
+    left: 16px;
+    position: absolute;
+    top: -18px;
+    width: 1px;
+  }
+
+  .cashbook-row td:first-child::after {
+    border-radius: 999px;
+    content: "";
+    height: 10px;
+    left: 11px;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+  }
+
+  .cashbook-row.row-in td:first-child::after { background: var(--color-in); }
+  .cashbook-row.row-out td:first-child::after { background: var(--color-out); }
+  .cashbook-row.row-count td:first-child::after { background: #f4c542; }
+  .cashbook-row.row-opening td:first-child::after { background: #60a5fa; }
+
+  .cashbook-row:hover td {
+    background: rgba(22, 63, 103, 0.68);
+  }
+
+  .cashbook-row.selected td {
+    background: rgba(37, 99, 235, 0.25);
+    border-bottom-color: rgba(96, 165, 250, 0.32);
+  }
+
+  .cashbook-rb {
+    align-items: center;
+    background: rgba(96, 165, 250, 0.18);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 7px;
+    display: inline-flex;
+    font-weight: 800;
+    justify-content: center;
+    min-width: 32px;
+    padding: 4px 8px 4px 18px;
+  }
+
+  .cashbook-row-date {
+    color: var(--color-text-muted);
+    display: block;
+    font-size: 11px;
+  }
+
+  .cashbook-row-time {
+    color: var(--color-text);
+    display: block;
+    font-size: 13px;
+  }
+
+  .cashbook-date-group td {
+    background: rgba(2, 17, 31, 0.95);
+    color: #e8f1ff;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 9px 14px;
+  }
+
+  .cashbook-date-group span {
+    align-items: center;
+    display: inline-flex;
+    gap: 8px;
+  }
+
+  .cashbook-date-group b {
+    background: rgba(96, 165, 250, 0.22);
+    border-radius: 999px;
+    display: inline-flex;
+    margin-left: 10px;
+    padding: 2px 8px;
+  }
+
+  .amount-pill {
+    border-radius: 7px;
+    display: inline-flex;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    padding: 4px 10px;
+  }
+
+  .amount-pill.in {
+    background: rgba(34, 197, 94, 0.14);
+    color: var(--color-in);
+  }
+
+  .amount-pill.out {
+    background: rgba(239, 68, 68, 0.14);
+    color: var(--color-out);
+  }
+
+  .amount-positive { color: var(--color-in) !important; }
+  .amount-negative { color: var(--color-out) !important; }
+  .amount-neutral { color: var(--color-text) !important; }
+
+  .cashbook-details-panel {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    display: grid;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+  }
+
+  .cashbook-quick-actions,
+  .cashbook-transaction-details {
+    padding: 14px;
+  }
+
+  .cashbook-panel-title {
+    align-items: center;
+    color: var(--color-text);
+    display: flex;
+    font-size: 14px;
+    font-weight: 900;
+    gap: 8px;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .cashbook-lock-note {
+    align-items: center;
+    background: rgba(245, 158, 11, 0.09);
+    border: 1px solid rgba(245, 158, 11, 0.24);
+    border-radius: 10px;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-bottom: 12px;
+    padding: 12px;
+  }
+
+  .cashbook-lock-note strong {
+    color: #fbbf24;
+    display: block;
+    font-size: 13px;
+  }
+
+  .cashbook-lock-note span {
+    color: var(--color-text-muted);
+    display: block;
+    font-size: 12px;
+    margin-top: 3px;
+  }
+
+  .quick-action-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quick-action-button {
+    align-items: center;
+    border-radius: 10px;
+    display: grid;
+    font-weight: 900;
+    gap: 8px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 54px;
+    padding: 12px 14px;
+  }
+
+  .quick-action-button--uplata {
+    background: linear-gradient(135deg, rgba(22, 101, 52, 0.45), rgba(5, 46, 22, 0.4));
+    border-color: rgba(34, 197, 94, 0.35);
+    color: var(--color-in);
+  }
+
+  .quick-action-button--isplata {
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.45), rgba(69, 10, 10, 0.4));
+    border-color: rgba(248, 113, 113, 0.35);
+    color: var(--color-out);
+  }
+
+  .quick-action-button--trezor {
+    background: linear-gradient(135deg, rgba(146, 64, 14, 0.45), rgba(69, 26, 3, 0.4));
+    border-color: rgba(251, 191, 36, 0.35);
+    color: #fbbf24;
+  }
+
+  .quick-action-button--locked {
+    cursor: not-allowed;
+    filter: saturate(0.7);
+    opacity: 0.62;
+  }
+
+  .quick-action-button:not(.quick-action-button--locked) .quick-lock-icon {
+    display: none;
+  }
+
+  .cashbook-quick-form {
+    margin-top: 12px;
+  }
+
+  .cashbook-transaction-details {
+    min-height: 360px;
+  }
+
+  .cashbook-detail-empty {
+    border: 1px dashed rgba(99, 147, 195, 0.24);
+    border-radius: 10px;
+    color: var(--color-text-muted);
+    padding: 24px;
+    text-align: center;
+  }
+
+  .cashbook-detail-hero {
+    align-items: center;
+    border-bottom: 1px solid rgba(99, 147, 195, 0.18);
+    display: grid;
+    gap: 14px;
+    grid-template-columns: 52px minmax(0, 1fr);
+    padding-bottom: 14px;
+  }
+
+  .cashbook-detail-icon {
+    align-items: center;
+    background: rgba(96, 165, 250, 0.12);
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 30px;
+    height: 52px;
+    justify-content: center;
+    width: 52px;
+  }
+
+  .cashbook-detail-hero span,
+  .cashbook-detail-hero small {
+    color: var(--color-text-muted);
+    display: block;
+    font-size: 12px;
+  }
+
+  .cashbook-detail-hero strong {
+    display: block;
+    font-size: 24px;
+    line-height: 1.15;
+    margin: 3px 0;
+  }
+
+  .cashbook-detail-grid {
+    display: grid;
+    gap: 10px 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 14px 0;
+  }
+
+  .cashbook-detail-grid div,
+  .cashbook-balance-history div {
+    display: grid;
+    gap: 4px;
+  }
+
+  .cashbook-detail-grid span,
+  .cashbook-balance-history span {
+    color: var(--color-text-muted);
+    font-size: 11px;
+  }
+
+  .cashbook-detail-grid strong,
+  .cashbook-balance-history strong {
+    color: var(--color-text);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .cashbook-balance-history {
+    border: 1px solid rgba(99, 147, 195, 0.2);
+    border-radius: 10px;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 12px;
+  }
+
+  .cashbook-balance-history h4 {
+    color: var(--color-text);
+    font-size: 13px;
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .cashbook-balance-history h4 span {
+    color: var(--color-text-muted);
+  }
+
+  .cashbook-panel-actions {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 14px;
+  }
+
+  .cashbook-panel-actions button {
+    min-height: 48px;
+  }
+
+  @media (max-width: 1380px) {
+    .cashbook-page-head,
+    .cashbook-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .cashbook-details-panel {
+      position: static;
+    }
+
+    .cashbook-filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cashbook-filter-sep {
+      display: none;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    .cashbook-kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
+    .cashbook-kpis,
+    .cashbook-filters,
+    .quick-action-grid,
+    .cashbook-detail-grid,
+    .cashbook-balance-history,
+    .cashbook-panel-actions {
+      grid-template-columns: 1fr;
+    }
+
+    .cashbook-title h2 {
+      font-size: 22px;
+    }
+  }
+
   /* ─── Type toggle ─────────────────────────────────────── */
 
   .type-toggle {

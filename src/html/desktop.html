@@ -117,95 +117,148 @@
 
           <!-- SEKCIJA: KNJIGA -->
           <section id="d-section-knjiga" class="d-section active">
-            <div class="knjiga-layout">
-
-              <div class="card knjiga-main">
-                <div class="card-head">
+            <div class="cashbook-page">
+              <div class="cashbook-page-head">
+                <div class="cashbook-title">
                   <i class="ti ti-book-2" aria-hidden="true"></i>
-                  <h2 style="flex:1">Blagajnička knjiga</h2>
-                  <span id="d-knjiga-period" style="font-size:12px;color:var(--color-text-muted)"></span>
-                  <input type="date" id="d-date-from" style="width:130px;min-height:32px;font-size:12px">
-                  <span style="color:var(--color-text-muted)">—</span>
-                  <input type="date" id="d-date-to" style="width:130px;min-height:32px;font-size:12px">
-                  <select id="d-user-filter" title="Filter po korisniku" style="width:190px;min-height:32px;font-size:12px"></select>
-                  <select id="d-shift-filter" title="Filter po smeni" style="width:190px;min-height:32px;font-size:12px"></select>
-                  <button id="d-knjiga-refresh" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">
+                  <h2>Blagajnička knjiga</h2>
+                </div>
+                <div class="cashbook-filters">
+                  <label class="cashbook-filter"><input type="date" id="d-date-from"></label>
+                  <span class="cashbook-filter-sep">—</span>
+                  <label class="cashbook-filter"><input type="date" id="d-date-to"></label>
+                  <label class="cashbook-filter"><select id="d-user-filter" title="Filter po korisniku"></select></label>
+                  <label class="cashbook-filter"><select id="d-shift-filter" title="Filter po smeni"></select></label>
+                  <label class="cashbook-search">
+                    <i class="ti ti-search" aria-hidden="true"></i>
+                    <input type="search" id="d-knjiga-search" placeholder="Pretraga po opisu ili primaocu...">
+                  </label>
+                  <button class="cashbook-refresh" id="d-knjiga-refresh" type="button" title="Osveži">
                     <i class="ti ti-refresh" aria-hidden="true"></i>
                   </button>
-                  <div class="knjiga-context" id="d-knjiga-context"></div>
-                </div>
-                <div class="table-wrap">
-                  <table class="book-table">
-                    <thead>
-                      <tr>
-                        <th style="width:36px">Rb.</th>
-                        <th style="width:72px">Datum</th>
-                        <th>Opis / Primalac</th>
-                        <th class="num" style="width:110px">Uplata</th>
-                        <th class="num" style="width:110px">Isplata</th>
-                        <th class="num" style="width:120px">Stanje</th>
-                      </tr>
-                      <tr class="total-row total-row-top" id="d-knjiga-total-row">
-                        <td colspan="3">UKUPNO</td>
-                        <td class="cell-in">0,00</td>
-                        <td class="cell-out">0,00</td>
-                        <td class="cell-bal">0,00</td>
-                      </tr>
-                    </thead>
-                    <tbody id="d-knjiga-tbody"></tbody>
-                    <tfoot id="d-knjiga-tfoot"></tfoot>
-                  </table>
                 </div>
               </div>
 
-              <div class="knjiga-side">
-                <div class="card permission-card" id="d-direct-permission-card" hidden>
-                  <div class="card-head"><h3>Direktan rad blagajne</h3></div>
-                  <p id="d-direct-permission-text">Direktne uplate i isplate može knjižiti samo glavni blagajnik aktivne smene.</p>
-                </div>
-                <!-- Quick form card -->
-                <div class="card" id="d-quick-form-card" hidden>
-                  <div class="card-head"><h3>Nova transakcija</h3></div>
-                  <div class="type-toggle">
-                    <button class="type-btn type-btn-in active" id="d-qf-type-in" type="button">
-                      <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
-                    </button>
-                    <button class="type-btn type-btn-out" id="d-qf-type-out" type="button">
-                      Isplata <i class="ti ti-arrow-up-circle" aria-hidden="true"></i>
-                    </button>
-                  </div>
-                  <div class="form-row-2">
-                    <input type="text" id="d-qf-amount" inputmode="decimal" placeholder="Iznos">
-                    <select id="d-qf-currency" data-currency-options></select>
-                  </div>
-                  <input type="text" id="d-qf-partner" placeholder="Primalac / uplatioc">
-                  <textarea id="d-qf-description" rows="2" placeholder="Opis / razlog *"></textarea>
-                  <button class="btn-in btn-full btn-lg" id="d-qf-submit" type="button">
-                    <i class="ti ti-check" aria-hidden="true"></i>
-                    <span id="d-qf-submit-label">Proknjiti uplatu</span>
-                  </button>
-                </div>
-
-                <!-- Detail panel (hidden by default) -->
-                <div class="card" id="d-detail-panel" style="display:none;margin-top:12px">
-                  <div class="card-head">
-                    <span id="d-detail-title" style="flex:1;font-size:13px;font-weight:700"></span>
-                    <button class="btn-ghost small" id="d-detail-close" type="button" aria-label="Zatvori">
-                      <i class="ti ti-x" aria-hidden="true"></i>
-                    </button>
-                  </div>
-                  <div id="d-detail-body"></div>
-                  <div style="display:flex;gap:8px;padding-top:4px">
-                    <button id="d-detail-print" type="button" style="flex:1;font-size:12px;min-height:32px">
-                      <i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list
-                    </button>
-                    <button class="btn-out" id="d-detail-storno" type="button" style="flex:1;font-size:12px;min-height:32px">
-                      <i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno
-                    </button>
-                  </div>
-                </div>
+              <div class="cashbook-kpis" aria-label="Sažetak blagajničke knjige">
+                <article class="cashbook-kpi-card">
+                  <div class="cashbook-kpi-icon kpi-blue"><i class="ti ti-wallet" aria-hidden="true"></i></div>
+                  <div><span>Početno stanje</span><strong id="d-kpi-opening">0,00 RSD</strong><small id="d-kpi-opening-sub">—</small></div>
+                </article>
+                <article class="cashbook-kpi-card">
+                  <div class="cashbook-kpi-icon kpi-green"><i class="ti ti-trending-up" aria-hidden="true"></i></div>
+                  <div><span>Ukupne uplate</span><strong class="amount-positive" id="d-kpi-in">0,00 RSD</strong><small id="d-kpi-in-sub">0 transakcija</small></div>
+                </article>
+                <article class="cashbook-kpi-card">
+                  <div class="cashbook-kpi-icon kpi-red"><i class="ti ti-trending-down" aria-hidden="true"></i></div>
+                  <div><span>Ukupne isplate</span><strong class="amount-negative" id="d-kpi-out">0,00 RSD</strong><small id="d-kpi-out-sub">0 transakcija</small></div>
+                </article>
+                <article class="cashbook-kpi-card">
+                  <div class="cashbook-kpi-icon kpi-cyan"><i class="ti ti-arrows-exchange" aria-hidden="true"></i></div>
+                  <div><span>Neto promena</span><strong id="d-kpi-net">0,00 RSD</strong><small id="d-kpi-net-sub">0,00%</small></div>
+                </article>
+                <article class="cashbook-kpi-card">
+                  <div class="cashbook-kpi-icon kpi-gold"><i class="ti ti-cash-banknote" aria-hidden="true"></i></div>
+                  <div><span>Završno stanje</span><strong id="d-kpi-closing">0,00 RSD</strong><small id="d-kpi-closing-sub">—</small></div>
+                </article>
               </div>
 
+              <div class="cashbook-layout">
+                <div class="cashbook-table-panel">
+                  <div class="cashbook-context" id="d-knjiga-context"></div>
+                  <span id="d-knjiga-period" class="cashbook-period"></span>
+                  <div class="cashbook-table-wrap">
+                    <table class="book-table cashbook-table">
+                      <thead>
+                        <tr>
+                          <th style="width:60px">Rb.</th>
+                          <th style="width:110px">Datum / Vreme</th>
+                          <th>Opis / Primalac</th>
+                          <th class="num" style="width:130px">Uplata</th>
+                          <th class="num" style="width:130px">Isplata</th>
+                          <th class="num" style="width:130px">Stanje</th>
+                        </tr>
+                        <tr class="total-row total-row-top cashbook-total-row" id="d-knjiga-total-row">
+                          <td colspan="3">UKUPNO</td>
+                          <td class="cell-in">0,00</td>
+                          <td class="cell-out">0,00</td>
+                          <td class="cell-bal">0,00</td>
+                        </tr>
+                      </thead>
+                      <tbody id="d-knjiga-tbody"></tbody>
+                      <tfoot id="d-knjiga-tfoot"></tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <aside class="cashbook-details-panel">
+                  <div class="cashbook-quick-actions">
+                    <div class="cashbook-panel-title">Brze akcije</div>
+                    <div class="cashbook-lock-note" id="d-quick-lock-message">
+                      <div>
+                        <strong><i class="ti ti-alert-triangle" aria-hidden="true"></i> Nema aktivne smene – otvorite smenu za direktan rad</strong>
+                        <span>Uplata, isplata i trezor su zaključani dok smena nije otvorena.</span>
+                      </div>
+                      <button class="btn-primary" id="d-open-shift-from-book" type="button">Otvori smenu</button>
+                    </div>
+                    <div class="quick-action-grid">
+                      <button class="quick-action-button quick-action-button--uplata" id="d-side-btn-uplata" type="button">
+                        <i class="ti ti-arrow-down-circle" aria-hidden="true"></i><span>Uplata</span><i class="ti ti-lock quick-lock-icon" aria-hidden="true"></i>
+                      </button>
+                      <button class="quick-action-button quick-action-button--isplata" id="d-side-btn-isplata" type="button">
+                        <i class="ti ti-arrow-up-circle" aria-hidden="true"></i><span>Isplata</span><i class="ti ti-lock quick-lock-icon" aria-hidden="true"></i>
+                      </button>
+                      <button class="quick-action-button quick-action-button--trezor" id="d-side-btn-trezor" type="button">
+                        <i class="ti ti-building-bank" aria-hidden="true"></i><span>Trezor</span><i class="ti ti-lock quick-lock-icon" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                    <div class="card permission-card" id="d-direct-permission-card" hidden>
+                      <p id="d-direct-permission-text">Direktne uplate i isplate može knjižiti samo glavni blagajnik aktivne smene.</p>
+                    </div>
+                    <div class="card cashbook-quick-form" id="d-quick-form-card" hidden>
+                      <div class="card-head"><h3>Nova transakcija</h3></div>
+                      <div class="type-toggle">
+                        <button class="type-btn type-btn-in active" id="d-qf-type-in" type="button">
+                          <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
+                        </button>
+                        <button class="type-btn type-btn-out" id="d-qf-type-out" type="button">
+                          Isplata <i class="ti ti-arrow-up-circle" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                      <div class="form-row-2">
+                        <input type="text" id="d-qf-amount" inputmode="decimal" placeholder="Iznos">
+                        <select id="d-qf-currency" data-currency-options></select>
+                      </div>
+                      <input type="text" id="d-qf-partner" placeholder="Primalac / uplatioc">
+                      <textarea id="d-qf-description" rows="2" placeholder="Opis / razlog *"></textarea>
+                      <button class="btn-in btn-full btn-lg" id="d-qf-submit" type="button">
+                        <i class="ti ti-check" aria-hidden="true"></i>
+                        <span id="d-qf-submit-label">Proknjiti uplatu</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="cashbook-transaction-details" id="d-detail-panel">
+                    <div class="cashbook-panel-title">
+                      <span id="d-detail-title">Detalji stavke</span>
+                      <button class="btn-ghost small" id="d-detail-close" type="button" aria-label="Zatvori">
+                        <i class="ti ti-x" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                    <div id="d-detail-body" class="cashbook-detail-empty">Izaberite stavku u tabeli da vidite detalje.</div>
+                    <div class="cashbook-panel-actions">
+                      <button id="d-detail-print" type="button">
+                        <i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list
+                      </button>
+                      <button id="d-detail-presek" type="button">
+                        <i class="ti ti-calculator" aria-hidden="true"></i> Presek blagajne
+                      </button>
+                      <button class="btn-out" id="d-detail-storno" type="button">
+                        <i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno stavke
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+              </div>
             </div>
           </section>
 
