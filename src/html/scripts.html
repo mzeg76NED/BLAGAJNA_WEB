@@ -1861,6 +1861,27 @@
     }).join('');
   }
 
+  function buildCashCountFormHtml_(options) {
+    options = options || {};
+    var formId = options.formId || 'cash-count-dialog-form';
+    var noteName = options.noteName || 'note';
+    var noteLabel = options.noteLabel || 'Napomena';
+    var submitText = options.submitText || 'Sačuvaj';
+    return '<form id="' + escapeHtml(formId) + '" class="form-grid cash-count-standard-form" data-cash-count-form data-count-purpose="' + escapeHtml(options.purpose || 'count') + '">' +
+      (options.shiftId ? '<input name="shift_id" type="hidden" value="' + escapeHtml(options.shiftId) + '">' : '') +
+      '<input name="cashbox_id" type="hidden" value="' + escapeHtml(options.cashboxId || SESSION.cashboxId || '') + '">' +
+      '<input name="count_type" type="hidden" value="' + escapeHtml(options.countType || 'CASHBOX_COUNT') + '">' +
+      '<label>Valuta <select name="currency" data-currency-options>' + currencySelectOptions_() + '</select></label>' +
+      '<div class="cash-count-entry-area" data-denomination-inputs></div>' +
+      '<label>' + escapeHtml(noteLabel) + ' <textarea name="' + escapeHtml(noteName) + '" rows="3"></textarea></label>' +
+      '<div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>' +
+      '<div class="app-dialog-actions">' +
+        '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
+        '<button type="submit" class="btn-primary">' + escapeHtml(submitText) + '</button>' +
+      '</div>' +
+    '</form>';
+  }
+
   function openShiftClosingDialog_(mode) {
     var shift = uiState.activeShift || {};
     if (!shift.shift_id) {
@@ -1877,19 +1898,16 @@
       '<div class="app-dialog app-dialog-wide" role="dialog" aria-modal="true">' +
         '<h3>Zatvaranje smene - završni popis</h3>' +
         '<p>Unesite završni popis istom logikom kao kod preseka stanja.</p>' +
-        '<form id="shift-closing-dialog-form" class="form-grid" data-cash-count-form data-count-purpose="closing">' +
-          '<input name="shift_id" type="hidden" value="' + escapeHtml(shift.shift_id || '') + '">' +
-          '<input name="cashbox_id" type="hidden" value="' + escapeHtml(SESSION.cashboxId || shift.cashbox_id || '') + '">' +
-          '<input name="count_type" type="hidden" value="SHIFT_CLOSING">' +
-          '<label>Valuta <select name="currency" data-currency-options>' + currencySelectOptions_() + '</select></label>' +
-          '<div class="cash-count-entry-area" data-denomination-inputs></div>' +
-          '<label>Napomena <textarea name="note" rows="3"></textarea></label>' +
-          '<div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>' +
-          '<div class="app-dialog-actions">' +
-            '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
-            '<button type="submit" class="btn-primary">Zatvori smenu</button>' +
-          '</div>' +
-        '</form>' +
+        buildCashCountFormHtml_({
+          formId: 'shift-closing-dialog-form',
+          purpose: 'closing',
+          countType: 'SHIFT_CLOSING',
+          shiftId: shift.shift_id || '',
+          cashboxId: SESSION.cashboxId || shift.cashbox_id || '',
+          noteName: 'note',
+          noteLabel: 'Napomena',
+          submitText: 'Zatvori smenu'
+        }) +
       '</div>';
     document.body.appendChild(overlay);
     var close = function() { overlay.remove(); };
@@ -1918,18 +1936,15 @@
       '<div class="app-dialog app-dialog-wide" role="dialog" aria-modal="true">' +
         '<h3>Otvaranje smene - početni popis</h3>' +
         '<p>Unesite početno stanje blagajne kroz valutu, apoen i broj komada.</p>' +
-        '<form id="shift-opening-dialog-form" class="form-grid" data-cash-count-form data-count-purpose="opening">' +
-          '<input name="cashbox_id" type="hidden" value="' + escapeHtml(SESSION.cashboxId || '') + '">' +
-          '<input name="count_type" type="hidden" value="SHIFT_OPENING">' +
-          '<label>Valuta <select name="currency" data-currency-options>' + currencySelectOptions_() + '</select></label>' +
-          '<div class="cash-count-entry-area" data-denomination-inputs></div>' +
-          '<label>Napomena <textarea name="opening_note" rows="3"></textarea></label>' +
-          '<div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>' +
-          '<div class="app-dialog-actions">' +
-            '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
-            '<button type="submit" class="btn-primary">Otvori smenu</button>' +
-          '</div>' +
-        '</form>' +
+        buildCashCountFormHtml_({
+          formId: 'shift-opening-dialog-form',
+          purpose: 'opening',
+          countType: 'SHIFT_OPENING',
+          cashboxId: SESSION.cashboxId || '',
+          noteName: 'opening_note',
+          noteLabel: 'Napomena pri otvaranju',
+          submitText: 'Otvori smenu'
+        }) +
       '</div>';
     document.body.appendChild(overlay);
     var close = function() { overlay.remove(); };
@@ -1962,6 +1977,7 @@
       renderHtml(targetId, '');
       loadCashbookFilterOptions_();
       refreshBalance_();
+      loadKnjiga_(true);
       loadCashCounts_();
       loadMyShiftsTo_(targetId === 'm-shift-result' ? 'm-shifts-list' : 'd-shifts-list');
       if (closeDialog) closeDialog();
@@ -1982,6 +1998,7 @@
       renderDenominationInputs_();
       renderShiftSummary(targetId, result, 'Smena je zatvorena');
       refreshBalance_();
+      loadKnjiga_(true);
       loadCashCounts_();
       loadMyShiftsTo_(targetId === 'm-shift-result' ? 'm-shifts-list' : 'd-shifts-list');
       if (closeDialog) closeDialog();
@@ -2007,9 +2024,9 @@
   }
 
   function loadCashCounts_() {
-    var filters = withUiDefaults({
-      cashbox_id: SESSION.cashboxId
-    });
+    var filters = {
+      cashbox_id: SESSION.cashboxId || getDefaultCashboxId()
+    };
     callApi('apiGetCashCountsReport', [filters], function(rows) {
       renderCashCounts_(rows || []);
     }, { quiet: true });
@@ -2095,7 +2112,6 @@
       tbody.querySelectorAll('[data-count-index]').forEach(function(row) {
         row.addEventListener('click', function() {
           renderCashCountDetail_(groups[Number(row.getAttribute('data-count-index'))], 'd-count-detail-body');
-          renderCashCountDetail_(groups[Number(row.getAttribute('data-count-index'))], 'd-count-detail-wide');
         });
       });
     }
@@ -2116,7 +2132,6 @@
     }
     if (groups.length) {
       renderCashCountDetail_(groups[0], document.getElementById('d-count-detail-body') ? 'd-count-detail-body' : 'm-count-detail-body');
-      if (document.getElementById('d-count-detail-wide')) renderCashCountDetail_(groups[0], 'd-count-detail-wide');
     }
   }
 
@@ -2830,6 +2845,13 @@
     return 'Kontrolni presek';
   }
 
+  function cashCountEventKind_(ev) {
+    if (ev && ev.count_type === 'SHIFT_OPENING') return 'Otvaranje smene';
+    if (ev && ev.count_type === 'SHIFT_CLOSING') return 'Zatvaranje smene';
+    if (ev && ev.count_type === 'CASHBOX_COUNT') return 'Kontrolni presek';
+    return cashCountEventKindFromDescription_(ev && ev.description);
+  }
+
   function cashCountDifferenceText_(ev) {
     var amount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
     var direction = ev.display_direction || ev.direction;
@@ -2851,7 +2873,7 @@
 
   function cashEventUserLabel_(ev) {
     var isCount = ev.event_type === 'CASH_COUNT' || (ev.event_type === 'CORRECTION' && /presek|popis|početak smene|završni popis/i.test(String(ev.description || '')));
-    if (isCount) return cashCountEventKindFromDescription_(ev.description);
+    if (isCount) return cashCountEventKind_(ev);
     if (ev.event_type === 'TREASURY_HANDOVER') return 'Predaja u trezor';
     return ev.partner_name || ev.description || '—';
   }
@@ -3562,6 +3584,7 @@
         renderDenominationInputs_();
         loadCashbookFilterOptions_();
         refreshBalance_();
+        loadKnjiga_(true);
       }, { successMessage: 'Smena je otvorena.' });
     });
     bindForm('m-opening-count-form', function(data, form) {
@@ -3579,6 +3602,7 @@
         renderDenominationInputs_();
         loadCashbookFilterOptions_();
         refreshBalance_();
+        loadKnjiga_(true);
       }, { successMessage: 'Smena je otvorena.' });
     });
     bindForm('d-handover-form', function(data, form) {
@@ -3609,6 +3633,7 @@
         renderDenominationInputs_();
         renderShiftSummary('d-shift-result', result, 'Smena je zatvorena');
         refreshBalance_();
+        loadKnjiga_(true);
         loadCashCounts_();
         loadMyShiftsTo_('d-shifts-list');
       }, { successMessage: 'Smena je zatvorena.' });
@@ -3631,6 +3656,7 @@
         renderDenominationInputs_();
         renderShiftSummary('m-shift-result', result, 'Smena je zatvorena');
         refreshBalance_();
+        loadKnjiga_(true);
         loadCashCounts_();
         loadMyShiftsTo_('m-shifts-list');
       }, { successMessage: 'Smena je zatvorena.' });

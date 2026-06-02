@@ -317,7 +317,6 @@
   .row-out td { border-left: 3px solid var(--color-out); }
   .row-opening td { border-left: 3px solid var(--color-primary); }
   .row-count td {
-    background: #fff7d6;
     border-left: 3px solid #d99a00;
   }
 
@@ -328,7 +327,6 @@
     background: transparent;
   }
   :root[data-theme="dark"] .row-count td {
-    background: #2c2410;
     border-left-color: #f4c542;
   }
 
@@ -503,17 +501,18 @@
     align-items: end;
     display: grid;
     gap: 10px;
-    grid-template-columns: minmax(220px, 1fr) minmax(160px, 1fr) 110px;
+    grid-template-columns: minmax(220px, 1fr) minmax(160px, 1fr) 120px;
     max-width: 860px;
   }
 
   .count-add-control {
-    display: grid;
-    gap: 4px;
+    align-self: end;
+    display: flex;
+    min-height: 46px;
   }
 
   .count-add-control span {
-    min-height: 18px;
+    display: none;
   }
 
   .count-add-control button {
@@ -856,11 +855,9 @@
     padding: 10px 12px;
   }
   .m-entry.count {
-    background: #fff7d6;
     border-color: #e7bd45;
   }
   :root[data-theme="dark"] .m-entry.count {
-    background: #2c2410;
     border-color: #6f5720;
   }
 
@@ -1089,25 +1086,29 @@
     padding: 0 12px 12px;
   }
 
-  #d-section-presek .knjiga-layout {
-    grid-template-columns: minmax(0, 1fr);
+  #d-section-presek .count-page-layout {
+    align-items: start;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1.55fr) minmax(420px, 0.9fr);
   }
 
-  #d-section-presek .knjiga-main {
+  #d-section-presek .count-history-panel {
     display: block;
     max-height: none;
   }
 
-  #d-section-presek .table-wrap {
-    max-height: 320px;
+  #d-section-presek .count-history-wrap {
+    max-height: 520px;
   }
 
   #d-count-detail-panel {
-    display: none;
+    position: sticky;
+    top: 82px;
   }
 
   #d-count-detail-wide {
-    text-align: left;
+    display: none;
   }
 
   #d-count-detail-wide.count-detail-body,
@@ -1208,6 +1209,16 @@
     font-weight: 800;
     margin-right: 10px;
     white-space: nowrap;
+  }
+
+  @media (max-width: 1180px) {
+    #d-section-presek .count-page-layout {
+      grid-template-columns: 1fr;
+    }
+
+    #d-count-detail-panel {
+      position: static;
+    }
   }
 
   .sheet-handle {

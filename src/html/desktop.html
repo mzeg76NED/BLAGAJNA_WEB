@@ -211,8 +211,8 @@
 
           <!-- SEKCIJA: BLAGAJNIČKI LIST -->
           <section id="d-section-blagajnicki-list" class="d-section">
-            <div class="knjiga-layout">
-              <div class="card knjiga-main">
+            <div class="count-page-layout">
+              <div class="card count-history-panel">
                 <div class="card-head">
                   <i class="ti ti-file-description" aria-hidden="true"></i>
                   <h2 style="flex:1">Blagajnički list</h2>
@@ -222,7 +222,7 @@
                   <button id="d-cashsheet-book" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">Otvori knjigu</button>
                 </div>
                 <div id="d-cashsheet-document"></div>
-                <div class="table-wrap" style="margin-top:12px">
+                <div class="table-wrap count-history-wrap" style="margin-top:12px">
                   <table class="book-table">
                     <thead>
                       <tr>
@@ -437,16 +437,10 @@
                     <tbody id="d-counts-tbody"></tbody>
                   </table>
                 </div>
-                <div class="card" style="margin-top:12px">
-                  <div class="card-head"><h3>Detalji izabranog preseka</h3></div>
-                  <div id="d-count-detail-wide" class="empty-state">Izaberite presek iz tabele.</div>
-                </div>
               </div>
-              <div class="knjiga-side">
-                <div class="card" id="d-count-detail-panel">
-                  <div class="card-head"><h3>Detalji preseka</h3></div>
-                  <div id="d-count-detail-body" class="empty-state">Izaberite presek iz tabele.</div>
-                </div>
+              <div class="card count-detail-panel" id="d-count-detail-panel">
+                <div class="card-head"><h3>Detalji preseka</h3></div>
+                <div id="d-count-detail-body" class="empty-state">Izaberite presek iz tabele.</div>
               </div>
             </div>
           </section>

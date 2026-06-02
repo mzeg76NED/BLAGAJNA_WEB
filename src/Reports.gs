@@ -487,6 +487,7 @@ function getCashMovementsReport(filters) {
         event_id: count.count_id,
         entry_number: '',
         event_type: 'CASH_COUNT',
+        count_type: count.count_type,
         direction: 'COUNT',
         amount: safeNumber_(count.counted_cash_total),
         signed_amount: 0,
@@ -496,7 +497,7 @@ function getCashMovementsReport(filters) {
         cashbox_id: count.cashbox_id,
         currency: count.currency,
         partner_name: 'Presek blagajne',
-        description: 'PRESEK BLAGAJNE - POPIS ' + count.count_id,
+        description: getCashCountReportDescription_(count),
         linked_order_id: '',
         reversal_of_event_id: '',
         status: count.status,
@@ -521,6 +522,17 @@ function getCashMovementsReport(filters) {
     })
     .sort(sortByEventDateDesc_)
     .slice(0, isFinite(limit) && limit > 0 ? limit : 100);
+}
+
+function getCashCountReportDescription_(count) {
+  const type = count.count_type;
+  if (type === CASH_COUNT_TYPES.SHIFT_OPENING) {
+    return 'OTVARANJE SMENE - POPIS';
+  }
+  if (type === CASH_COUNT_TYPES.SHIFT_CLOSING) {
+    return 'ZATVARANJE SMENE - POPIS';
+  }
+  return 'KONTROLNI PRESEK - POPIS';
 }
 
 function getShiftDateRangeForReport_(shiftId) {
