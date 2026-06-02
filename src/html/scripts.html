@@ -507,6 +507,10 @@
 
   function renderDenominationInputs_() {
     document.querySelectorAll('form[data-cash-count-form]').forEach(function(form) {
+      if (form.classList.contains('cash-count-page-form')) {
+        renderCashCountPageForm_(form);
+        return;
+      }
       var currencySelect = form.querySelector('[name="currency"]');
       var container = form.querySelector('[data-denomination-inputs]');
       if (!container) return;
@@ -566,8 +570,129 @@
     var configured = uiState.config && uiState.config.cashDenominations && uiState.config.cashDenominations[currency];
     if (configured && configured.length) return configured;
     if (currency === 'EUR') return [500, 200, 100, 50, 20, 10, 5, 2, 1];
+    if (currency === 'ČEK' || currency === 'CEK') return [100000, 75000, 50000, 25000, 10000, 5000];
     if (currency && currency !== 'RSD') return [];
     return [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
+  }
+
+  function currencyVisual_(currency) {
+    var code = String(currency || '').toUpperCase();
+    if (code === 'RSD') return { icon: '🇷🇸', name: 'Srpski dinar' };
+    if (code === 'EUR') return { icon: '🇪🇺', name: 'Evro' };
+    if (code === 'ČEK' || code === 'CEK') return { icon: '🎫', name: 'Čekovi' };
+    return { icon: '💱', name: code || 'Valuta' };
+  }
+
+  function currencyOptionHtml_(code) {
+    var visual = currencyVisual_(code);
+    return '<option value="' + escapeHtml(code) + '">' + escapeHtml(visual.icon + '  ' + code) + '</option>';
+  }
+
+  function cashCountRowsRaw_(form) {
+    try {
+      return JSON.parse(form.dataset.countRows || '[]');
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function renderCashCountPageForm_(form) {
+    var currencySelect = form.querySelector('[name="currency"]');
+    var denomSelect = form.querySelector('[data-count-denomination]');
+    var quantityInput = form.querySelector('[data-count-quantity]');
+    if (!currencySelect || !denomSelect || !quantityInput) return;
+    var currency = currencySelect.value || SESSION.currency || 'RSD';
+    var denominations = getClientDenominations_(currency);
+    form.dataset.denominationCount = String(denominations.length);
+    if (!form.dataset.countRows) form.dataset.countRows = '[]';
+    var currentDenom = denomSelect.value;
+    denomSelect.innerHTML = denominations.map(function(value) {
+      return '<option value="' + escapeHtml(value) + '">' + escapeHtml(formatAmount_(value)) + '</option>';
+    }).join('');
+    if (currentDenom && denominations.map(String).indexOf(String(currentDenom)) !== -1) {
+      denomSelect.value = currentDenom;
+    }
+    if (form.dataset.countPageBound !== '1') {
+      bindCashCountPageForm_(form);
+      form.dataset.countPageBound = '1';
+    }
+    renderCashCountRows_(form);
+    updateCashCountTotal_(form);
+  }
+
+  function bindCashCountPageForm_(form) {
+    var currencySelect = form.querySelector('[name="currency"]');
+    var denomSelect = form.querySelector('[data-count-denomination]');
+    var quantityInput = form.querySelector('[data-count-quantity]');
+    var addBtn = form.querySelector('[data-count-add]');
+    var cancelBtn = form.querySelector('[data-count-cancel]');
+    var draftBtn = form.querySelector('[data-count-draft]');
+    if (currencySelect) {
+      currencySelect.addEventListener('change', function() {
+        renderCashCountPageForm_(form);
+        var denom = form.querySelector('[data-count-denomination]');
+        if (denom) denom.focus();
+      });
+    }
+    if (addBtn) addBtn.addEventListener('click', function() { addCashCountLineFromForm_(form); });
+    if (cancelBtn) cancelBtn.addEventListener('click', function() { cancelCashCountDialog_(form); });
+    if (draftBtn) draftBtn.addEventListener('click', function() { saveCashCountDraft_(form); });
+    form.addEventListener('keydown', function(event) {
+      if (event.key === 'F5') {
+        event.preventDefault();
+        form.requestSubmit();
+        return;
+      }
+      if (event.key === 'F9') {
+        event.preventDefault();
+        saveCashCountDraft_(form);
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        var active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && active.value) {
+          active.value = '';
+        } else {
+          cancelCashCountDialog_(form);
+        }
+        return;
+      }
+      if (event.key !== 'Enter' || event.target.tagName === 'TEXTAREA') return;
+      event.preventDefault();
+      if (event.target === currencySelect && denomSelect) denomSelect.focus();
+      else if (event.target === denomSelect && quantityInput) quantityInput.focus();
+      else if (event.target === quantityInput) addCashCountLineFromForm_(form);
+    });
+  }
+
+  function addCashCountLineFromForm_(form) {
+    var currencyEl = form.querySelector('[name="currency"]');
+    var denomEl = form.querySelector('[data-count-denomination]');
+    var qtyEl = form.querySelector('[data-count-quantity]');
+    var noteEl = form.querySelector('[data-line-note]');
+    var currency = currencyEl && currencyEl.value || SESSION.currency;
+    var denomination = Number(denomEl && denomEl.value || 0);
+    var quantity = Number(qtyEl && qtyEl.value || 0);
+    if (!currency) {
+      showMessage('Izaberite valutu.', 'error');
+      if (currencyEl) currencyEl.focus();
+      return;
+    }
+    if (!denomination) {
+      showMessage('Izaberite apoen.', 'error');
+      if (denomEl) denomEl.focus();
+      return;
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      showMessage('Unesite količinu veću od nule.', 'error');
+      if (qtyEl) qtyEl.focus();
+      return;
+    }
+    addCashCountRow_(form, currency, denomination, quantity, noteEl ? noteEl.value : '');
+    if (qtyEl) qtyEl.value = '';
+    if (noteEl) noteEl.value = '';
+    if (denomEl) denomEl.focus();
   }
 
   function bindCashCountTotal_(form) {
@@ -609,12 +734,14 @@
       return result;
     }, {});
     var target = form.querySelector('[data-cash-count-total]');
+    var updated = form.querySelector('[data-count-updated]');
     var currency = (form.querySelector('[name="currency"]') || {}).value || SESSION.currency;
     if (target) {
       var parts = Object.keys(totals).filter(function(code) { return Math.abs(Number(totals[code] || 0)) > 0.000001; })
         .map(function(code) { return formatAmount_(totals[code]) + ' ' + code; });
       target.textContent = 'Popisano: ' + (parts.length ? parts.join(' · ') : '0,00 ' + currency);
     }
+    if (updated) updated.textContent = 'Poslednje ažuriranje: ' + formatDateTimeShort_(new Date());
     renderCashCountRows_(form);
   }
 
@@ -625,7 +752,9 @@
         return {
           currency: row.currency,
           denomination: Number(row.denomination || 0),
-          quantity: Number(row.quantity || 0)
+          quantity: Number(row.quantity || 0),
+          note: row.note || '',
+          createdAt: row.createdAt || ''
         };
       });
     } catch (err) {
@@ -633,15 +762,24 @@
     }
   }
 
-  function addCashCountRow_(form, currency, denomination, quantity) {
+  function addCashCountRow_(form, currency, denomination, quantity, note) {
     var rows = collectDenominations_(form);
     var found = rows.filter(function(row) {
       return row.currency === currency && Number(row.denomination) === Number(denomination);
     })[0];
     if (found) {
       found.quantity = Number(found.quantity || 0) + Number(quantity || 0);
+      if (note) found.note = note;
+      showMessage('Količina za ' + currency + ' ' + formatAmount_(denomination) + ' je uvećana za ' + quantity + '.', 'success');
     } else {
-      rows.push({ currency: currency, denomination: denomination, quantity: quantity });
+      rows.push({
+        currency: currency,
+        denomination: denomination,
+        quantity: quantity,
+        note: note || '',
+        createdAt: new Date().toISOString()
+      });
+      showMessage('Red je dodat.', 'success');
     }
     form.dataset.countRows = JSON.stringify(rows);
     updateCashCountTotal_(form);
@@ -659,6 +797,11 @@
     var target = form.querySelector('[data-count-rows]');
     if (!target) return;
     var rows = collectDenominations_(form);
+    if (form.classList.contains('cash-count-page-form')) {
+      renderCashCountPageRows_(form, target, rows);
+      renderCashCountPageSidebar_(form, rows);
+      return;
+    }
     if (!rows.length) {
       target.innerHTML = '<div class="empty-state">Još nema unetih apoena.</div>';
       return;
@@ -679,11 +822,144 @@
     });
   }
 
+  function renderCashCountPageRows_(form, target, rows) {
+    if (!rows.length) {
+      target.innerHTML = '<div class="cash-count-empty">Još nema unetih apoena.</div>';
+      return;
+    }
+    target.innerHTML =
+      '<table class="cash-count-lines-table"><thead><tr><th>#</th><th>Valuta</th><th>Apoen</th><th>Količina</th><th>Iznos</th><th>Napomena</th><th>Akcije</th></tr></thead><tbody>' +
+      rows.map(function(row, index) {
+        var visual = currencyVisual_(row.currency);
+        var amount = Number(row.denomination || 0) * Number(row.quantity || 0);
+        return '<tr><td>' + (index + 1) + '</td>' +
+          '<td><span class="currency-mark">' + escapeHtml(visual.icon) + '</span> ' + escapeHtml(row.currency || '') + '</td>' +
+          '<td class="num">' + formatAmount_(row.denomination) + '</td>' +
+          '<td class="num">' + escapeHtml(row.quantity) + '</td>' +
+          '<td class="num">' + formatAmount_(amount) + '</td>' +
+          '<td>' + escapeHtml(row.note || '') + '</td>' +
+          '<td class="cash-count-line-actions">' +
+            '<button type="button" class="icon-btn" data-count-edit="' + index + '" title="Izmeni"><i class="ti ti-pencil"></i></button>' +
+            '<button type="button" class="icon-btn" data-count-remove="' + index + '" title="Obriši"><i class="ti ti-trash"></i></button>' +
+          '</td></tr>';
+      }).join('') + '</tbody></table>';
+    target.querySelectorAll('[data-count-remove]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        removeCashCountRow_(form, Number(btn.getAttribute('data-count-remove')));
+      });
+    });
+    target.querySelectorAll('[data-count-edit]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        editCashCountRow_(form, Number(btn.getAttribute('data-count-edit')));
+      });
+    });
+  }
+
+  function editCashCountRow_(form, index) {
+    var rows = collectDenominations_(form);
+    var row = rows[index];
+    if (!row) return;
+    removeCashCountRow_(form, index);
+    var currencyEl = form.querySelector('[name="currency"]');
+    if (currencyEl) currencyEl.value = row.currency;
+    renderCashCountPageForm_(form);
+    var denomEl = form.querySelector('[data-count-denomination]');
+    var qtyEl = form.querySelector('[data-count-quantity]');
+    var noteEl = form.querySelector('[data-line-note]');
+    if (denomEl) denomEl.value = row.denomination;
+    if (qtyEl) qtyEl.value = row.quantity;
+    if (noteEl) noteEl.value = row.note || '';
+    if (qtyEl) qtyEl.focus();
+  }
+
+  function cashCountTotalsByCurrency_(rows) {
+    return rows.reduce(function(result, row) {
+      var code = row.currency || SESSION.currency;
+      if (!result[code]) result[code] = { rows: 0, amount: 0 };
+      result[code].rows += 1;
+      result[code].amount += Number(row.denomination || 0) * Number(row.quantity || 0);
+      return result;
+    }, {});
+  }
+
+  function renderCashCountPageSidebar_(form, rows) {
+    var totalsTarget = form.querySelector('[data-count-sidebar-totals]');
+    var recentTarget = form.querySelector('[data-count-recent]');
+    var rowCount = form.querySelector('[data-count-kpi-rows]');
+    var totalAmount = form.querySelector('[data-count-kpi-total]');
+    var totals = cashCountTotalsByCurrency_(rows);
+    var total = rows.reduce(function(sum, row) { return sum + Number(row.denomination || 0) * Number(row.quantity || 0); }, 0);
+    if (rowCount) rowCount.textContent = String(rows.length);
+    if (totalAmount) totalAmount.textContent = formatAmount_(total);
+    if (totalsTarget) {
+      var codes = Object.keys(totals);
+      totalsTarget.innerHTML = codes.length ? codes.map(function(code) {
+        var visual = currencyVisual_(code);
+        var pct = total ? (totals[code].amount * 100 / total) : 0;
+        return '<div class="cash-count-currency-total">' +
+          '<div><strong><span class="currency-mark">' + escapeHtml(visual.icon) + '</span> ' + escapeHtml(code) + '</strong><span>' + escapeHtml(visual.name) + '</span></div>' +
+          '<div><span>Količina redova</span><strong>' + totals[code].rows + '</strong></div>' +
+          '<div><span>Iznos</span><strong>' + formatAmount_(totals[code].amount) + '</strong></div>' +
+          '<div><span>Učešće</span><strong class="cell-in">' + formatAmount_(pct) + '%</strong></div>' +
+        '</div>';
+      }).join('') + '<div class="cash-count-total-all"><strong>UKUPNO SVE VALUTE</strong><strong>' + formatAmount_(total) + '</strong><span>100,00%</span></div>' : '<div class="cash-count-empty">Nema unetih redova.</div>';
+    }
+    if (recentTarget) {
+      var recent = rows.slice(-5).reverse();
+      recentTarget.innerHTML = recent.length ? recent.map(function(row) {
+        var amount = Number(row.denomination || 0) * Number(row.quantity || 0);
+        return '<div class="cash-count-recent-row"><span>' + escapeHtml(formatTimeOnly_(row.createdAt || new Date())) + '</span><span>' + escapeHtml(row.currency || '') + '</span><span>' + formatAmount_(row.denomination) + '</span><span>x' + escapeHtml(row.quantity) + '</span><strong>' + formatAmount_(amount) + '</strong></div>';
+      }).join('') : '<div class="cash-count-empty">Nema poslednjih unosa.</div>';
+    }
+  }
+
+  function saveCashCountDraft_(form) {
+    var rows = collectDenominations_(form);
+    if (!rows.length) {
+      showMessage('Unesite bar jedan red pre čuvanja nacrta.', 'error');
+      return;
+    }
+    var draft = {
+      savedAt: new Date().toISOString(),
+      cashboxId: SESSION.cashboxId,
+      currency: SESSION.currency,
+      rows: rows
+    };
+    try {
+      localStorage.setItem('BLAGAJNA_CASH_COUNT_DRAFT', JSON.stringify(draft));
+      showMessage('Presek je sačuvan kao lokalni nacrt.', 'success');
+    } catch (err) {
+      showMessage('Nije moguće sačuvati lokalni nacrt.', 'error');
+    }
+  }
+
+  function cancelCashCountDialog_(form) {
+    var close = form && form.closest('.app-dialog-overlay');
+    var rows = collectDenominations_(form);
+    var doClose = function() { if (close) close.remove(); };
+    if (!rows.length) {
+      doClose();
+      return;
+    }
+    appConfirm_({
+      title: 'Poništi unos',
+      message: 'Uneti apoeni neće biti sačuvani. Nastaviti?',
+      confirmText: 'Poništi',
+      danger: true
+    }, doClose);
+  }
+
   function validateCashCountForm_(form) {
     if (!form) return true;
     var currency = (form.querySelector('[name="currency"]') || {}).value || SESSION.currency;
     var denominationCount = Number(form.dataset.denominationCount || 0);
     var cashRows = collectDenominations_(form).filter(function(row) { return Number(row.quantity || 0) > 0; });
+    if (form.classList.contains('cash-count-page-form') && !cashRows.length) {
+      showMessage('Unesite bar jedan red apoena pre čuvanja preseka.', 'error');
+      var qty = form.querySelector('[data-count-quantity]');
+      if (qty) qty.focus();
+      return false;
+    }
     if (denominationCount === 0 && !cashRows.length) {
       showMessage('Za valutu ' + currency + ' nisu definisani apoeni. Popis će biti sačuvan kao 0,00 ako nastavite.', 'info');
     }
@@ -1883,19 +2159,55 @@
     options = options || {};
     var formId = options.formId || 'cash-count-dialog-form';
     var noteName = options.noteName || 'note';
-    var noteLabel = options.noteLabel || 'Napomena';
     var submitText = options.submitText || 'Sačuvaj';
-    return '<form id="' + escapeHtml(formId) + '" class="form-grid cash-count-standard-form" data-cash-count-form data-count-purpose="' + escapeHtml(options.purpose || 'count') + '">' +
+    var user = uiState.currentUser || {};
+    var title = options.title || 'Novi presek stanja - unos apoena';
+    var subtitle = options.subtitle || 'Brzo unesite apoene. ENTER potvrđuje unos i dodaje red. Fokus se pomera na sledeći unos.';
+    var currencies = uiState.config && uiState.config.currencies || ['RSD'];
+    return '<form id="' + escapeHtml(formId) + '" class="cash-count-page-form" data-cash-count-form data-count-purpose="' + escapeHtml(options.purpose || 'count') + '">' +
       (options.shiftId ? '<input name="shift_id" type="hidden" value="' + escapeHtml(options.shiftId) + '">' : '') +
       '<input name="cashbox_id" type="hidden" value="' + escapeHtml(options.cashboxId || SESSION.cashboxId || '') + '">' +
       '<input name="count_type" type="hidden" value="' + escapeHtml(options.countType || 'CASHBOX_COUNT') + '">' +
-      '<label>Valuta <select name="currency" data-currency-options>' + currencySelectOptions_() + '</select></label>' +
-      '<div class="cash-count-entry-area" data-denomination-inputs></div>' +
-      '<label>' + escapeHtml(noteLabel) + ' <textarea name="' + escapeHtml(noteName) + '" rows="3"></textarea></label>' +
-      '<div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>' +
-      '<div class="app-dialog-actions">' +
-        '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
-        '<button type="submit" class="btn-primary">' + escapeHtml(submitText) + '</button>' +
+      '<input name="' + escapeHtml(noteName) + '" type="hidden" value="">' +
+      '<div class="cash-count-entry-page">' +
+        '<div class="cash-count-title-row">' +
+          '<div><h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>' +
+          '<span class="cash-count-status-pill">U pripremi</span>' +
+        '</div>' +
+        '<div class="cash-count-kpi-grid">' +
+          '<div class="cash-count-kpi"><i class="ti ti-cash-banknote"></i><div><span>Aktivna blagajna</span><strong>' + escapeHtml(options.cashboxName || SESSION.cashboxName || SESSION.cashboxId || 'Blagajna') + '</strong></div></div>' +
+          '<div class="cash-count-kpi"><i class="ti ti-user"></i><div><span>Korisnik</span><strong>' + escapeHtml(user.full_name || shortUserLabel_(user.email || '') || 'Korisnik') + '</strong></div></div>' +
+          '<div class="cash-count-kpi"><i class="ti ti-list"></i><div><span>Broj unetih redova</span><strong data-count-kpi-rows>0</strong></div></div>' +
+          '<div class="cash-count-kpi"><i class="ti ti-coins"></i><div><span>Ukupan iznos sve valute</span><strong data-count-kpi-total>0,00</strong></div></div>' +
+        '</div>' +
+        '<div class="cash-count-main-grid">' +
+          '<div class="cash-count-left">' +
+            '<section class="cash-count-line-card">' +
+              '<div class="cash-count-step-title"><span>1</span><strong>UNOS REDA</strong><em>fokus se kreće: Valuta → Apoen → Količina → ENTER</em></div>' +
+              '<div class="cash-count-fast-row" data-denomination-inputs>' +
+                '<label>Valuta <select name="currency" data-currency-options>' + currencies.map(currencyOptionHtml_).join('') + '</select></label>' +
+                '<label>Apoen <select data-count-denomination></select></label>' +
+                '<label>Količina <input data-count-quantity type="number" min="1" step="1" inputmode="numeric"></label>' +
+                '<label>Napomena <input data-line-note type="text" placeholder="Broj čeka ili napomena"></label>' +
+                '<button type="button" class="cash-count-add-btn" data-count-add><i class="ti ti-arrow-right"></i><span>Upiši</span></button>' +
+              '</div>' +
+              '<div class="cash-count-keyboard-hint"><strong>ENTER</strong><span>potvrđuje unos</span><strong>TAB</strong><span>sledeće polje</span><strong>ESC</strong><span>otkaži</span></div>' +
+            '</section>' +
+            '<section class="cash-count-table-card">' +
+              '<div data-count-rows></div>' +
+              '<div class="cash-count-table-foot"><span data-cash-count-total>Popisano: 0,00</span><span data-count-updated>Poslednje ažuriranje: —</span></div>' +
+            '</section>' +
+          '</div>' +
+          '<aside class="cash-count-right">' +
+            '<section class="cash-count-side-card"><h3>Ukupno po valutama</h3><div data-count-sidebar-totals></div></section>' +
+            '<section class="cash-count-side-card"><h3>Poslednji unosi</h3><div data-count-recent></div></section>' +
+            '<section class="cash-count-actions-card">' +
+              '<button type="submit" class="cash-count-action save"><i class="ti ti-device-floppy"></i><span><strong>' + escapeHtml(submitText) + ' (F5)</strong><small>Sačuvaj presek stanja</small></span></button>' +
+              '<button type="button" class="cash-count-action draft" data-count-draft><i class="ti ti-clock"></i><span><strong>Proknjiži kasnije (F9)</strong><small>Sačuvaj lokalni nacrt forme</small></span></button>' +
+              '<button type="button" class="cash-count-action cancel" data-count-cancel data-dialog-cancel><i class="ti ti-x"></i><span><strong>Poništi (ESC)</strong><small>Izađi bez čuvanja</small></span></button>' +
+            '</section>' +
+          '</aside>' +
+        '</div>' +
       '</div>' +
     '</form>';
   }
@@ -1914,11 +2226,11 @@
     overlay.className = 'app-dialog-overlay';
     overlay.innerHTML =
       '<div class="app-dialog app-dialog-wide" role="dialog" aria-modal="true">' +
-        '<h3>Zatvaranje smene - završni popis</h3>' +
-        '<p>Unesite završni popis istom logikom kao kod preseka stanja.</p>' +
         buildCashCountFormHtml_({
           formId: 'shift-closing-dialog-form',
           purpose: 'closing',
+          title: 'Zatvaranje smene - završni popis apoena',
+          subtitle: 'Unesite završno stanje kroz apoene. ENTER dodaje red, F5 zatvara smenu.',
           countType: 'SHIFT_CLOSING',
           shiftId: shift.shift_id || '',
           cashboxId: SESSION.cashboxId || shift.cashbox_id || '',
@@ -1929,7 +2241,6 @@
       '</div>';
     document.body.appendChild(overlay);
     var close = function() { overlay.remove(); };
-    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
     var form = overlay.querySelector('#shift-closing-dialog-form');
     form.dataset.countRows = '[]';
@@ -1952,11 +2263,11 @@
     overlay.className = 'app-dialog-overlay';
     overlay.innerHTML =
       '<div class="app-dialog app-dialog-wide" role="dialog" aria-modal="true">' +
-        '<h3>Otvaranje smene - početni popis</h3>' +
-        '<p>Unesite početno stanje blagajne kroz valutu, apoen i broj komada.</p>' +
         buildCashCountFormHtml_({
           formId: 'shift-opening-dialog-form',
           purpose: 'opening',
+          title: 'Otvaranje smene - početni popis apoena',
+          subtitle: 'Unesite početno stanje blagajne. ENTER dodaje red, F5 otvara smenu.',
           countType: 'SHIFT_OPENING',
           cashboxId: SESSION.cashboxId || '',
           noteName: 'opening_note',
@@ -1966,7 +2277,6 @@
       '</div>';
     document.body.appendChild(overlay);
     var close = function() { overlay.remove(); };
-    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
     var form = overlay.querySelector('#shift-opening-dialog-form');
     form.dataset.countRows = '[]';
@@ -1993,11 +2303,11 @@
     overlay.className = 'app-dialog-overlay';
     overlay.innerHTML =
       '<div class="app-dialog app-dialog-wide" role="dialog" aria-modal="true">' +
-        '<h3>Novi presek stanja</h3>' +
-        '<p>Unesite popis apoena po valutama. Jedan red je jedna valuta, apoen i broj komada.</p>' +
         buildCashCountFormHtml_({
           formId: 'cash-count-dialog-form',
           purpose: 'count',
+          title: 'Novi presek stanja - unos apoena',
+          subtitle: 'Brzo unesite apoene. ENTER potvrđuje unos i dodaje red. Fokus se pomera na sledeći unos.',
           countType: 'CASHBOX_COUNT',
           shiftId: uiState.activeShift.shift_id || '',
           cashboxId: SESSION.cashboxId || uiState.activeShift.cashbox_id || '',
@@ -2008,7 +2318,6 @@
       '</div>';
     document.body.appendChild(overlay);
     var close = function() { overlay.remove(); };
-    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
     var form = overlay.querySelector('#cash-count-dialog-form');
     form.dataset.countRows = '[]';

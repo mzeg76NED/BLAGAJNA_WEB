@@ -2240,6 +2240,397 @@
     width: min(100%, 760px);
   }
 
+  .app-dialog-wide:has(.cash-count-page-form) {
+    background: linear-gradient(135deg, #071523, #0b1e33);
+    border-color: rgba(96, 165, 250, 0.28);
+    max-width: 1480px;
+    padding: 0;
+    width: min(100%, 1480px);
+  }
+
+  .cash-count-page-form {
+    color: #e5edf7;
+  }
+
+  .cash-count-entry-page {
+    display: grid;
+    gap: 16px;
+    padding: 22px;
+  }
+
+  .cash-count-title-row {
+    align-items: start;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+  }
+
+  .cash-count-title-row h2 {
+    color: #f8fbff;
+    font-size: 28px;
+    line-height: 1.15;
+  }
+
+  .cash-count-title-row p {
+    color: #c6d3e1;
+    font-size: 15px;
+    margin: 8px 0 0;
+  }
+
+  .cash-count-status-pill {
+    background: rgba(234, 179, 8, 0.16);
+    border: 1px solid rgba(234, 179, 8, 0.38);
+    border-radius: 999px;
+    color: #facc15;
+    font-weight: 900;
+    padding: 7px 12px;
+    white-space: nowrap;
+  }
+
+  .cash-count-kpi-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .cash-count-kpi {
+    align-items: center;
+    background: linear-gradient(180deg, rgba(19, 45, 73, 0.92), rgba(16, 38, 61, 0.88));
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 12px;
+    display: flex;
+    gap: 14px;
+    min-height: 74px;
+    padding: 14px 16px;
+  }
+
+  .cash-count-kpi i {
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 10px;
+    color: #bfdbfe;
+    font-size: 24px;
+    padding: 9px;
+  }
+
+  .cash-count-kpi span,
+  .cash-count-currency-total span {
+    color: #93a4b8;
+    display: block;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .cash-count-kpi strong {
+    color: #f8fbff;
+    display: block;
+    font-size: 18px;
+  }
+
+  .cash-count-main-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) 390px;
+  }
+
+  .cash-count-left,
+  .cash-count-right {
+    display: grid;
+    gap: 14px;
+  }
+
+  .cash-count-line-card,
+  .cash-count-table-card,
+  .cash-count-side-card,
+  .cash-count-actions-card {
+    background: rgba(16, 38, 61, 0.86);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .cash-count-step-title {
+    align-items: center;
+    color: #c6d3e1;
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .cash-count-step-title span {
+    align-items: center;
+    border: 1px solid #93c5fd;
+    border-radius: 999px;
+    color: #dbeafe;
+    display: inline-flex;
+    font-weight: 900;
+    height: 24px;
+    justify-content: center;
+    width: 24px;
+  }
+
+  .cash-count-step-title em {
+    color: #93a4b8;
+    font-style: normal;
+  }
+
+  .cash-count-fast-row {
+    align-items: end;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(160px, 1.1fr) minmax(150px, 1fr) minmax(120px, 0.8fr) minmax(180px, 1fr) 88px;
+  }
+
+  .cash-count-fast-row label {
+    color: #d7e2ef;
+    font-size: 13px;
+  }
+
+  .cash-count-fast-row input,
+  .cash-count-fast-row select {
+    background: rgba(7, 21, 35, 0.9);
+    border-color: rgba(96, 165, 250, 0.45);
+    color: #f8fbff;
+    margin: 0;
+    min-height: 48px;
+  }
+
+  .cash-count-fast-row input:focus,
+  .cash-count-fast-row select:focus {
+    border-color: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
+  }
+
+  .cash-count-add-btn {
+    background: rgba(37, 99, 235, 0.28);
+    border-color: rgba(96, 165, 250, 0.45);
+    color: #dbeafe;
+    min-height: 48px;
+  }
+
+  .cash-count-add-btn span {
+    display: none;
+  }
+
+  .cash-count-keyboard-hint {
+    align-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 10px;
+    color: #c6d3e1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-top: 12px;
+    padding: 10px 12px;
+  }
+
+  .cash-count-keyboard-hint strong {
+    color: #f8fbff;
+  }
+
+  .cash-count-lines-table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .cash-count-lines-table th,
+  .cash-count-lines-table td {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    padding: 10px 12px;
+    text-align: left;
+  }
+
+  .cash-count-lines-table th {
+    background: rgba(30, 58, 92, 0.75);
+    color: #aebfd2;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .cash-count-lines-table .num {
+    text-align: right;
+  }
+
+  .currency-mark {
+    display: inline-block;
+    font-size: 18px;
+    line-height: 1;
+    margin-right: 8px;
+    vertical-align: -2px;
+  }
+
+  .cash-count-line-actions {
+    white-space: nowrap;
+  }
+
+  .cash-count-line-actions .icon-btn {
+    color: #cbd5e1;
+    min-height: 30px;
+    min-width: 30px;
+    padding: 3px;
+  }
+
+  .cash-count-table-foot {
+    align-items: center;
+    color: #93a4b8;
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 2px 0;
+  }
+
+  .cash-count-table-foot [data-cash-count-total] {
+    color: #f8fbff;
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .cash-count-side-card h3 {
+    color: #f8fbff;
+    font-size: 15px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .cash-count-currency-total {
+    background: rgba(19, 45, 73, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 10px;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1.3fr 0.8fr 1fr 0.8fr;
+    margin-bottom: 8px;
+    padding: 12px;
+  }
+
+  .cash-count-currency-total strong,
+  .cash-count-total-all strong {
+    color: #f8fbff;
+  }
+
+  .cash-count-total-all {
+    align-items: center;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr auto auto;
+    margin-top: 8px;
+    padding: 12px;
+  }
+
+  .cash-count-recent-row {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    color: #c6d3e1;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 64px 48px 1fr 44px 1fr;
+    padding: 7px 2px;
+  }
+
+  .cash-count-recent-row strong {
+    color: #f8fbff;
+    text-align: right;
+  }
+
+  .cash-count-actions-card {
+    display: grid;
+    gap: 10px;
+  }
+
+  .cash-count-action {
+    border-radius: 8px;
+    color: #fff;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-start;
+    min-height: 60px;
+    padding: 12px 16px;
+    text-align: left;
+    width: 100%;
+  }
+
+  .cash-count-action i {
+    font-size: 24px;
+  }
+
+  .cash-count-action small {
+    display: block;
+    font-weight: 600;
+    opacity: 0.86;
+  }
+
+  .cash-count-action.save {
+    background: linear-gradient(180deg, #22a947, #15803d);
+    border-color: #22c55e;
+  }
+
+  .cash-count-action.draft {
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    border-color: #60a5fa;
+  }
+
+  .cash-count-action.cancel {
+    background: linear-gradient(180deg, #9f2330, #7f1d1d);
+    border-color: #ef4444;
+  }
+
+  .cash-count-empty {
+    color: #93a4b8;
+    font-weight: 800;
+    padding: 18px;
+    text-align: center;
+  }
+
+  @media (max-width: 1220px) {
+    .cash-count-main-grid,
+    .cash-count-kpi-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .cash-count-right {
+      grid-column: 1 / -1;
+    }
+
+    .cash-count-fast-row {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .cash-count-add-btn {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .app-dialog-wide:has(.cash-count-page-form) {
+      height: 100dvh;
+      max-height: 100dvh;
+      width: 100%;
+    }
+
+    .cash-count-entry-page {
+      padding: 14px;
+    }
+
+    .cash-count-main-grid,
+    .cash-count-kpi-grid,
+    .cash-count-fast-row {
+      grid-template-columns: 1fr;
+    }
+
+    .cash-count-title-row {
+      display: grid;
+    }
+
+    .cash-count-title-row h2 {
+      font-size: 23px;
+    }
+
+    .cash-count-actions-card {
+      bottom: 0;
+      position: sticky;
+    }
+  }
+
   .app-dialog h3 {
     font-size: 18px;
     margin-bottom: 6px;
