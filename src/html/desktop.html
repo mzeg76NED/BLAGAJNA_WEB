@@ -400,17 +400,56 @@
 
           <!-- SEKCIJA: PRESEK -->
           <section id="d-section-presek" class="d-section">
-            <div class="knjiga-layout">
-              <div class="card knjiga-main">
-                <div class="card-head">
-                  <i class="ti ti-calculator" aria-hidden="true"></i>
-                  <h2 style="flex:1">Presek stanja - popis blagajne</h2>
-                  <button id="d-count-refresh" type="button" style="min-height:32px;padding:4px 10px;font-size:12px">
-                    <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
-                  </button>
+            <div class="presek-page">
+              <div class="presek-kpi-strip">
+                <div class="presek-kpi-card">
+                  <div class="presek-kpi-label">Ukupno preseka</div>
+                  <div class="presek-kpi-value" id="d-count-kpi-total">0</div>
+                  <div class="presek-kpi-sub" id="d-count-kpi-period">danas</div>
                 </div>
-                <div id="d-count-lock" class="shift-warning" hidden>Presek stanja je dostupan tek kada postoji aktivna smena.</div>
-                <form id="d-cash-count-form" class="form-grid" data-cash-count-form data-count-purpose="count">
+                <div class="presek-kpi-card">
+                  <div class="presek-kpi-label">Očekivano ukupno</div>
+                  <div class="presek-kpi-value" id="d-count-kpi-expected-main">0,00</div>
+                  <div class="presek-kpi-sub" id="d-count-kpi-expected-sub">—</div>
+                </div>
+                <div class="presek-kpi-card">
+                  <div class="presek-kpi-label">Popisano ukupno</div>
+                  <div class="presek-kpi-value" id="d-count-kpi-counted-main">0,00</div>
+                  <div class="presek-kpi-sub" id="d-count-kpi-counted-sub">—</div>
+                </div>
+                <div class="presek-kpi-card">
+                  <div class="presek-kpi-label">Razlika ukupno</div>
+                  <div class="presek-kpi-value presek-danger" id="d-count-kpi-diff-main">Bez razlike</div>
+                  <div class="presek-kpi-sub" id="d-count-kpi-diff-sub">—</div>
+                </div>
+                <div class="presek-kpi-card">
+                  <div class="presek-kpi-label">Proknjiženo</div>
+                  <div class="presek-kpi-value" id="d-count-kpi-posted">0</div>
+                  <div class="presek-kpi-sub presek-success" id="d-count-kpi-posted-pct">0%</div>
+                </div>
+                <div class="presek-kpi-card">
+                  <div class="presek-kpi-label">U obradi</div>
+                  <div class="presek-kpi-value" id="d-count-kpi-pending">0</div>
+                  <div class="presek-kpi-sub presek-warning" id="d-count-kpi-pending-pct">0%</div>
+                </div>
+                <button id="d-count-new-btn" class="presek-primary-action" type="button">
+                  <i class="ti ti-plus" aria-hidden="true"></i> Novi presek
+                </button>
+              </div>
+
+              <div class="presek-split">
+                <div class="presek-panel presek-list-panel">
+                  <div class="presek-panel-head">
+                    <div>
+                      <h2>Preseci stanja</h2>
+                      <p>Pregled svih preseka za izabrani period</p>
+                    </div>
+                    <button id="d-count-refresh" type="button" title="Osveži">
+                      <i class="ti ti-refresh" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                  <div id="d-count-lock" class="presek-info-line" hidden>Nema aktivne smene. Novi presek nije moguće napraviti, ali možete pregledati ranije preseke.</div>
+                  <form id="d-cash-count-form" class="form-grid presek-hidden-form" data-cash-count-form data-count-purpose="count">
                     <input name="cashbox_id" type="hidden">
                     <input name="count_type" type="hidden" value="CASHBOX_COUNT">
                     <label>Valuta <select name="currency" data-currency-options></select></label>
@@ -418,29 +457,78 @@
                     <label>Napomena <textarea name="note"></textarea></label>
                     <div class="cash-count-total" data-cash-count-total>Popisano: 0,00</div>
                     <button class="btn-primary" type="submit">Sačuvaj presek</button>
-                </form>
-                <div id="d-count-result" class="result-box"></div>
-                <div class="table-wrap" style="margin-top:12px">
-                  <table class="book-table">
-                    <thead>
-                      <tr>
-                        <th>Vreme</th>
-                        <th>Vrsta</th>
-                        <th>Korisnik</th>
-                        <th>Valuta</th>
-                        <th class="num">Obračunato</th>
-                        <th class="num">Popisano</th>
-                        <th class="num">Razlika</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody id="d-counts-tbody"></tbody>
-                  </table>
+                  </form>
+                  <div id="d-count-result" class="result-box"></div>
+                  <div class="presek-filters">
+                    <select id="d-count-period-filter">
+                      <option value="today">Danas</option>
+                      <option value="yesterday">Juče</option>
+                      <option value="week">Ova nedelja</option>
+                      <option value="month">Ovaj mesec</option>
+                      <option value="all">Sve</option>
+                    </select>
+                    <label class="presek-search">
+                      <i class="ti ti-search" aria-hidden="true"></i>
+                      <input id="d-count-search" type="search" placeholder="Pretraži...">
+                    </label>
+                    <select id="d-count-type-filter">
+                      <option value="">Sve vrste</option>
+                      <option value="SHIFT_OPENING">Otvaranje smene</option>
+                      <option value="CASHBOX_COUNT">Kontrolni presek</option>
+                      <option value="SHIFT_CLOSING">Zatvaranje smene</option>
+                      <option value="DAILY_CLOSING_COUNT">Dnevni zaključak</option>
+                    </select>
+                    <select id="d-count-status-filter">
+                      <option value="">Svi statusi</option>
+                      <option value="POSTED">Proknjižen</option>
+                      <option value="DRAFT">U obradi</option>
+                      <option value="CANCELLED">Storniran</option>
+                      <option value="DIFFERENCE">Neusaglašen</option>
+                    </select>
+                    <select id="d-count-currency-filter">
+                      <option value="">Sve valute</option>
+                    </select>
+                  </div>
+                  <div class="presek-table-wrap">
+                    <table class="presek-table">
+                      <thead>
+                        <tr>
+                          <th>Vreme</th>
+                          <th>Vrsta</th>
+                          <th>Korisnik</th>
+                          <th>Valuta</th>
+                          <th class="num">Očekivano</th>
+                          <th class="num">Popisano</th>
+                          <th class="num">Razlika</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody id="d-counts-tbody"></tbody>
+                    </table>
+                  </div>
+                  <div class="presek-pagination">
+                    <span id="d-count-page-info">Prikazano 0 od 0</span>
+                    <div>
+                      <button id="d-count-page-prev" type="button">‹</button>
+                      <span id="d-count-page-current">1</span>
+                      <button id="d-count-page-next" type="button">›</button>
+                    </div>
+                    <span>20 po strani</span>
+                  </div>
                 </div>
-              </div>
-              <div class="card count-detail-panel" id="d-count-detail-panel">
-                <div class="card-head"><h3>Detalji preseka</h3></div>
-                <div id="d-count-detail-body" class="empty-state">Izaberite presek iz tabele.</div>
+
+                <div class="presek-panel presek-detail-panel" id="d-count-detail-panel">
+                  <div class="presek-detail-head">
+                    <div>
+                      <h2>Detalji preseka <span id="d-count-detail-status"></span></h2>
+                    </div>
+                    <div class="presek-detail-actions">
+                      <button id="d-count-actions-btn" type="button">Akcije <i class="ti ti-chevron-down" aria-hidden="true"></i></button>
+                      <button id="d-count-close-detail" type="button" aria-label="Zatvori detalje"><i class="ti ti-x" aria-hidden="true"></i></button>
+                    </div>
+                  </div>
+                  <div id="d-count-detail-body" class="empty-state">Izaberite presek iz liste da biste videli detalje.</div>
+                </div>
               </div>
             </div>
           </section>

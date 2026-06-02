@@ -17,6 +17,16 @@
   var OPTIMISTIC_REFRESH_DELAY_MS = 4200;
   var LAST_KNJIGA_EVENTS = [];
   var REPORT_CACHE = {};
+  var CASH_COUNT_UI = {
+    rawRows: [],
+    groups: [],
+    filtered: [],
+    page: 1,
+    pageSize: 20,
+    selectedKey: '',
+    selectedIndex: 0,
+    detailTab: 'apoeni'
+  };
   var MESSAGE_HIDE_TIMERS = {};
   var MESSAGE_TIMEOUTS_MS = {
     info: 4500,
@@ -1738,6 +1748,12 @@
     ['d-cash-count-form','m-cash-count-form'].forEach(function(id) {
       var form = document.getElementById(id);
       if (!form) return;
+      if (id === 'd-cash-count-form') {
+        form.setAttribute('hidden', 'hidden');
+        form.style.display = 'none';
+        setWorkflowFormDisabled_(form, !hasShift);
+        return;
+      }
       if (hasShift) {
         form.removeAttribute('hidden');
         form.style.display = '';
@@ -1754,6 +1770,8 @@
       if (hasShift) el.setAttribute('hidden', 'hidden');
       else el.removeAttribute('hidden');
     });
+    var newBtn = document.getElementById('d-count-new-btn');
+    if (newBtn) newBtn.disabled = !hasShift;
   }
 
   function enforceShiftStartup_(isDesktop, isMobile) {
@@ -1962,6 +1980,59 @@
     });
   }
 
+  function openCashCountDialog_(mode) {
+    if (!(uiState.activeShift && uiState.activeShift.shift_id)) {
+      showMessage('Presek stanja je dostupan tek kada postoji aktivna smena.', 'error');
+      return;
+    }
+    if (!isCurrentActiveShiftOwner_()) {
+      showMessage('Presek stanja može da proknjiži samo glavni blagajnik aktivne smene.', 'error');
+      return;
+    }
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog app-dialog-wide" role="dialog" aria-modal="true">' +
+        '<h3>Novi presek stanja</h3>' +
+        '<p>Unesite popis apoena po valutama. Jedan red je jedna valuta, apoen i broj komada.</p>' +
+        buildCashCountFormHtml_({
+          formId: 'cash-count-dialog-form',
+          purpose: 'count',
+          countType: 'CASHBOX_COUNT',
+          shiftId: uiState.activeShift.shift_id || '',
+          cashboxId: SESSION.cashboxId || uiState.activeShift.cashbox_id || '',
+          noteName: 'note',
+          noteLabel: 'Napomena',
+          submitText: 'Sačuvaj presek'
+        }) +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    var form = overlay.querySelector('#cash-count-dialog-form');
+    form.dataset.countRows = '[]';
+    var currency = form.querySelector('[name="currency"]');
+    if (currency) currency.value = SESSION.currency;
+    renderDenominationInputs_();
+    bindAmountFormatting_();
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+      if (!validateCashCountForm_(form)) return;
+      var data = withUiDefaults(serializeFormElement_(form));
+      data.denominations = collectDenominations_(form);
+      data.include_all_currencies = true;
+      callApi('apiCreateCashCounts', [data], function(results) {
+        renderCashCountSaveSummary_(mode === 'mobile' ? 'm-count-result' : 'd-count-result', results, 'Presek blagajne je sačuvan');
+        form.dataset.countRows = '[]';
+        renderDenominationInputs_();
+        refreshBalance_();
+        loadCashCounts_();
+        close();
+      }, { successMessage: 'Presek blagajne je sačuvan.' });
+    });
+  }
+
   function submitShiftOpeningForm_(form, targetId, closeDialog) {
     if (!validateCashCountForm_(form)) return;
     var data = withUiDefaults(serializeFormElement_(form));
@@ -2028,6 +2099,7 @@
       cashbox_id: SESSION.cashboxId || getDefaultCashboxId()
     };
     callApi('apiGetCashCountsReport', [filters], function(rows) {
+      CASH_COUNT_UI.rawRows = rows || [];
       renderCashCounts_(rows || []);
     }, { quiet: true });
   }
@@ -2048,6 +2120,7 @@
       var key = cashCountBatchKey_(row);
       if (!grouped[key]) {
         grouped[key] = {
+          key: key,
           posted_at: row.posted_at || row.created_at,
           user: row.posted_by || row.created_by,
           count_type: row.count_type,
@@ -2093,28 +2166,14 @@
 
   function renderCashCounts_(rows) {
     var groups = groupCashCounts_(rows);
-    var tbody = document.getElementById('d-counts-tbody');
+    CASH_COUNT_UI.groups = groups;
+    renderCashCountCurrencyFilter_(groups);
+    renderCashCountsDesktop_();
+    renderCashCountsMobile_(groups);
+  }
+
+  function renderCashCountsMobile_(groups) {
     var list = document.getElementById('m-counts-list');
-    if (tbody) {
-      tbody.innerHTML = groups.length ? groups.map(function(group, index) {
-        var cls = group.has_difference ? 'row-count' : '';
-        return '<tr class="' + cls + '" data-count-index="' + index + '">' +
-          '<td>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</td>' +
-          '<td>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</td>' +
-          '<td>' + escapeHtml(shortUserLabel_(group.user || '—')) + '</td>' +
-          '<td>' + escapeHtml(group.currencies || '') + '</td>' +
-          '<td class="cell-bal">' + cashCountCurrencySummary_(group.calculated_by_currency) + '</td>' +
-          '<td class="cell-bal">' + cashCountCurrencySummary_(group.counted_by_currency) + '</td>' +
-          '<td>' + cashCountDifferenceSummary_(group.difference_by_currency) + '</td>' +
-          '<td>' + renderStatusBadge_(group.status) + '</td>' +
-        '</tr>';
-      }).join('') : '<tr><td colspan="8"><div class="empty-state">Nema preseka za prikaz.</div></td></tr>';
-      tbody.querySelectorAll('[data-count-index]').forEach(function(row) {
-        row.addEventListener('click', function() {
-          renderCashCountDetail_(groups[Number(row.getAttribute('data-count-index'))], 'd-count-detail-body');
-        });
-      });
-    }
     if (list) {
       list.innerHTML = groups.length ? groups.map(function(group, index) {
         return '<div class="m-entry count" data-count-index="' + index + '">' +
@@ -2130,9 +2189,231 @@
         });
       });
     }
-    if (groups.length) {
-      renderCashCountDetail_(groups[0], document.getElementById('d-count-detail-body') ? 'd-count-detail-body' : 'm-count-detail-body');
+    if (groups.length && !document.getElementById('d-count-detail-body')) {
+      renderCashCountDetail_(groups[0], 'm-count-detail-body');
     }
+  }
+
+  function renderCashCountCurrencyFilter_(groups) {
+    var select = document.getElementById('d-count-currency-filter');
+    if (!select || select.dataset.boundCurrencies === '1') return;
+    var seen = {};
+    (uiState.config && uiState.config.currencies || []).forEach(function(code) { if (code) seen[code] = true; });
+    (groups || []).forEach(function(group) {
+      group.rows.forEach(function(row) { if (row.currency) seen[row.currency] = true; });
+    });
+    select.innerHTML = '<option value="">Sve valute</option>' + Object.keys(seen).sort().map(function(code) {
+      return '<option value="' + escapeHtml(code) + '">' + escapeHtml(code) + '</option>';
+    }).join('');
+    select.dataset.boundCurrencies = '1';
+  }
+
+  function renderCashCountsDesktop_() {
+    var tbody = document.getElementById('d-counts-tbody');
+    if (!tbody) return;
+    var filtered = applyCashCountFilters_(CASH_COUNT_UI.groups);
+    CASH_COUNT_UI.filtered = filtered;
+    var maxPage = Math.max(1, Math.ceil(filtered.length / CASH_COUNT_UI.pageSize));
+    CASH_COUNT_UI.page = Math.max(1, Math.min(CASH_COUNT_UI.page, maxPage));
+    renderCashCountKpis_(filtered);
+    var start = (CASH_COUNT_UI.page - 1) * CASH_COUNT_UI.pageSize;
+    var pageRows = filtered.slice(start, start + CASH_COUNT_UI.pageSize);
+    tbody.innerHTML = pageRows.length ? pageRows.map(function(group, pageIndex) {
+      var absoluteIndex = start + pageIndex;
+      var diffClass = group.difference_total > 0 ? 'cell-in' : (group.difference_total < 0 ? 'cell-out' : 'cell-neutral');
+      var selected = group.key === CASH_COUNT_UI.selectedKey ? ' is-selected' : '';
+      return '<tr class="presek-row' + selected + '" data-count-index="' + absoluteIndex + '">' +
+        '<td>' + escapeHtml(formatTimeOnly_(group.posted_at)) + '</td>' +
+        '<td>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</td>' +
+        '<td>' + escapeHtml(shortUserLabel_(group.user || '—')) + '</td>' +
+        '<td>' + renderCurrencyChips_(group.rows.map(function(row) { return row.currency; })) + '</td>' +
+        '<td class="num">' + cashCountMainAmount_(group.calculated_by_currency) + '</td>' +
+        '<td class="num">' + cashCountMainAmount_(group.counted_by_currency) + '</td>' +
+        '<td class="num ' + diffClass + '">' + cashCountMainAmount_(group.difference_by_currency) + '</td>' +
+        '<td>' + renderCompactStatusBadge_(group.status) + '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="8"><div class="empty-state">Nema preseka za izabrane filtere.</div></td></tr>';
+    tbody.querySelectorAll('[data-count-index]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        selectCashCountGroup_(Number(row.getAttribute('data-count-index')));
+      });
+    });
+    updateCashCountPagination_(filtered.length, start, pageRows.length, maxPage);
+    if (filtered.length) {
+      var selected = filtered.filter(function(group) { return group.key === CASH_COUNT_UI.selectedKey; })[0];
+      if (!selected) {
+        selected = filtered[Math.min(CASH_COUNT_UI.selectedIndex, filtered.length - 1)] || filtered[0];
+        CASH_COUNT_UI.selectedKey = selected.key;
+      }
+      renderCashCountDetail_(selected, 'd-count-detail-body');
+    } else {
+      CASH_COUNT_UI.selectedKey = '';
+      renderCashCountDetail_(null, 'd-count-detail-body');
+    }
+  }
+
+  function applyCashCountFilters_(groups) {
+    var period = (document.getElementById('d-count-period-filter') || {}).value || 'today';
+    var search = ((document.getElementById('d-count-search') || {}).value || '').toLowerCase().trim();
+    var type = (document.getElementById('d-count-type-filter') || {}).value || '';
+    var status = (document.getElementById('d-count-status-filter') || {}).value || '';
+    var currency = (document.getElementById('d-count-currency-filter') || {}).value || '';
+    setText_('d-count-kpi-period', cashCountPeriodLabel_(period));
+    return (groups || []).filter(function(group) {
+      if (!isCashCountInPeriod_(group, period)) return false;
+      if (type && group.count_type !== type) return false;
+      if (currency && !group.rows.some(function(row) { return row.currency === currency; })) return false;
+      if (status === 'DIFFERENCE' && group.has_difference !== true) return false;
+      if (status === 'DRAFT' && group.status === 'POSTED') return false;
+      if (status && status !== 'DRAFT' && status !== 'DIFFERENCE' && group.status !== status) return false;
+      if (search) {
+        var haystack = [group.user, group.currencies, cashCountTypeLabel_(group.count_type), group.shift_id, group.note].join(' ').toLowerCase();
+        if (haystack.indexOf(search) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function cashCountPeriodLabel_(period) {
+    if (period === 'yesterday') return 'juče';
+    if (period === 'week') return 'ova nedelja';
+    if (period === 'month') return 'ovaj mesec';
+    if (period === 'all') return 'ukupno';
+    return 'danas';
+  }
+
+  function isCashCountInPeriod_(group, period) {
+    if (!period || period === 'all') return true;
+    var d = new Date(group.posted_at || 0);
+    if (isNaN(d.getTime())) return false;
+    var now = new Date();
+    var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var end = new Date(start.getTime() + 86400000);
+    if (period === 'yesterday') {
+      end = start;
+      start = new Date(start.getTime() - 86400000);
+    } else if (period === 'week') {
+      var day = (start.getDay() + 6) % 7;
+      start = new Date(start.getTime() - day * 86400000);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    } else if (period === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    }
+    return d >= start && d < end;
+  }
+
+  function selectCashCountGroup_(index) {
+    var group = CASH_COUNT_UI.filtered[index];
+    if (!group) return;
+    CASH_COUNT_UI.selectedIndex = index;
+    CASH_COUNT_UI.selectedKey = group.key;
+    renderCashCountsDesktop_();
+  }
+
+  function updateCashCountPagination_(total, start, length, maxPage) {
+    setText_('d-count-page-info', total ? ('Prikazano ' + (start + 1) + '–' + (start + length) + ' od ' + total) : 'Prikazano 0 od 0');
+    setText_('d-count-page-current', String(CASH_COUNT_UI.page));
+    var prev = document.getElementById('d-count-page-prev');
+    var next = document.getElementById('d-count-page-next');
+    if (prev) prev.disabled = CASH_COUNT_UI.page <= 1;
+    if (next) next.disabled = CASH_COUNT_UI.page >= maxPage;
+  }
+
+  function renderCashCountKpis_(groups) {
+    var total = groups.length;
+    var posted = groups.filter(function(group) { return group.status === 'POSTED'; }).length;
+    var pending = total - posted;
+    setText_('d-count-kpi-total', String(total));
+    renderKpiMoney_('d-count-kpi-expected-main', 'd-count-kpi-expected-sub', sumCashCountMap_(groups, 'calculated_by_currency'));
+    renderKpiMoney_('d-count-kpi-counted-main', 'd-count-kpi-counted-sub', sumCashCountMap_(groups, 'counted_by_currency'));
+    renderKpiMoney_('d-count-kpi-diff-main', 'd-count-kpi-diff-sub', sumCashCountMap_(groups, 'difference_by_currency'), true);
+    setText_('d-count-kpi-posted', String(posted));
+    setText_('d-count-kpi-posted-pct', total ? Math.round(posted * 100 / total) + '%' : '0%');
+    setText_('d-count-kpi-pending', String(pending));
+    setText_('d-count-kpi-pending-pct', total ? Math.round(pending * 100 / total) + '%' : '0%');
+  }
+
+  function sumCashCountMap_(groups, field) {
+    return (groups || []).reduce(function(result, group) {
+      Object.keys(group[field] || {}).forEach(function(code) {
+        result[code] = Number(result[code] || 0) + Number(group[field][code] || 0);
+      });
+      return result;
+    }, {});
+  }
+
+  function setText_(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function renderKpiMoney_(mainId, subId, values, diffOnly) {
+    var codes = Object.keys(values || {}).filter(function(code) {
+      return !diffOnly || Math.abs(Number(values[code] || 0)) > 0.000001;
+    }).sort(function(a, b) {
+      if (a === SESSION.currency) return -1;
+      if (b === SESSION.currency) return 1;
+      return a.localeCompare(b);
+    });
+    var main = document.getElementById(mainId);
+    var sub = document.getElementById(subId);
+    if (!codes.length) {
+      if (main) {
+        main.textContent = diffOnly ? 'Bez razlike' : '0,00';
+        main.classList.remove('presek-danger', 'presek-success');
+      }
+      if (sub) sub.textContent = '—';
+      return;
+    }
+    var first = codes[0];
+    var value = Number(values[first] || 0);
+    if (main) {
+      main.textContent = first + ' ' + formatAmount_(value);
+      main.classList.toggle('presek-danger', diffOnly && value < 0);
+      main.classList.toggle('presek-success', diffOnly && value > 0);
+    }
+    if (sub) {
+      sub.innerHTML = codes.slice(1).map(function(code) {
+        var subValue = Number(values[code] || 0);
+        var cls = diffOnly ? (subValue < 0 ? 'cell-out' : 'cell-in') : '';
+        return '<span class="' + cls + '">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(subValue)) + '</span>';
+      }).join(' · ') || '—';
+    }
+  }
+
+  function renderCurrencyChips_(currencies) {
+    var seen = {};
+    return (currencies || []).filter(function(code) {
+      if (!code || seen[code]) return false;
+      seen[code] = true;
+      return true;
+    }).map(function(code) {
+      return '<span class="presek-currency-chip">' + escapeHtml(code) + '</span>';
+    }).join(' ');
+  }
+
+  function cashCountMainAmount_(values) {
+    var codes = Object.keys(values || {}).sort(function(a, b) {
+      if (a === SESSION.currency) return -1;
+      if (b === SESSION.currency) return 1;
+      return a.localeCompare(b);
+    });
+    if (!codes.length) return '—';
+    var first = codes[0];
+    return escapeHtml(formatAmount_(values[first])) + (codes.length > 1 ? ' +' + (codes.length - 1) : '');
+  }
+
+  function renderCompactStatusBadge_(status) {
+    var label = status === 'POSTED' ? 'Proknjižen' : (STATUS_LABEL_MAP[status] || status || 'U obradi');
+    return '<span class="presek-status-badge">' + escapeHtml(label) + '</span>';
+  }
+
+  function formatTimeOnly_(value) {
+    if (!value) return '—';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return formatDateTimeShort_(value);
+    return d.toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' });
   }
 
   function cashCountCurrencySummary_(values) {
@@ -2156,41 +2437,129 @@
   function renderCashCountDetail_(countGroup, targetId) {
     var target = document.getElementById(targetId);
     if (!target) return;
+    var statusTarget = document.getElementById('d-count-detail-status');
     if (!countGroup) {
       target.classList.add('empty-state');
       target.classList.remove('count-detail-body');
       target.innerHTML = 'Izaberite presek iz tabele.';
+      if (statusTarget) statusTarget.innerHTML = '';
       return;
     }
     target.classList.remove('empty-state');
     target.classList.add('count-detail-body');
     var group = countGroup.rows ? countGroup : { rows: [countGroup] };
-    var denomHtml = group.rows.map(function(count) {
-      var denominations = count.denominations || [];
-      var denomRows = denominations.length ? denominations.map(function(row) {
-        var amount = Number(row.denomination || 0) * Number(row.quantity || 0);
-        return '<tr><td>' + escapeHtml(count.currency || '') + '</td><td class="num">' + formatAmount_(row.denomination) + '</td><td class="num">' + escapeHtml(row.quantity) + '</td><td class="num">' + formatAmount_(amount) + '</td></tr>';
-      }).join('') : '<tr><td>' + escapeHtml(count.currency || '') + '</td><td colspan="3">Nema unetih apoena za ovu valutu.</td></tr>';
-      return denomRows;
-    }).join('');
-    var totalRows = group.rows.map(function(count) {
-      var diff = Number(count.difference || 0);
-      return '<tr>' +
-        '<td>' + escapeHtml(count.currency || '') + '</td>' +
-        '<td class="num">' + formatAmount_(count.calculated_balance_before) + '</td>' +
-        '<td class="num">' + formatAmount_(count.counted_total) + '</td>' +
-        '<td class="num ' + (diff >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(diff) + '</td>' +
-      '</tr>';
-    }).join('');
+    if (statusTarget) statusTarget.innerHTML = renderCompactStatusBadge_(group.status);
+    var diffClass = group.difference_total > 0 ? 'cell-in' : (group.difference_total < 0 ? 'cell-out' : 'cell-neutral');
+    var tab = CASH_COUNT_UI.detailTab || 'apoeni';
     target.innerHTML =
-      '<table class="count-detail-meta"><tbody>' +
-        '<tr><th>Vreme</th><td>' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</td><th>Vrsta</th><td>' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</td></tr>' +
-        '<tr><th>Korisnik</th><td>' + escapeHtml(shortUserLabel_(group.user || '')) + '</td><th>Valute</th><td>' + escapeHtml(group.currencies || '') + '</td></tr>' +
-      '</tbody></table>' +
-      '<div class="count-detail-section-title">Rekapitulacija po valutama</div>' +
-      '<table class="count-detail-totals"><thead><tr><th>Valuta</th><th class="num">Obračunato</th><th class="num">Popisano</th><th class="num">Razlika</th></tr></thead><tbody>' + totalRows + '</tbody></table>' +
-      '<div class="count-detail-section-title">Popisani apoeni</div>' +
-      '<table class="count-table"><thead><tr><th>Valuta</th><th class="num">Apoen</th><th class="num">Komada</th><th class="num">Iznos</th></tr></thead><tbody>' + denomHtml + '</tbody></table>';
+      '<div class="presek-detail-kpis">' +
+        presekInfoBlock_('Vreme', formatDateTimeShort_(group.posted_at), 'ti ti-clock') +
+        presekInfoBlock_('Vrsta', cashCountTypeLabel_(group.count_type), 'ti ti-calendar-stats') +
+        presekInfoBlock_('Korisnik', shortUserLabel_(group.user || ''), 'ti ti-user') +
+        presekInfoBlock_('Valuta', group.currencies || '—', 'ti ti-currency-euro') +
+        presekInfoBlock_('Razlika', cashCountCurrencySummaryText_(group.difference_by_currency), 'ti ti-arrows-diff', diffClass) +
+      '</div>' +
+      '<div class="presek-tabs">' +
+        renderPresekTabButton_('pregled', 'Pregled', tab) +
+        renderPresekTabButton_('valute', 'Valute', tab) +
+        renderPresekTabButton_('apoeni', 'Apoeni', tab) +
+        renderPresekTabButton_('zapisnik', 'Zapisnik', tab) +
+      '</div>' +
+      '<div class="presek-tab-panel">' + renderPresekTabPanel_(group, tab) + '</div>';
+    target.querySelectorAll('[data-count-tab]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        CASH_COUNT_UI.detailTab = btn.getAttribute('data-count-tab') || 'apoeni';
+        renderCashCountDetail_(group, targetId);
+      });
+    });
+  }
+
+  function presekInfoBlock_(label, value, icon, extraClass) {
+    return '<div class="presek-info-block ' + escapeHtml(extraClass || '') + '">' +
+      '<i class="' + escapeHtml(icon || 'ti ti-info-circle') + '" aria-hidden="true"></i>' +
+      '<div><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value || '—') + '</strong></div>' +
+    '</div>';
+  }
+
+  function renderPresekTabButton_(id, label, active) {
+    return '<button type="button" class="presek-tab ' + (id === active ? 'active' : '') + '" data-count-tab="' + escapeHtml(id) + '">' + escapeHtml(label) + '</button>';
+  }
+
+  function renderPresekTabPanel_(group, tab) {
+    if (tab === 'pregled') return renderPresekPregledTab_(group);
+    if (tab === 'valute') return renderPresekValuteTab_(group);
+    if (tab === 'zapisnik') return renderPresekZapisnikTab_(group);
+    return renderPresekApoeniTab_(group);
+  }
+
+  function renderPresekPregledTab_(group) {
+    return '<div class="presek-overview-grid">' +
+      presekSummaryCard_('Očekivano', cashCountCurrencySummaryText_(group.calculated_by_currency)) +
+      presekSummaryCard_('Popisano', cashCountCurrencySummaryText_(group.counted_by_currency)) +
+      presekSummaryCard_('Razlika', cashCountCurrencySummaryText_(group.difference_by_currency), group.difference_total >= 0 ? 'cell-in' : 'cell-out') +
+      presekSummaryCard_('Napomena', group.note || '—') +
+    '</div>';
+  }
+
+  function presekSummaryCard_(label, value, cls) {
+    return '<div class="presek-summary-card ' + escapeHtml(cls || '') + '"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value || '—') + '</strong></div>';
+  }
+
+  function renderPresekValuteTab_(group) {
+    var rows = group.rows.map(function(count) {
+      var diff = Number(count.difference || 0);
+      return '<tr><td>' + escapeHtml(count.currency || '') + '</td>' +
+        '<td class="num">' + formatAmount_(count.calculated_balance_before) + '</td>' +
+        '<td class="num">' + formatAmount_(count.counted_total || count.counted_cash_total) + '</td>' +
+        '<td class="num ' + (diff >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(diff) + '</td></tr>';
+    }).join('');
+    return '<table class="presek-detail-table"><thead><tr><th>Valuta</th><th class="num">Očekivano</th><th class="num">Popisano</th><th class="num">Razlika</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function renderPresekApoeniTab_(group) {
+    var totalPieces = 0;
+    var totalExpected = 0;
+    var totalCounted = 0;
+    var totalDiff = 0;
+    var blocks = group.rows.map(function(count) {
+      var currency = count.currency || '';
+      var denoms = count.denominations || [];
+      totalExpected += Number(count.calculated_balance_before || 0);
+      totalCounted += Number(count.counted_total || count.counted_cash_total || 0);
+      totalDiff += Number(count.difference || 0);
+      var body = denoms.length ? denoms.map(function(row) {
+        var pieces = Number(row.quantity || 0);
+        var amount = Number(row.denomination || 0) * pieces;
+        totalPieces += pieces;
+        return '<tr><td>' + formatAmount_(row.denomination) + '</td><td class="num">' + escapeHtml(pieces) + '</td><td class="num">' + formatAmount_(amount) + '</td><td class="num">' + formatAmount_(amount) + '</td><td class="num">0,00</td></tr>';
+      }).join('') : '<tr><td colspan="5">Nema unetih apoena za ovu valutu.</td></tr>';
+      var diff = Number(count.difference || 0);
+      return '<section class="presek-currency-block">' +
+        '<h3>' + escapeHtml(currency) + '</h3>' +
+        '<table class="presek-detail-table"><thead><tr><th>Apoen</th><th class="num">Komada</th><th class="num">Očekivano</th><th class="num">Popisano</th><th class="num">Razlika</th></tr></thead><tbody>' + body +
+        '<tr class="presek-total-row"><td>UKUPNO ' + escapeHtml(currency) + '</td><td class="num">—</td><td class="num">' + formatAmount_(count.calculated_balance_before) + '</td><td class="num">' + formatAmount_(count.counted_total || count.counted_cash_total) + '</td><td class="num ' + (diff >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(diff) + '</td></tr>' +
+        '</tbody></table>' +
+      '</section>';
+    }).join('');
+    return blocks + '<div class="presek-all-total"><strong>UKUPNO SVE VALUTE</strong><span>Komada: ' + totalPieces + '</span><span>Očekivano: ' + formatAmount_(totalExpected) + '</span><span>Popisano: ' + formatAmount_(totalCounted) + '</span><span class="' + (totalDiff >= 0 ? 'cell-in' : 'cell-out') + '">Razlika: ' + formatAmount_(totalDiff) + '</span></div>';
+  }
+
+  function renderPresekZapisnikTab_(group) {
+    return '<div class="presek-zapisnik">' +
+      '<p><strong>Vrsta:</strong> ' + escapeHtml(cashCountTypeLabel_(group.count_type)) + '</p>' +
+      '<p><strong>Vreme:</strong> ' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</p>' +
+      '<p><strong>Korisnik:</strong> ' + escapeHtml(shortUserLabel_(group.user || '')) + '</p>' +
+      '<p><strong>Smena:</strong> ' + escapeHtml(group.shift_id || '—') + '</p>' +
+      '<p><strong>Napomena:</strong> ' + escapeHtml(group.note || '—') + '</p>' +
+    '</div>';
+  }
+
+  function cashCountCurrencySummaryText_(values) {
+    var currencies = Object.keys(values || {});
+    if (!currencies.length) return '—';
+    return currencies.map(function(code) {
+      return code + ' ' + formatAmount_(values[code]);
+    }).join(' · ');
   }
 
   function renderCashCountSaveSummary_(targetId, results, title) {
@@ -3518,6 +3887,37 @@
     if (refreshBtn) refreshBtn.addEventListener('click', function() { loadKnjiga_(); });
     var countRefreshBtn = document.getElementById('d-count-refresh');
     if (countRefreshBtn) countRefreshBtn.addEventListener('click', loadCashCounts_);
+    var countNewBtn = document.getElementById('d-count-new-btn');
+    if (countNewBtn) countNewBtn.addEventListener('click', function() { openCashCountDialog_('desktop'); });
+    ['d-count-period-filter','d-count-type-filter','d-count-status-filter','d-count-currency-filter'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function() {
+        CASH_COUNT_UI.page = 1;
+        renderCashCountsDesktop_();
+      });
+    });
+    var countSearch = document.getElementById('d-count-search');
+    if (countSearch) countSearch.addEventListener('input', function() {
+      CASH_COUNT_UI.page = 1;
+      renderCashCountsDesktop_();
+    });
+    var countPrev = document.getElementById('d-count-page-prev');
+    if (countPrev) countPrev.addEventListener('click', function() {
+      if (CASH_COUNT_UI.page > 1) {
+        CASH_COUNT_UI.page -= 1;
+        renderCashCountsDesktop_();
+      }
+    });
+    var countNext = document.getElementById('d-count-page-next');
+    if (countNext) countNext.addEventListener('click', function() {
+      CASH_COUNT_UI.page += 1;
+      renderCashCountsDesktop_();
+    });
+    var countClose = document.getElementById('d-count-close-detail');
+    if (countClose) countClose.addEventListener('click', function() {
+      CASH_COUNT_UI.selectedKey = '';
+      renderCashCountDetail_(null, 'd-count-detail-body');
+    });
     var cashSheetLoadBtn = document.getElementById('d-cashsheet-load');
     if (cashSheetLoadBtn) cashSheetLoadBtn.addEventListener('click', loadCashSheet_);
     var cashSheetBookBtn = document.getElementById('d-cashsheet-book');

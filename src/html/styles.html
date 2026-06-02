@@ -1211,6 +1211,419 @@
     white-space: nowrap;
   }
 
+  /* ─── Presek stanja: dashboard layout ───────────────────── */
+
+  .presek-page {
+    display: grid;
+    gap: 14px;
+  }
+
+  .presek-kpi-strip {
+    background: linear-gradient(135deg, #102946, #0c1d33);
+    border: 1px solid rgba(122, 162, 255, 0.22);
+    border-radius: var(--radius-md);
+    box-shadow: 0 16px 44px rgba(2, 10, 25, 0.18);
+    display: grid;
+    gap: 0;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+    overflow: hidden;
+  }
+
+  :root:not([data-theme="dark"]) .presek-kpi-strip {
+    background: linear-gradient(135deg, #f7fbff, #eaf3ff);
+    box-shadow: none;
+  }
+
+  .presek-kpi-card {
+    border-right: 1px solid rgba(122, 162, 255, 0.18);
+    display: grid;
+    gap: 5px;
+    min-height: 92px;
+    padding: 14px 16px;
+  }
+
+  .presek-kpi-label {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .presek-kpi-value {
+    color: var(--color-text);
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  .presek-kpi-sub {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .presek-success,
+  .presek-kpi-value.presek-success {
+    color: var(--color-in);
+  }
+
+  .presek-danger,
+  .presek-kpi-value.presek-danger {
+    color: var(--color-out);
+  }
+
+  .presek-warning {
+    color: var(--color-warning);
+  }
+
+  .presek-primary-action {
+    align-self: center;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+    margin: 16px;
+    min-width: 140px;
+  }
+
+  .presek-split {
+    align-items: start;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1.08fr) minmax(460px, 0.92fr);
+  }
+
+  .presek-panel {
+    background: linear-gradient(180deg, rgba(22, 35, 52, 0.92), rgba(17, 26, 39, 0.94));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  :root:not([data-theme="dark"]) .presek-panel {
+    background: var(--color-surface);
+  }
+
+  .presek-panel-head,
+  .presek-detail-head {
+    align-items: center;
+    border-bottom: 1px solid var(--color-border-light);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .presek-panel-head p {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .presek-info-line {
+    background: var(--color-primary-bg);
+    border: 1px solid rgba(122, 162, 255, 0.34);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    font-weight: 800;
+    margin: 12px 16px 0;
+    padding: 10px 12px;
+  }
+
+  .presek-hidden-form {
+    display: none !important;
+  }
+
+  .presek-filters {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 120px minmax(180px, 1fr) 150px 130px 120px;
+    padding: 12px 16px;
+  }
+
+  .presek-search {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 10px;
+  }
+
+  .presek-search input {
+    border: 0;
+    min-height: 34px;
+    padding: 0;
+  }
+
+  .presek-table-wrap {
+    max-height: min(66vh, 740px);
+    overflow: auto;
+    padding: 0 16px;
+  }
+
+  .presek-table,
+  .presek-detail-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-variant-numeric: tabular-nums;
+    width: 100%;
+  }
+
+  .presek-table th,
+  .presek-table td,
+  .presek-detail-table th,
+  .presek-detail-table td {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .presek-table th,
+  .presek-detail-table th {
+    background: #1f2b3b;
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 900;
+    position: sticky;
+    text-transform: uppercase;
+    top: 0;
+    z-index: 1;
+  }
+
+  :root:not([data-theme="dark"]) .presek-table th,
+  :root:not([data-theme="dark"]) .presek-detail-table th {
+    background: #eef4fb;
+    color: #475569;
+  }
+
+  .presek-table td.num,
+  .presek-detail-table td.num,
+  .presek-detail-table th.num {
+    text-align: right;
+  }
+
+  .presek-row {
+    cursor: pointer;
+  }
+
+  .presek-row:hover,
+  .presek-row.is-selected {
+    background: rgba(22, 93, 255, 0.18);
+  }
+
+  .presek-currency-chip,
+  .presek-status-badge {
+    background: var(--color-primary-bg);
+    border-radius: 999px;
+    color: var(--color-text);
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1;
+    margin: 1px;
+    padding: 5px 8px;
+    white-space: nowrap;
+  }
+
+  .presek-status-badge {
+    background: var(--color-in-bg);
+    color: var(--color-in);
+  }
+
+  .presek-pagination {
+    align-items: center;
+    border-top: 1px solid var(--color-border-light);
+    color: var(--color-text-muted);
+    display: flex;
+    font-size: 12px;
+    font-weight: 800;
+    justify-content: space-between;
+    padding: 10px 16px;
+  }
+
+  .presek-pagination button {
+    min-height: 30px;
+    min-width: 34px;
+    padding: 4px 8px;
+  }
+
+  .presek-detail-panel {
+    position: sticky;
+    top: 82px;
+  }
+
+  .presek-detail-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .presek-detail-kpis {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 16px;
+  }
+
+  .presek-info-block {
+    align-items: center;
+    background: rgba(15, 23, 42, 0.28);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px;
+  }
+
+  :root:not([data-theme="dark"]) .presek-info-block {
+    background: #f8fafc;
+  }
+
+  .presek-info-block i {
+    color: var(--color-text-muted);
+    font-size: 19px;
+  }
+
+  .presek-info-block span {
+    color: var(--color-text-muted);
+    display: block;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .presek-info-block strong {
+    display: block;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .presek-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 14px;
+  }
+
+  .presek-tab {
+    background: transparent;
+    min-height: 36px;
+  }
+
+  .presek-tab.active {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .presek-tab-panel {
+    display: grid;
+    gap: 14px;
+    padding: 0 16px 16px;
+  }
+
+  .presek-overview-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .presek-summary-card {
+    background: rgba(15, 23, 42, 0.28);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    display: grid;
+    gap: 6px;
+    padding: 12px;
+  }
+
+  :root:not([data-theme="dark"]) .presek-summary-card {
+    background: #f8fafc;
+  }
+
+  .presek-summary-card span {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .presek-currency-block {
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .presek-currency-block h3 {
+    border-bottom: 1px solid var(--color-border-light);
+    padding: 12px 14px;
+  }
+
+  .presek-total-row td,
+  .presek-all-total {
+    font-weight: 900;
+  }
+
+  .presek-all-total {
+    align-items: center;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    justify-content: space-between;
+    padding: 14px;
+  }
+
+  .presek-zapisnik {
+    background: rgba(15, 23, 42, 0.28);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+  }
+
+  :root:not([data-theme="dark"]) .presek-zapisnik {
+    background: #f8fafc;
+  }
+
+  .cell-neutral {
+    color: var(--color-text);
+  }
+
+  @media (max-width: 1380px) {
+    .presek-kpi-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .presek-primary-action {
+      grid-column: 1 / -1;
+      justify-self: stretch;
+    }
+
+    .presek-split {
+      grid-template-columns: 1fr;
+    }
+
+    .presek-detail-panel {
+      position: static;
+    }
+  }
+
+  @media (max-width: 980px) {
+    .presek-filters,
+    .presek-detail-kpis,
+    .presek-overview-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
   @media (max-width: 1180px) {
     #d-section-presek .count-page-layout {
       grid-template-columns: 1fr;
