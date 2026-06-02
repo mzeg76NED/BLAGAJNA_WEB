@@ -1406,7 +1406,7 @@
   function loadMyShiftsTo_(targetId) {
     callApi('apiGetShiftHistory', [{ cashbox_id: SESSION.cashboxId, limit: 50 }], function(result) {
       renderShiftTable_(targetId, result || [], { empty: 'Nema smena za prikaz.' });
-    });
+    }, { quiet: targetId === 'd-shifts-list' });
   }
 
   function applyBookFiltersForShift_(shift) {
@@ -1708,7 +1708,7 @@
       '</table>';
   }
 
-  function shiftRowHtml_(shift, index) {
+  function shiftSimpleRowHtml_(shift, index) {
     shift = shift || {};
     return '<tr data-shift-index="' + index + '" role="button" tabindex="0">' +
       '<td>' + escapeHtml(String(index + 1)) + '</td>' +
@@ -1717,6 +1717,97 @@
       '<td>' + escapeHtml(formatDateTimeShort_(shift.closed_at)) + '</td>' +
       '<td>' + renderStatusBadge_(shift.status) + '</td>' +
       '<td>' + escapeHtml(shift.shift_id || '') + '</td>' +
+    '</tr>';
+  }
+
+  function shiftStatusLabel_(status) {
+    if (status === 'OPEN') return 'AKTIVNA';
+    if (status === 'CLOSED') return 'ZATVORENA';
+    if (status === 'CLOSED_WITH_DIFFERENCE') return 'RAZLIKA';
+    return STATUS_LABEL_MAP[status] || status || '—';
+  }
+
+  function shiftStatusClass_(status) {
+    if (status === 'OPEN') return 'shift-status-active';
+    if (status === 'CLOSED_WITH_DIFFERENCE') return 'shift-status-diff';
+    if (status === 'CLOSED') return 'shift-status-closed';
+    return 'shift-status-neutral';
+  }
+
+  function shiftCurrencyCodes_(shift, events) {
+    var maps = [
+      parseJsonSafe_(shift && shift.opening_balance_json, {}),
+      parseJsonSafe_(shift && shift.closing_balance_json, {}),
+      parseJsonSafe_(shift && shift.physical_balance_json, {}),
+      parseJsonSafe_(shift && shift.difference_json, {})
+    ];
+    var index = {};
+    maps.forEach(function(map) {
+      Object.keys(map || {}).forEach(function(code) { if (code) index[code] = true; });
+    });
+    (events || []).forEach(function(ev) { if (ev.currency) index[ev.currency] = true; });
+    (uiState.config.currencies || []).forEach(function(code) { if (code) index[code] = true; });
+    return Object.keys(index);
+  }
+
+  function formatCurrencyMapChips_(map, codes) {
+    map = map || {};
+    codes = codes && codes.length ? codes : Object.keys(map || {});
+    if (!codes.length) return '<span class="shift-muted">Nema podataka po valutama</span>';
+    return codes.map(function(code) {
+      return '<span class="shift-currency-chip">' + escapeHtml(code) + ' ' + escapeHtml(formatAmount_(map[code] || 0)) + '</span>';
+    }).join('');
+  }
+
+  function sumCurrencyMap_(events) {
+    return (events || []).reduce(function(result, ev) {
+      var code = ev.currency || SESSION.currency || 'RSD';
+      var direction = ev.display_direction || ev.direction;
+      var amount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+      var signed = direction === 'OUT' ? -amount : direction === 'IN' ? amount : 0;
+      result[code] = (result[code] || 0) + signed;
+      return result;
+    }, {});
+  }
+
+  function countEventsForShift_(events) {
+    return (events || []).filter(function(ev) { return ev.event_type === 'CASH_COUNT' || ev.source_type === 'CASH_COUNT'; });
+  }
+
+  function shiftOpeningMap_(shift) {
+    return parseJsonSafe_(shift && shift.opening_balance_json, {});
+  }
+
+  function shiftClosingMap_(shift) {
+    return parseJsonSafe_(shift && shift.physical_balance_json, {}) || {};
+  }
+
+  function shiftPrimaryAmount_(map) {
+    var currency = SESSION.currency || 'RSD';
+    if (Object.prototype.hasOwnProperty.call(map || {}, currency)) return { code: currency, value: Number(map[currency] || 0) };
+    var keys = Object.keys(map || {});
+    return keys.length ? { code: keys[0], value: Number(map[keys[0]] || 0) } : { code: currency, value: 0 };
+  }
+
+  function shiftRowHtml_(shift, index) {
+    shift = shift || {};
+    var opening = shiftOpeningMap_(shift);
+    var codes = shiftCurrencyCodes_(shift, []);
+    var primary = shiftPrimaryAmount_(opening);
+    var isOpen = shift.status === 'OPEN';
+    var closedText = shift.closed_at ? 'Završena ' + escapeHtml(formatTimeShort_(shift.closed_at)) : '—';
+    var eventChips = '<span class="shift-event-chip start">POČETAK<br>' + escapeHtml(formatTimeShort_(shift.opened_at)) + '</span>' +
+      '<span class="shift-event-chip count">PRESEK<br>—</span>' +
+      '<span class="shift-event-chip end' + (isOpen ? ' muted' : '') + '">KRAJ<br>' + (shift.closed_at ? escapeHtml(formatTimeShort_(shift.closed_at)) : '—') + '</span>';
+    return '<tr class="shift-overview-row" data-shift-index="' + index + '" role="button" tabindex="0">' +
+      '<td><div class="shift-row-main"><strong>' + escapeHtml(SESSION.cashboxName || shift.cashbox_id || 'Blagajna') + '</strong>' +
+        '<small>#' + escapeHtml(shift.shift_id || '') + '</small>' + 
+        '<span class="shift-status-badge ' + shiftStatusClass_(shift.status) + '">' + escapeHtml(shiftStatusLabel_(shift.status)) + '</span></div></td>' +
+      '<td>' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</td>' +
+      '<td><strong>' + escapeHtml(formatTimeShort_(shift.opened_at)) + '</strong><small>' + escapeHtml(formatDateLong_(shift.opened_at)) + '</small></td>' +
+      '<td><strong>' + escapeHtml(formatAmount_(primary.value)) + '</strong><small>' + escapeHtml(primary.code) + '</small><div class="shift-row-currencies">' + formatCurrencyMapChips_(opening, codes) + '</div></td>' +
+      '<td><div class="shift-event-chip-row">' + eventChips + '</div></td>' +
+      '<td>' + closedText + '</td>' +
     '</tr>';
   }
 
@@ -1730,17 +1821,269 @@
       return;
     }
     window.__shiftTableRecords = window.__shiftTableRecords || {};
+    window.__shiftAllRecords = window.__shiftAllRecords || {};
+    window.__shiftAllRecords[targetId] = shifts;
+    shifts = targetId === 'd-shifts-list' ? filterDesktopShifts_(shifts) : shifts;
     window.__shiftTableRecords[targetId] = shifts;
-    target.innerHTML = '<div class="table-wrap"><table class="book-table shift-table">' +
-      '<thead><tr><th>Rb.</th><th>Blagajnik</th><th>Otvoreno</th><th>Zatvoreno</th><th>Status</th><th>ID</th></tr></thead>' +
-      '<tbody>' + shifts.map(shiftRowHtml_).join('') + '</tbody></table></div>';
+    if (!shifts.length) {
+      target.innerHTML = '<div class="empty-state">' + escapeHtml(options.empty || 'Nema smena za prikaz.') + '</div>';
+      renderShiftDetail_(null);
+      return;
+    }
+    if (targetId !== 'd-shifts-list') {
+      target.innerHTML = '<div class="table-wrap"><table class="book-table shift-table">' +
+        '<thead><tr><th>Rb.</th><th>Blagajnik</th><th>Otvoreno</th><th>Zatvoreno</th><th>Status</th><th>ID</th></tr></thead>' +
+        '<tbody>' + shifts.map(shiftSimpleRowHtml_).join('') + '</tbody></table></div>';
+    } else {
+      target.innerHTML = '<div class="shift-overview-wrap"><table class="shift-overview-table">' +
+        '<thead><tr><th>Smena</th><th>Blagajnik</th><th>Otvorena</th><th>Početno stanje</th><th>Događaji</th><th>Stanje</th></tr></thead>' +
+        '<tbody>' + shifts.map(shiftRowHtml_).join('') + '</tbody></table></div>' +
+        '<div class="shift-table-footer"><span>Ukupno smena: ' + shifts.length + '</span><span>25 po strani</span></div>';
+    }
     target.querySelectorAll('[data-shift-index]').forEach(function(row) {
       row.addEventListener('click', function() {
         var record = (window.__shiftTableRecords[targetId] || [])[Number(row.getAttribute('data-shift-index'))];
+        target.querySelectorAll('[data-shift-index]').forEach(function(item) { item.classList.remove('selected'); });
+        row.classList.add('selected');
         renderShiftDetail_(record);
       });
     });
     renderShiftDetail_(shifts[0]);
+    renderShiftPageKpis_(uiState.activeShift || shifts[0], []);
+  }
+
+  function filterDesktopShifts_(shifts) {
+    var from = (document.getElementById('d-shift-date-from') || {}).value || '';
+    var to = (document.getElementById('d-shift-date-to') || {}).value || '';
+    var status = (document.getElementById('d-shift-status-filter') || {}).value || '';
+    var search = String((document.getElementById('d-shift-search') || {}).value || '').trim().toLowerCase();
+    var fromTime = from ? new Date(from + 'T00:00:00').getTime() : 0;
+    var toTime = to ? new Date(to + 'T23:59:59').getTime() : Number.MAX_SAFE_INTEGER;
+    return (shifts || []).filter(function(shift) {
+      var openedTime = new Date(shift.opened_at || 0).getTime();
+      var haystack = [shift.shift_id, shift.opened_by, shift.status, shift.cashbox_id, SESSION.cashboxName].join(' ').toLowerCase();
+      return (!status || shift.status === status) &&
+        (!search || haystack.indexOf(search) !== -1) &&
+        (!openedTime || (openedTime >= fromTime && openedTime <= toTime));
+    });
+  }
+
+  function shiftAmountClass_(value) {
+    value = Number(value) || 0;
+    return value > 0 ? 'amount-positive' : value < 0 ? 'amount-negative' : 'amount-neutral';
+  }
+
+  function shiftMapTotal_(map) {
+    return Object.keys(map || {}).reduce(function(total, code) {
+      return total + (Number(map[code]) || 0);
+    }, 0);
+  }
+
+  function shiftFormatPrimary_(map, fallbackCurrency) {
+    var primary = shiftPrimaryAmount_(map || {});
+    return formatAmount_(primary.value) + ' ' + (primary.code || fallbackCurrency || SESSION.currency || 'RSD');
+  }
+
+  function shiftCountKindLabel_(ev) {
+    var text = String(ev.description || ev.event_type || '').toLowerCase();
+    if (/otvaranje|početak|pocetak|opening/.test(text)) return 'POČETAK';
+    if (/zatvaranje|završni|zavrsni|closing|kraj/.test(text)) return 'KRAJ';
+    return 'PRESEK';
+  }
+
+  function shiftCountRows_(events) {
+    return countEventsForShift_(events).slice().sort(function(a, b) {
+      return new Date(a.event_date || a.created_at || 0) - new Date(b.event_date || b.created_at || 0);
+    });
+  }
+
+  function renderShiftPageKpis_(shift, events) {
+    var hasShift = Boolean(shift && shift.shift_id);
+    var opening = shiftOpeningMap_(shift || {});
+    var turnover = sumCurrencyMap_(events || []);
+    var counts = shiftCountRows_(events || []);
+    var closing = shift && shift.status === 'OPEN' ? {} : shiftClosingMap_(shift || {});
+    var diff = parseJsonSafe_(shift && shift.difference_json, {});
+    var activeEl = document.getElementById('d-shift-kpi-active');
+    var activeSub = document.getElementById('d-shift-kpi-active-sub');
+    var openingEl = document.getElementById('d-shift-kpi-opening');
+    var openingSub = document.getElementById('d-shift-kpi-opening-sub');
+    var turnoverEl = document.getElementById('d-shift-kpi-turnover');
+    var turnoverSub = document.getElementById('d-shift-kpi-turnover-sub');
+    var countsEl = document.getElementById('d-shift-kpi-counts');
+    var countsSub = document.getElementById('d-shift-kpi-counts-sub');
+    var closingEl = document.getElementById('d-shift-kpi-closing');
+    var closingSub = document.getElementById('d-shift-kpi-closing-sub');
+    if (activeEl) activeEl.textContent = uiState.activeShift && uiState.activeShift.shift_id ? (SESSION.cashboxName || 'Aktivna smena') : '—';
+    if (activeSub) activeSub.textContent = uiState.activeShift && uiState.activeShift.shift_id ? 'Otvorena u ' + formatTimeShort_(uiState.activeShift.opened_at) : 'Nema aktivne smene';
+    if (openingEl) openingEl.textContent = hasShift ? shiftFormatPrimary_(opening) : '0,00';
+    if (openingSub) openingSub.textContent = hasShift ? formatDateTimeShort_(shift.opened_at) : '—';
+    if (turnoverEl) {
+      var turnoverPrimary = shiftPrimaryAmount_(turnover);
+      turnoverEl.textContent = (turnoverPrimary.value > 0 ? '+' : '') + formatAmount_(turnoverPrimary.value) + ' ' + turnoverPrimary.code;
+      turnoverEl.className = shiftAmountClass_(turnoverPrimary.value);
+    }
+    if (turnoverSub) turnoverSub.textContent = events && events.length ? 'Promet po učitanim stavkama smene' : 'Promet će biti prikazan kada API vrati stavke';
+    if (countsEl) countsEl.textContent = String(counts.length);
+    if (countsSub) countsSub.textContent = counts.length ? 'Poslednji u ' + formatTimeShort_(counts[counts.length - 1].event_date || counts[counts.length - 1].created_at) : 'Nema urađenih preseka';
+    if (closingEl) {
+      if (!hasShift || shift.status === 'OPEN') {
+        closingEl.textContent = '—';
+        closingEl.className = 'amount-neutral';
+      } else {
+        var diffPrimary = shiftPrimaryAmount_(diff);
+        closingEl.textContent = diffPrimary.value ? ((diffPrimary.value > 0 ? '+' : '') + formatAmount_(diffPrimary.value) + ' ' + diffPrimary.code) : shiftFormatPrimary_(closing);
+        closingEl.className = shiftAmountClass_(diffPrimary.value);
+      }
+    }
+    if (closingSub) closingSub.textContent = !hasShift ? '—' : shift.status === 'OPEN' ? 'Smena aktivna' : 'Zatvorena u ' + formatTimeShort_(shift.closed_at);
+  }
+
+  function renderShiftCurrencySummary_(shift, events) {
+    var opening = shiftOpeningMap_(shift || {});
+    var closing = shiftClosingMap_(shift || {});
+    var physical = parseJsonSafe_(shift && shift.physical_balance_json, {});
+    var difference = parseJsonSafe_(shift && shift.difference_json, {});
+    var turnover = sumCurrencyMap_(events || []);
+    var codes = shiftCurrencyCodes_(shift, events);
+    if (!codes.length) {
+      return '<div class="shift-muted">API trenutno ne vraća stanje po valutama za ovu smenu.</div>';
+    }
+    return '<div class="shift-currency-grid">' + codes.map(function(code) {
+      return '<article class="shift-currency-card">' +
+        '<div class="shift-currency-head"><strong>' + escapeHtml(code) + '</strong><span>' + escapeHtml(currencyName_(code)) + '</span></div>' +
+        '<div class="detail-row"><span class="detail-key">Početno</span><strong>' + escapeHtml(formatAmount_(opening[code] || 0)) + '</strong></div>' +
+        '<div class="detail-row"><span class="detail-key">Promet</span><strong class="' + shiftAmountClass_(turnover[code] || 0) + '">' + escapeHtml(formatAmount_(turnover[code] || 0)) + '</strong></div>' +
+        '<div class="detail-row"><span class="detail-key">Fizički popis</span><strong>' + escapeHtml(formatAmount_(physical[code] || 0)) + '</strong></div>' +
+        '<div class="detail-row"><span class="detail-key">Završno</span><strong>' + escapeHtml(formatAmount_(closing[code] || 0)) + '</strong></div>' +
+        '<div class="detail-row"><span class="detail-key">Razlika</span><strong class="' + shiftAmountClass_(difference[code] || 0) + '">' + escapeHtml(formatAmount_(difference[code] || 0)) + '</strong></div>' +
+      '</article>';
+    }).join('') + '</div>';
+  }
+
+  function currencyName_(code) {
+    var map = { RSD: 'Srpski dinar', EUR: 'Evro', 'ČEK': 'Čekovi', CEK: 'Čekovi' };
+    return map[code] || code || '';
+  }
+
+  function renderShiftTimeline_(shift, events) {
+    var counts = shiftCountRows_(events || []);
+    var rows = [
+      {
+        time: shift.opened_at,
+        kind: 'POČETAK',
+        text: 'Smena otvorena',
+        amount: shiftFormatPrimary_(shiftOpeningMap_(shift))
+      }
+    ];
+    counts.forEach(function(ev, index) {
+      rows.push({
+        time: ev.event_date || ev.created_at,
+        kind: shiftCountKindLabel_(ev) === 'PRESEK' ? 'PRESEK #' + (index + 1) : shiftCountKindLabel_(ev),
+        text: cleanBusinessDescription_(ev.description || 'Presek stanja'),
+        amount: ev.currency ? formatAmount_(ev.amount || ev.display_amount || 0) + ' ' + ev.currency : '—'
+      });
+    });
+    rows.push({
+      time: shift.closed_at,
+      kind: 'KRAJ',
+      text: shift.closed_at ? 'Smena zatvorena' : 'Smena u toku',
+      amount: shift.closed_at ? shiftFormatPrimary_(shiftClosingMap_(shift)) : '—'
+    });
+    return '<div class="shift-timeline">' + rows.map(function(row) {
+      return '<div class="shift-timeline-row">' +
+        '<span>' + escapeHtml(formatTimeShort_(row.time)) + '</span>' +
+        '<strong>' + escapeHtml(row.kind) + '</strong>' +
+        '<em>' + escapeHtml(row.text) + '</em>' +
+        '<b>' + escapeHtml(row.amount) + '</b>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function renderShiftEntries_(events) {
+    if (!events || !events.length) {
+      return '<div class="shift-muted">Nema učitanih stavki za ovu smenu.</div>';
+    }
+    var rows = events.slice(0, 14).map(function(ev) {
+      var dir = ev.display_direction || ev.direction;
+      var amount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+      var isIn = dir === 'IN';
+      var isOut = dir === 'OUT' && ev.event_type !== 'TREASURY_HANDOVER';
+      return '<tr>' +
+        '<td>' + escapeHtml(formatTimeShort_(ev.event_date || ev.created_at)) + '</td>' +
+        '<td>' + escapeHtml(cashEventUserLabel_(ev)) + '</td>' +
+        '<td>' + escapeHtml(cleanBusinessDescription_(ev.description || '')) + '</td>' +
+        '<td class="amount-positive">' + (isIn ? escapeHtml(formatAmount_(amount)) : '—') + '</td>' +
+        '<td class="amount-negative">' + (isOut ? escapeHtml(formatAmount_(amount)) : '—') + '</td>' +
+        '<td>' + escapeHtml(formatAmount_(ev.running_balance || 0)) + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<div class="shift-mini-table-wrap"><table class="shift-mini-table"><thead><tr><th>Vreme</th><th>Tip unosa</th><th>Opis / primalac</th><th>Uplata</th><th>Isplata</th><th>Stanje nakon</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function renderShiftCountResults_(shift, events) {
+    var counts = shiftCountRows_(events || []);
+    if (!counts.length) {
+      return '<div class="shift-muted">Nema posebnih preseka u ovoj smeni.</div>';
+    }
+    return '<div class="shift-mini-table-wrap"><table class="shift-mini-table"><thead><tr><th>Vreme</th><th>Vrsta</th><th>Valuta</th><th>Popisano</th><th>Napomena</th></tr></thead><tbody>' +
+      counts.map(function(ev) {
+        return '<tr>' +
+          '<td>' + escapeHtml(formatTimeShort_(ev.event_date || ev.created_at)) + '</td>' +
+          '<td>' + escapeHtml(shiftCountKindLabel_(ev)) + '</td>' +
+          '<td>' + escapeHtml(ev.currency || '—') + '</td>' +
+          '<td>' + escapeHtml(formatAmount_(ev.amount || ev.display_amount || 0)) + '</td>' +
+          '<td>' + escapeHtml(cleanBusinessDescription_(ev.description || '')) + '</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table><div class="shift-todo-note">TODO: prikaz očekivano / popisano / razlika po apoenima koristi kompletan breakdown kada ga API vrati za smenu.</div></div>';
+  }
+
+  function attachShiftDetailActions_(target, shift) {
+    var selectedIsActive = Boolean(uiState.activeShift && uiState.activeShift.shift_id && shift && shift.shift_id === uiState.activeShift.shift_id);
+    var owner = selectedIsActive && isCurrentActiveShiftOwner_();
+    var openBtn = target.querySelector('[data-shift-detail-open]');
+    var countBtn = target.querySelector('[data-shift-detail-count]');
+    var closeBtn = target.querySelector('[data-shift-detail-close]');
+    var countViewBtn = target.querySelector('[data-shift-detail-presek-view]');
+    var bookBtn = target.querySelector('[data-shift-detail-book]');
+    var sheetBtn = target.querySelector('[data-shift-detail-sheet]');
+    if (openBtn) openBtn.addEventListener('click', function() { openShiftOpeningDialog_('desktop'); });
+    if (countBtn) {
+      countBtn.disabled = !selectedIsActive;
+      countBtn.title = selectedIsActive ? '' : 'Presek je moguć samo nad aktivnom smenom.';
+      countBtn.addEventListener('click', function() { openCashCountDialog_('desktop'); });
+    }
+    if (closeBtn) {
+      closeBtn.disabled = !owner;
+      closeBtn.title = owner ? '' : 'Smenu može zatvoriti samo korisnik koji ju je otvorio.';
+      closeBtn.addEventListener('click', function() { openShiftClosingDialog_('desktop'); });
+    }
+    if (countViewBtn) countViewBtn.addEventListener('click', function() { openDesktopSection_('presek'); });
+    if (bookBtn) bookBtn.addEventListener('click', function() { applyBookFiltersForShift_(shift); });
+    if (sheetBtn) sheetBtn.addEventListener('click', function() { openCashSheetForShift_(shift); });
+  }
+
+  function loadShiftEventsForDetail_(shift) {
+    if (!shift || !shift.shift_id) return;
+    var filters = withUiDefaults({
+      cashbox_id: shift.cashbox_id || SESSION.cashboxId,
+      shift_id: shift.shift_id,
+      limit: 500
+    });
+    delete filters.currency;
+    callApi('apiGetCashMovementsReport', [filters], function(result) {
+      var events = result || [];
+      renderShiftPageKpis_(shift, events);
+      var timeline = document.getElementById('d-shift-detail-timeline');
+      var currencies = document.getElementById('d-shift-detail-currencies');
+      var counts = document.getElementById('d-shift-detail-counts');
+      var entries = document.getElementById('d-shift-detail-entries');
+      if (timeline) timeline.innerHTML = renderShiftTimeline_(shift, events);
+      if (currencies) currencies.innerHTML = renderShiftCurrencySummary_(shift, events);
+      if (counts) counts.innerHTML = renderShiftCountResults_(shift, events);
+      if (entries) entries.innerHTML = renderShiftEntries_(events);
+    }, { quiet: true });
   }
 
   function renderShiftDetail_(shift) {
@@ -1748,38 +2091,41 @@
     if (!target) return;
     if (!shift || !shift.shift_id) {
       target.innerHTML = '<div class="empty-state">Izaberite smenu iz tabele.</div>';
+      renderShiftPageKpis_(uiState.activeShift || {}, []);
       return;
     }
-    var opening = parseJsonSafe_(shift.opening_balance_json, {});
-    var closing = parseJsonSafe_(shift.closing_balance_json, {});
-    var physical = parseJsonSafe_(shift.physical_balance_json, {});
-    var difference = parseJsonSafe_(shift.difference_json, {});
-    function balancesHtml(label, values) {
-      var keys = Object.keys(values || {});
-      if (!keys.length) return '';
-      return '<div class="detail-block"><strong>' + escapeHtml(label) + '</strong>' +
-        keys.map(function(code) {
-          return '<div class="detail-row"><span class="detail-key">' + escapeHtml(code) + '</span><strong>' + formatAmount_(values[code]) + '</strong></div>';
-        }).join('') + '</div>';
-    }
+    var isActive = Boolean(uiState.activeShift && uiState.activeShift.shift_id === shift.shift_id);
+    var owner = isActive && isCurrentActiveShiftOwner_();
+    var opening = shiftOpeningMap_(shift);
     target.innerHTML =
-      '<div class="detail-row"><span class="detail-key">ID smene</span><strong>' + escapeHtml(shift.shift_id || '') + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Blagajnik</span><strong>' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Otvoreno</span><strong>' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Zatvoreno</span><strong>' + escapeHtml(formatDateTimeShort_(shift.closed_at)) + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Status</span><strong>' + renderStatusBadge_(shift.status) + '</strong></div>' +
-      balancesHtml('Početno stanje', opening) +
-      balancesHtml('Završno obračunsko', closing) +
-      balancesHtml('Fizički popis', physical) +
-      balancesHtml('Razlika', difference) +
-      '<div class="actions">' +
-        '<button type="button" data-shift-detail-book>Knjiga</button>' +
-        '<button type="button" data-shift-detail-sheet>Blagajnički list</button>' +
+      '<div class="shift-detail-header">' +
+        '<div class="shift-detail-hero">' +
+          '<div class="shift-detail-icon ' + (isActive ? 'active' : '') + '"><i class="ti ti-trending-up" aria-hidden="true"></i></div>' +
+          '<div><strong>' + escapeHtml(SESSION.cashboxName || shift.cashbox_id || 'Glavna blagajna') + '</strong><small>#' + escapeHtml(shift.shift_id || '') + '</small></div>' +
+        '</div>' +
+        '<span class="shift-status-badge ' + shiftStatusClass_(shift.status) + '">' + escapeHtml(shiftStatusLabel_(shift.status)) + '</span>' +
+      '</div>' +
+      '<div class="shift-detail-info-grid">' +
+        '<div><i class="ti ti-user" aria-hidden="true"></i><span>Blagajnik</span><strong>' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</strong></div>' +
+        '<div><i class="ti ti-calendar-event" aria-hidden="true"></i><span>Početak smene</span><strong>' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</strong></div>' +
+        '<div><i class="ti ti-cash-banknote" aria-hidden="true"></i><span>Početno stanje</span><strong>' + escapeHtml(shiftFormatPrimary_(opening)) + '</strong></div>' +
+        '<div><i class="ti ti-coins" aria-hidden="true"></i><span>Valute</span><strong>' + escapeHtml(shiftCurrencyCodes_(shift, []).join(', ') || '—') + '</strong></div>' +
+      '</div>' +
+      '<section class="shift-detail-section"><h4>Tajmlajn događaja</h4><div id="d-shift-detail-timeline">' + renderShiftTimeline_(shift, []) + '</div></section>' +
+      '<section class="shift-detail-section"><h4>Pregled po valutama</h4><div id="d-shift-detail-currencies">' + renderShiftCurrencySummary_(shift, []) + '</div></section>' +
+      '<section class="shift-detail-section"><h4>Rezultati preseka</h4><div id="d-shift-detail-counts">' + renderShiftCountResults_(shift, []) + '</div></section>' +
+      '<section class="shift-detail-section"><h4>Pregled po unosima</h4><div id="d-shift-detail-entries"><div class="shift-muted">Učitavam stavke smene...</div></div></section>' +
+      '<div class="shift-actions-grid">' +
+        '<button type="button" data-shift-detail-presek-view><i class="ti ti-list-details" aria-hidden="true"></i> Pregled preseka</button>' +
+        '<button type="button" data-shift-detail-open' + (uiState.activeShift && uiState.activeShift.shift_id ? ' disabled' : '') + '><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>' +
+        '<button class="btn-primary" type="button" data-shift-detail-count' + (!isActive ? ' disabled' : '') + '><i class="ti ti-calculator" aria-hidden="true"></i> Novi presek</button>' +
+        '<button class="btn-out" type="button" data-shift-detail-close' + (!owner ? ' disabled' : '') + '><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
+        '<button type="button" data-shift-detail-book><i class="ti ti-book" aria-hidden="true"></i> Knjiga</button>' +
+        '<button type="button" data-shift-detail-sheet><i class="ti ti-file-invoice" aria-hidden="true"></i> Blagajnički list</button>' +
       '</div>';
-    var bookBtn = target.querySelector('[data-shift-detail-book]');
-    var sheetBtn = target.querySelector('[data-shift-detail-sheet]');
-    if (bookBtn) bookBtn.addEventListener('click', function() { applyBookFiltersForShift_(shift); });
-    if (sheetBtn) sheetBtn.addEventListener('click', function() { openCashSheetForShift_(shift); });
+    attachShiftDetailActions_(target, shift);
+    renderShiftPageKpis_(shift, []);
+    loadShiftEventsForDetail_(shift);
   }
 
   function applyActiveShiftFields_() {
@@ -1861,6 +2207,7 @@
       btn.disabled = !hasShift;
       btn.title = hasShift ? '' : 'Nema aktivne smene.';
     });
+    renderShiftPageKpis_(shift, []);
     if (hasShift && !owner) {
       ['d-shift-status','m-shift-status'].forEach(function(id) {
         var el = document.getElementById(id);
@@ -4335,6 +4682,7 @@
         if (target === 'knjiga')  { loadKnjiga_(true); }
         if (target === 'nalozi')  { loadDesktopNalozi_(); }
         if (target === 'zahtevi') { loadApprovalRequestsTo_('d-zahtevi-list', true); }
+        if (target === 'smena')    { loadMyShiftsTo_('d-shifts-list'); }
         if (target === 'presek')  { loadCashCounts_(); }
         if (target === 'blagajnicki-list') { loadCashSheet_(); }
       });
@@ -4426,6 +4774,16 @@
 
     var loadShiftsBtn = document.getElementById('d-load-shifts-btn');
     if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() { loadMyShiftsTo_('d-shifts-list'); });
+    ['d-shift-date-from','d-shift-date-to','d-shift-status-filter'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function() {
+        renderShiftTable_('d-shifts-list', (window.__shiftAllRecords && window.__shiftAllRecords['d-shifts-list']) || [], { empty: 'Nema smena za izabrane filtere.' });
+      });
+    });
+    var shiftSearch = document.getElementById('d-shift-search');
+    if (shiftSearch) shiftSearch.addEventListener('input', function() {
+      renderShiftTable_('d-shifts-list', (window.__shiftAllRecords && window.__shiftAllRecords['d-shifts-list']) || [], { empty: 'Nema smena za izabrane filtere.' });
+    });
 
     var activeShiftBalanceBtn = document.getElementById('d-active-shift-balance-btn');
     if (activeShiftBalanceBtn) activeShiftBalanceBtn.addEventListener('click', function() {
@@ -4461,6 +4819,7 @@
         loadCashbookFilterOptions_();
         refreshBalance_();
         loadKnjiga_(true);
+        loadMyShiftsTo_('d-shifts-list');
       }, { successMessage: 'Smena je otvorena.' });
     });
     bindForm('m-opening-count-form', function(data, form) {
@@ -4479,6 +4838,7 @@
         loadCashbookFilterOptions_();
         refreshBalance_();
         loadKnjiga_(true);
+        loadMyShiftsTo_('m-shifts-list');
       }, { successMessage: 'Smena je otvorena.' });
     });
     bindForm('d-handover-form', function(data, form) {
@@ -4548,6 +4908,7 @@
         renderDenominationInputs_();
         refreshBalance_();
         loadCashCounts_();
+        loadMyShiftsTo_('d-shifts-list');
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
     bindForm('m-cash-count-form', function(data, form) {
@@ -4561,6 +4922,7 @@
         renderDenominationInputs_();
         refreshBalance_();
         loadCashCounts_();
+        loadMyShiftsTo_('m-shifts-list');
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
     bindForm('d-daily-preview-form', function(data) {
