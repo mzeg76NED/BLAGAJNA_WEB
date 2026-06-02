@@ -159,16 +159,13 @@ function getCashSheetReport(filters) {
     ? safeNumber_(openingBalances[currency])
     : balanceSnapshot.openingBalance;
   const totals = events.reduce(function(result, event) {
-    if (event.source_type === 'CASH_COUNT' || event.event_type === 'CASH_COUNT') {
+    if (isCashSheetInformationalEvent_(event)) {
       return result;
     }
     const amount = safeNumber_(event.display_amount !== undefined ? event.display_amount : event.amount);
     const signed = safeNumber_(event.signed_amount);
     if (event.event_type === 'TREASURY_HANDOVER') {
       result.treasury += Math.abs(amount);
-    } else if (event.event_type === CASH_EVENT_TYPES.CORRECTION) {
-      if ((event.display_direction || event.direction) === 'IN') result.surplus += Math.abs(amount);
-      if ((event.display_direction || event.direction) === 'OUT') result.shortage += Math.abs(amount);
     } else if (event.event_type === CASH_EVENT_TYPES.REVERSAL) {
       result.reversal += signed;
     } else if ((event.display_direction || event.direction) === 'IN') {
@@ -185,14 +182,11 @@ function getCashSheetReport(filters) {
     shortage: 0,
     reversal: 0
   });
-  const calculatedClosingBalance = openingBalance +
+  const expectedClosingBalance = openingBalance +
     totals.inflow -
     totals.outflow -
     totals.treasury +
-    totals.surplus -
-    totals.shortage +
     totals.reversal;
-  const closingBalance = balanceSnapshot.hasScopedEvents ? balanceSnapshot.closingBalance : calculatedClosingBalance;
   const counts = getCashCountsReport({
     cashbox_id: scoped.cashbox_id,
     currency: currency,
@@ -200,9 +194,9 @@ function getCashSheetReport(filters) {
     date_from: scoped.date_from,
     date_to: scoped.date_to
   });
-  const latestCount = counts.length ? counts[0] : null;
+  const latestCount = selectCashSheetPhysicalCount_(counts, Boolean(shiftRecord));
   const physical = latestCount ? safeNumber_(latestCount.counted_total) : null;
-  const physicalDifference = latestCount ? physical - closingBalance : null;
+  const physicalDifference = latestCount ? physical - expectedClosingBalance : null;
   return {
     document_no: 'BL-' + dateKey.replace(/-/g, '') + '-' + (scoped.shift_id || 'DAN') + '-' + currency,
     date: dateKey,
@@ -217,12 +211,49 @@ function getCashSheetReport(filters) {
     total_surplus: totals.surplus,
     total_shortage: totals.shortage,
     total_reversal: totals.reversal,
-    calculated_closing_balance: closingBalance,
+    expected_closing_balance: expectedClosingBalance,
+    calculated_closing_balance: expectedClosingBalance,
+    ledger_closing_balance: balanceSnapshot.hasScopedEvents ? balanceSnapshot.closingBalance : expectedClosingBalance,
     physical_total: physical,
     difference: latestCount ? physicalDifference : null,
     latest_count: latestCount,
     events: events
   };
+}
+
+function isCashSheetInformationalEvent_(event) {
+  if (!event) {
+    return true;
+  }
+  if (event.source_type === 'CASH_COUNT' || event.event_type === 'CASH_COUNT') {
+    return true;
+  }
+  if (event.event_type === CASH_EVENT_TYPES.CORRECTION) {
+    return isCashCountCorrectionReportEvent_(event);
+  }
+  return false;
+}
+
+function isCashCountCorrectionReportEvent_(event) {
+  const text = String(event.description || '') + ' ' + String(event.partner_name || '');
+  return /CNT-\d{8}-\d{6}-[A-F0-9]+/i.test(text) ||
+    /presek|popis|početak smene|pocetak smene|završni popis|zavrsni popis/i.test(text);
+}
+
+function selectCashSheetPhysicalCount_(counts, isShiftSheet) {
+  const rows = counts || [];
+  if (!rows.length) {
+    return null;
+  }
+  if (isShiftSheet) {
+    const closing = rows.filter(function(count) {
+      return count.count_type === CASH_COUNT_TYPES.SHIFT_CLOSING;
+    });
+    if (closing.length) {
+      return closing[0];
+    }
+  }
+  return rows[0];
 }
 
 function resolveCashSheetScope_(filters, shiftRecord) {

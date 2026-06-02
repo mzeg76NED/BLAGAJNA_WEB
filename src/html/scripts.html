@@ -2248,13 +2248,13 @@
       cashsheetCalcRow_('+ Ukupne uplate', sheet.total_in, sheet.currency, 'cell-in') +
       cashsheetCalcRow_('- Ukupne isplate', sheet.total_out, sheet.currency, 'cell-out') +
       cashsheetCalcRow_('- Predato u trezor', sheet.total_treasury, sheet.currency, 'cell-out') +
-      cashsheetCalcRow_('= Obračunsko završno stanje', sheet.calculated_closing_balance, sheet.currency, 'cell-bal') +
+      cashsheetCalcRow_('= Očekivano završno stanje', sheet.expected_closing_balance || sheet.calculated_closing_balance, sheet.currency, 'cell-bal') +
       cashsheetCalcRow_('Završni presek / fizički popis', sheet.physical_total == null ? 'Fizički popis nije unet' : sheet.physical_total, sheet.currency) +
       cashsheetCalcRow_('Razlika', sheet.difference == null ? '—' : sheet.difference, sheet.currency, Number(sheet.difference || 0) === 0 ? 'cell-in' : 'cell-out') +
     '</div>';
     side.innerHTML =
       '<div class="detail-row"><span class="detail-key">Status</span><strong>' + escapeHtml(sheet.status || '') + '</strong></div>' +
-      '<div class="detail-row"><span class="detail-key">Obračunsko</span><strong>' + formatAmount_(sheet.calculated_closing_balance) + ' ' + escapeHtml(sheet.currency || '') + '</strong></div>' +
+      '<div class="detail-row"><span class="detail-key">Očekivano</span><strong>' + formatAmount_(sheet.expected_closing_balance || sheet.calculated_closing_balance) + ' ' + escapeHtml(sheet.currency || '') + '</strong></div>' +
       '<div class="detail-row"><span class="detail-key">Fizički</span><strong>' + (sheet.physical_total == null ? 'Nije unet' : formatAmount_(sheet.physical_total) + ' ' + escapeHtml(sheet.currency || '')) + '</strong></div>' +
       '<div class="detail-row"><span class="detail-key">Razlika</span><strong>' + (sheet.difference == null ? '—' : formatAmount_(sheet.difference)) + '</strong></div>' +
       '<button class="btn-primary btn-full" type="button" onclick="window.print()">Štampa / PDF</button>';
