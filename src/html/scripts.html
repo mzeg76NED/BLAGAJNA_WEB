@@ -4681,7 +4681,7 @@
         updateDesktopDirectActionsVisibility_();
         if (target === 'knjiga')  { loadKnjiga_(true); }
         if (target === 'nalozi')  { loadDesktopNalozi_(); }
-        if (target === 'zahtevi') { loadApprovalRequestsTo_('d-zahtevi-list', true); }
+        if (target === 'zahtevi') { loadDesktopPaymentRequests_(); }
         if (target === 'smena')    { loadMyShiftsTo_('d-shifts-list'); }
         if (target === 'presek')  { loadCashCounts_(); }
         if (target === 'blagajnicki-list') { loadCashSheet_(); }
@@ -4767,11 +4767,7 @@
     if (loadNaloziBtn) loadNaloziBtn.addEventListener('click', loadDesktopNalozi_);
     bindPaymentOrdersOverview_();
 
-    var loadApprBtn = document.getElementById('d-load-approval-btn');
-    if (loadApprBtn) loadApprBtn.addEventListener('click', function() { loadApprovalRequestsTo_('d-zahtevi-list', false); });
-
-    var loadMyReqBtn = document.getElementById('d-load-my-requests-btn');
-    if (loadMyReqBtn) loadMyReqBtn.addEventListener('click', function() { loadMyRequestsTo_('d-zahtevi-list', false); });
+    bindPaymentRequestsOverview_();
 
     var loadShiftsBtn = document.getElementById('d-load-shifts-btn');
     if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() { loadMyShiftsTo_('d-shifts-list'); });
@@ -4802,6 +4798,7 @@
     bindModernReportButtons_();
     bindModernPrintButtons_();
     bindNewPaymentOrderScreen_();
+    bindNewPaymentRequestScreen_();
   }
 
   function bindModernShellForms_() {
@@ -5890,6 +5887,1097 @@
     if (size < 1024) return size + ' B';
     if (size < 1024 * 1024) return Math.round(size / 1024) + ' KB';
     return (size / (1024 * 1024)).toLocaleString('sr-RS', { maximumFractionDigits: 1 }) + ' MB';
+  }
+
+  /* ─── Zahtevi za isplatu ────────────────────────────────────── */
+
+  var PAYMENT_REQUEST_RULES = {
+    RSD: { cashierDirectApprovalLimit: 30000, managerApprovalRequiredFrom: 30000 },
+    EUR: { cashierDirectApprovalLimit: 100, managerApprovalRequiredFrom: 100 },
+    'ČEK': { cashierDirectApprovalLimit: 30000, managerApprovalRequiredFrom: 30000 }
+  };
+
+  var MOCK_PAYMENT_REQUESTS = [
+    {
+      id: 'REQ-2026-000124', requestNo: 'ZI-2026-000124', createdAt: '2026-06-02T08:30:00',
+      createdBy: 'ana@firma.rs', requesterName: 'Ana Jovanović', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
+      currency: 'RSD', amount: 12500, recipientName: 'Ana Jovanović', requestBasis: 'Refundacija troška',
+      requestedPaymentDate: '2026-06-03', priority: 'NORMAL', explanation: 'Refundacija gotovinskog plaćanja za kancelarijski materijal.',
+      status: 'CASHIER_REVIEW', approvalPath: 'DIRECT_PAYMENT', attachments: [{ type: 'PDF', no: 'RAC-114/26', date: '2026-06-02', status: 'Dostavljen' }],
+      activities: [
+        { at: '2026-06-02T08:30:00', title: 'Zahtev kreiran', user: 'Ana J.', detail: 'Podnet zahtev za refundaciju.' },
+        { at: '2026-06-02T09:05:00', title: 'Blagajnik preuzeo obradu', user: 'Milan Ž.', detail: 'Iznos je u limitu za direktnu isplatu.' }
+      ]
+    },
+    {
+      id: 'REQ-2026-000125', requestNo: 'ZI-2026-000125', createdAt: '2026-06-02T10:15:00',
+      createdBy: 'marko@firma.rs', requesterName: 'Marko Nikolić', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
+      currency: 'RSD', amount: 120000, recipientName: 'Petar Petrović', requestBasis: 'Putni trošak',
+      requestedPaymentDate: '2026-06-04', priority: 'URGENT', explanation: 'Akontacija i refundacija troškova za najavljeni službeni put.',
+      status: 'SUBMITTED', approvalPath: 'PAYMENT_ORDER', attachments: [{ type: 'PDF', no: 'PLAN-PUTA-22', date: '2026-06-02', status: 'Dostavljen' }],
+      activities: [
+        { at: '2026-06-02T10:15:00', title: 'Zahtev poslat', user: 'Marko N.', detail: 'Zahtev čeka obradu.' }
+      ]
+    },
+    {
+      id: 'REQ-2026-000126', requestNo: 'ZI-2026-000126', createdAt: '2026-06-01T14:20:00',
+      createdBy: 'jelena@firma.rs', requesterName: 'Jelena Marković', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
+      currency: 'EUR', amount: 80, recipientName: 'Jelena Marković', requestBasis: 'Dnevnica',
+      requestedPaymentDate: '2026-06-02', priority: 'NORMAL', explanation: 'Dnevnica za jednodnevni službeni put.',
+      status: 'PAID', approvalPath: 'DIRECT_PAYMENT', directCashEventId: 'CEV-2026-000081',
+      attachments: [], activities: [
+        { at: '2026-06-01T14:20:00', title: 'Zahtev kreiran', user: 'Jelena M.', detail: 'Zahtev je u limitu.' },
+        { at: '2026-06-01T15:10:00', title: 'Direktno isplaćeno', user: 'Milan Ž.', detail: 'Kreiran cash event CEV-2026-000081.' }
+      ]
+    },
+    {
+      id: 'REQ-2026-000127', requestNo: 'ZI-2026-000127', createdAt: '2026-05-31T11:05:00',
+      createdBy: 'nikola@firma.rs', requesterName: 'Nikola Milošević', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
+      currency: 'RSD', amount: 45000, recipientName: 'Dobavljač AS DOO', requestBasis: 'Plaćanje računa',
+      requestedPaymentDate: '2026-06-01', priority: 'NORMAL', explanation: 'Plaćanje računa dobavljaču za potrošni materijal.',
+      status: 'ORDER_CREATED', approvalPath: 'PAYMENT_ORDER', linkedPaymentOrderId: 'ORD-2026-000044', linkedPaymentOrderNo: 'NI-2026-000044',
+      attachments: [{ type: 'PDF', no: 'RAC-88/26', date: '2026-05-31', status: 'Dostavljen' }],
+      activities: [
+        { at: '2026-05-31T11:05:00', title: 'Zahtev kreiran', user: 'Nikola M.', detail: 'Zahtev prelazi limit.' },
+        { at: '2026-05-31T12:00:00', title: 'Kreiran nalog', user: 'Finansije', detail: 'Povezan nalog NI-2026-000044.' }
+      ]
+    },
+    {
+      id: 'REQ-2026-000128', requestNo: 'ZI-2026-000128', createdAt: '2026-05-30T09:45:00',
+      createdBy: 'ana@firma.rs', requesterName: 'Ana Jovanović', cashboxId: 'CB_SIDE', cashboxName: 'Pomoćna blagajna',
+      currency: 'RSD', amount: 9200, recipientName: 'Ana Jovanović', requestBasis: 'Nabavka materijala',
+      requestedPaymentDate: '2026-05-31', priority: 'NORMAL', explanation: 'Zahtev za nabavku sitnog kancelarijskog materijala.',
+      status: 'REJECTED', approvalPath: 'DIRECT_PAYMENT', rejectionReason: 'Nedostaje validan račun.',
+      attachments: [], activities: [{ at: '2026-05-30T10:10:00', title: 'Odbijeno', user: 'Milan Ž.', detail: 'Nedostaje validan račun.' }]
+    },
+    {
+      id: 'REQ-2026-000129', requestNo: 'ZI-2026-000129', createdAt: '2026-05-29T13:25:00',
+      createdBy: 'petar@firma.rs', requesterName: 'Petar Petrović', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
+      currency: 'RSD', amount: 18000, recipientName: 'Petar Petrović', requestBasis: 'Akontacija',
+      requestedPaymentDate: '2026-06-02', priority: 'VERY_URGENT', explanation: 'Potrebna akontacija za hitan izlazak na teren sa putnim troškovima.',
+      status: 'RETURNED_FOR_CORRECTION', approvalPath: 'DIRECT_PAYMENT', returnedForCorrectionReason: 'Dopuniti obrazloženje i dodati dokument.',
+      attachments: [], activities: [{ at: '2026-05-29T14:00:00', title: 'Vraćeno na dopunu', user: 'Finansije', detail: 'Dopuniti obrazloženje i dodati dokument.' }]
+    },
+    {
+      id: 'REQ-2026-000130', requestNo: 'ZI-2026-000130', createdAt: '2026-05-28T08:55:00',
+      createdBy: 'milan@firma.rs', requesterName: 'Milan Žegarac', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
+      currency: 'RSD', amount: 6400, recipientName: 'Milan Žegarac', requestBasis: 'Povraćaj sredstava',
+      requestedPaymentDate: '2026-05-29', priority: 'NORMAL', explanation: 'Zahtev je povučen jer trošak nije realizovan.',
+      status: 'CANCELLED', approvalPath: 'UNDECIDED', attachments: [],
+      activities: [{ at: '2026-05-28T09:10:00', title: 'Poništeno', user: 'Milan Ž.', detail: 'Podnosilac je povukao zahtev.' }]
+    },
+    {
+      id: 'REQ-2026-000131', requestNo: 'ZI-2026-000131', createdAt: '2026-06-03T07:40:00',
+      createdBy: 'marija@firma.rs', requesterName: 'Marija Kostić', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
+      currency: 'RSD', amount: 0, recipientName: '', requestBasis: '',
+      requestedPaymentDate: '2026-06-03', priority: 'NORMAL', explanation: '',
+      status: 'DRAFT', approvalPath: 'UNDECIDED', attachments: [],
+      activities: [{ at: '2026-06-03T07:40:00', title: 'Nacrt kreiran', user: 'Marija K.', detail: 'Zahtev nije poslat.' }]
+    }
+  ];
+
+  var PAYMENT_REQUESTS_STATE = {
+    records: [],
+    filtered: [],
+    selectedId: '',
+    tab: 'ALL',
+    page: 1,
+    pageSize: 20
+  };
+
+  var NEW_PAYMENT_REQUEST_STATE = {
+    savedRequestId: '',
+    status: 'PENDING_SEND',
+    dirty: false,
+    attachments: [],
+    activities: []
+  };
+
+  function bindPaymentRequestsOverview_() {
+    if (window.__paymentRequestsOverviewBound) return;
+    window.__paymentRequestsOverviewBound = true;
+    var newBtn = document.getElementById('d-request-new-btn');
+    if (newBtn) newBtn.addEventListener('click', openNewPaymentRequestScreen_);
+    var exportBtn = document.getElementById('d-request-export-btn');
+    if (exportBtn) exportBtn.addEventListener('click', function() {
+      showDesktopMessage_('Izvoz pregleda zahteva je TODO; trenutno se koriste mock podaci.', 'info');
+    });
+    document.querySelectorAll('[data-request-tab]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        PAYMENT_REQUESTS_STATE.tab = btn.getAttribute('data-request-tab') || 'ALL';
+        PAYMENT_REQUESTS_STATE.page = 1;
+        document.querySelectorAll('[data-request-tab]').forEach(function(b) { b.classList.toggle('active', b === btn); });
+        renderPaymentRequestsOverview_();
+      });
+    });
+    [
+      'd-request-search','d-request-date-from','d-request-date-to','d-request-cashbox-filter',
+      'd-request-currency-filter','d-request-status-filter','d-request-requester-filter',
+      'd-request-recipient-filter','d-request-path-filter'
+    ].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', function() {
+        PAYMENT_REQUESTS_STATE.page = 1;
+        renderPaymentRequestsOverview_();
+      });
+    });
+    var reset = document.getElementById('d-request-reset-filters');
+    if (reset) reset.addEventListener('click', function() {
+      [
+        'd-request-search','d-request-date-from','d-request-date-to','d-request-cashbox-filter',
+        'd-request-currency-filter','d-request-status-filter','d-request-requester-filter',
+        'd-request-recipient-filter','d-request-path-filter'
+      ].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      PAYMENT_REQUESTS_STATE.page = 1;
+      renderPaymentRequestsOverview_();
+    });
+  }
+
+  function loadDesktopPaymentRequests_() {
+    if (!window.google || !google.script || !google.script.run) {
+      loadMockDesktopPaymentRequests_();
+      return;
+    }
+    callApi('apiListPaymentRequests', [{}], function(result) {
+      var rows = Array.isArray(result) ? result : [];
+      PAYMENT_REQUESTS_STATE.records = rows.map(normalizePaymentRequest_);
+      PAYMENT_REQUESTS_STATE.page = 1;
+      populatePaymentRequestFilters_();
+      renderPaymentRequestsOverview_();
+      loadDesktopNavBadges_();
+    }, {
+      quiet: true,
+      onComplete: function(response) {
+        if (!response || response.ok !== true) {
+          loadMockDesktopPaymentRequests_();
+        }
+      }
+    });
+  }
+
+  function loadMockDesktopPaymentRequests_() {
+    PAYMENT_REQUESTS_STATE.records = MOCK_PAYMENT_REQUESTS.map(function(row) {
+      var normalized = normalizePaymentRequest_(row);
+      normalized.isMock = true;
+      return normalized;
+    });
+    PAYMENT_REQUESTS_STATE.page = 1;
+    populatePaymentRequestFilters_();
+    renderPaymentRequestsOverview_();
+    loadDesktopNavBadges_();
+  }
+
+  function shouldUseMockRequestAction_(req) {
+    return Boolean(req && req.isMock) || !window.google || !google.script || !google.script.run;
+  }
+
+  function replacePaymentRequestRecord_(oldReq, updated) {
+    var normalized = normalizePaymentRequest_(updated || oldReq.raw || oldReq);
+    PAYMENT_REQUESTS_STATE.records = PAYMENT_REQUESTS_STATE.records.map(function(row) {
+      return row.id === oldReq.id ? normalized : row;
+    });
+    PAYMENT_REQUESTS_STATE.selectedId = normalized.id;
+    populatePaymentRequestFilters_();
+    renderPaymentRequestsOverview_();
+  }
+
+  function normalizePaymentRequest_(request) {
+    request = request || {};
+    var amount = Number(request.amount || 0);
+    var currency = request.currency || 'RSD';
+    var path = request.approvalPath || request.approval_path || decidePaymentRequestPath_(amount, currency);
+    return {
+      raw: request,
+      id: request.id || request.request_id || request.requestNo || '',
+      no: request.requestNo || request.request_id || request.id || '',
+      date: request.createdAt || request.created_at || '',
+      requester: request.requesterName || shortUserLabel_(request.createdBy || request.created_by || ''),
+      createdBy: request.createdBy || request.created_by || '',
+      recipient: request.recipientName || request.requested_for_name || '',
+      cashboxId: request.cashboxId || request.preferred_cashbox_id || request.cashbox_id || '',
+      cashbox: request.cashboxName || request.cashbox_id || request.preferred_cashbox_id || '',
+      basis: request.requestBasis || request.purpose || '',
+      amount: amount,
+      currency: currency,
+      status: request.status || 'DRAFT',
+      dueDate: request.requestedPaymentDate || request.needed_by_date || '',
+      priority: request.priority || 'NORMAL',
+      explanation: request.explanation || request.description || '',
+      approvalPath: path,
+      linkedPaymentOrderId: request.linkedPaymentOrderId || request.linked_order_id || '',
+      linkedPaymentOrderNo: request.linkedPaymentOrderNo || request.linked_order_id || '',
+      directCashEventId: request.directCashEventId || request.direct_cash_event_id || '',
+      rejectionReason: request.rejectionReason || request.rejection_reason || '',
+      returnedForCorrectionReason: request.returnedForCorrectionReason || request.returned_for_correction_reason || '',
+      attachments: request.attachments || [],
+      activities: request.activities || []
+    };
+  }
+
+  function decidePaymentRequestPath_(amount, currency) {
+    amount = Number(amount || 0);
+    if (!amount) return 'UNDECIDED';
+    return amount <= getPaymentRequestLimit_(currency) ? 'DIRECT_PAYMENT' : 'PAYMENT_ORDER';
+  }
+
+  function getPaymentRequestLimit_(currency) {
+    var configuredRules = (uiState.config && uiState.config.paymentRequestApprovalRules) || {};
+    var rule = configuredRules[currency] || PAYMENT_REQUEST_RULES[currency] || PAYMENT_REQUEST_RULES.RSD;
+    return Number(rule.cashierDirectApprovalLimit || 0);
+  }
+
+  function paymentRequestStatusLabel_(status) {
+    var map = {
+      DRAFT: 'Nacrt',
+      SUBMITTED: 'Poslat',
+      CASHIER_REVIEW: 'U obradi',
+      IN_REVIEW: 'U obradi',
+      APPROVED_FOR_DIRECT_PAYMENT: 'Odobren za isplatu',
+      ESCALATED_TO_ORDER: 'Potreban nalog',
+      ORDER_CREATED: 'Kreiran nalog',
+      CONVERTED_TO_ORDER: 'Kreiran nalog',
+      PAID: 'Isplaćen',
+      REJECTED: 'Odbijen',
+      RETURNED_FOR_CORRECTION: 'Vraćen',
+      CANCELLED: 'Poništen'
+    };
+    return map[status] || status || '—';
+  }
+
+  function paymentRequestStatusClass_(status) {
+    if (status === 'PAID' || status === 'APPROVED_FOR_DIRECT_PAYMENT') return 'po-status-paid';
+    if (status === 'REJECTED') return 'po-status-rejected';
+    if (status === 'CANCELLED') return 'po-status-cancelled';
+    if (status === 'CASHIER_REVIEW' || status === 'IN_REVIEW' || status === 'RETURNED_FOR_CORRECTION' || status === 'ESCALATED_TO_ORDER') return 'po-status-processing';
+    return 'po-status-waiting';
+  }
+
+  function paymentRequestPathLabel_(path) {
+    if (path === 'DIRECT_PAYMENT') return 'Direktno';
+    if (path === 'PAYMENT_ORDER') return 'Nalog';
+    return 'Neodlučeno';
+  }
+
+  function paymentRequestPathClass_(path) {
+    if (path === 'DIRECT_PAYMENT') return 'request-path-direct';
+    if (path === 'PAYMENT_ORDER') return 'request-path-order';
+    return 'request-path-undecided';
+  }
+
+  function populatePaymentRequestFilters_() {
+    populatePaymentOrderSelect_('d-request-cashbox-filter', 'Blagajna', PAYMENT_REQUESTS_STATE.records.map(function(r) { return r.cashbox; }));
+    populatePaymentOrderSelect_('d-request-currency-filter', 'Valuta', PAYMENT_REQUESTS_STATE.records.map(function(r) { return r.currency; }));
+    populatePaymentOrderSelect_('d-request-status-filter', 'Status', PAYMENT_REQUESTS_STATE.records.map(function(r) { return r.status; }), paymentRequestStatusLabel_);
+    populatePaymentOrderSelect_('d-request-requester-filter', 'Podnosilac', PAYMENT_REQUESTS_STATE.records.map(function(r) { return r.requester; }));
+    populatePaymentOrderSelect_('d-request-recipient-filter', 'Primalac', PAYMENT_REQUESTS_STATE.records.map(function(r) { return r.recipient; }));
+  }
+
+  function filterPaymentRequests_() {
+    var tab = PAYMENT_REQUESTS_STATE.tab || 'ALL';
+    var search = ((document.getElementById('d-request-search') || {}).value || '').toLowerCase().trim();
+    var from = (document.getElementById('d-request-date-from') || {}).value || '';
+    var to = (document.getElementById('d-request-date-to') || {}).value || '';
+    var cashbox = (document.getElementById('d-request-cashbox-filter') || {}).value || '';
+    var currency = (document.getElementById('d-request-currency-filter') || {}).value || '';
+    var status = (document.getElementById('d-request-status-filter') || {}).value || '';
+    var requester = (document.getElementById('d-request-requester-filter') || {}).value || '';
+    var recipient = (document.getElementById('d-request-recipient-filter') || {}).value || '';
+    var path = (document.getElementById('d-request-path-filter') || {}).value || '';
+    var fromDate = from ? new Date(from + 'T00:00:00') : null;
+    var toDate = to ? new Date(to + 'T23:59:59') : null;
+    return PAYMENT_REQUESTS_STATE.records.filter(function(req) {
+      var d = req.date ? new Date(req.date) : null;
+      if (fromDate && d && d < fromDate) return false;
+      if (toDate && d && d > toDate) return false;
+      if (cashbox && req.cashbox !== cashbox) return false;
+      if (currency && req.currency !== currency) return false;
+      if (status && req.status !== status) return false;
+      if (requester && req.requester !== requester) return false;
+      if (recipient && req.recipient !== recipient) return false;
+      if (path && req.approvalPath !== path) return false;
+      if (!matchesPaymentRequestTab_(req, tab)) return false;
+      if (search) {
+        var haystack = [req.no, req.recipient, req.requester, req.basis, req.linkedPaymentOrderNo, req.status, req.currency].join(' ').toLowerCase();
+        if (haystack.indexOf(search) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function matchesPaymentRequestTab_(req, tab) {
+    if (tab === 'ALL') return true;
+    if (tab === 'CREATED') return req.status === 'DRAFT' || req.status === 'SUBMITTED';
+    if (tab === 'IN_PROGRESS') return req.status === 'CASHIER_REVIEW' || req.status === 'IN_REVIEW';
+    if (tab === 'DIRECT') return req.approvalPath === 'DIRECT_PAYMENT';
+    if (tab === 'ORDER') return req.approvalPath === 'PAYMENT_ORDER' || req.status === 'ORDER_CREATED' || req.status === 'ESCALATED_TO_ORDER' || req.status === 'CONVERTED_TO_ORDER';
+    if (tab === 'PAID') return req.status === 'PAID';
+    if (tab === 'REJECTED') return req.status === 'REJECTED';
+    if (tab === 'RETURNED') return req.status === 'RETURNED_FOR_CORRECTION';
+    if (tab === 'CANCELLED') return req.status === 'CANCELLED';
+    return true;
+  }
+
+  function renderPaymentRequestsOverview_() {
+    PAYMENT_REQUESTS_STATE.filtered = filterPaymentRequests_();
+    renderPaymentRequestKpis_();
+    renderPaymentRequestTable_();
+    var selected = PAYMENT_REQUESTS_STATE.filtered.find(function(r) { return r.id === PAYMENT_REQUESTS_STATE.selectedId; }) || PAYMENT_REQUESTS_STATE.filtered[0] || null;
+    PAYMENT_REQUESTS_STATE.selectedId = selected ? selected.id : '';
+    renderPaymentRequestDetail_(selected);
+  }
+
+  function renderPaymentRequestKpis_() {
+    var rows = PAYMENT_REQUESTS_STATE.filtered;
+    var counts = { waiting: 0, direct: 0, order: 0, rejected: 0, returned: 0 };
+    rows.forEach(function(req) {
+      if (['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','APPROVED_FOR_DIRECT_PAYMENT','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1) counts.waiting++;
+      if (req.status === 'PAID' && req.approvalPath === 'DIRECT_PAYMENT') counts.direct++;
+      if (req.approvalPath === 'PAYMENT_ORDER' || req.status === 'ORDER_CREATED' || req.status === 'CONVERTED_TO_ORDER') counts.order++;
+      if (req.status === 'REJECTED') counts.rejected++;
+      if (req.status === 'RETURNED_FOR_CORRECTION') counts.returned++;
+    });
+    setText_('d-request-kpi-total', rows.length);
+    setText_('d-request-kpi-waiting', counts.waiting);
+    setText_('d-request-kpi-direct', counts.direct);
+    setText_('d-request-kpi-order', counts.order);
+    setText_('d-request-kpi-rejected', counts.rejected);
+    setText_('d-request-kpi-returned', counts.returned);
+  }
+
+  function renderPaymentRequestTable_() {
+    var target = document.getElementById('d-zahtevi-list');
+    if (!target) return;
+    var rows = PAYMENT_REQUESTS_STATE.filtered;
+    if (!rows.length) {
+      target.innerHTML = '<div class="empty-state"><i class="ti ti-inbox-off" aria-hidden="true"></i><p>Nema zahteva za izabrane filtere.</p></div>';
+      return;
+    }
+    var pageSize = PAYMENT_REQUESTS_STATE.pageSize;
+    var totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+    PAYMENT_REQUESTS_STATE.page = Math.min(Math.max(1, PAYMENT_REQUESTS_STATE.page), totalPages);
+    var start = (PAYMENT_REQUESTS_STATE.page - 1) * pageSize;
+    var visible = rows.slice(start, start + pageSize);
+    target.innerHTML =
+      '<table class="po-table"><thead><tr>' +
+        '<th>Broj zahteva</th><th>Datum</th><th>Podnosilac</th><th>Primalac</th><th>Blagajna</th><th>Osnov</th><th>Iznos</th><th>Valuta</th><th>Put</th><th>Status</th><th>Rok</th><th>Akcije</th>' +
+      '</tr></thead><tbody>' +
+      visible.map(function(req) {
+        var selected = req.id === PAYMENT_REQUESTS_STATE.selectedId ? ' po-row-selected' : '';
+        return '<tr class="po-row' + selected + '" data-request-id="' + escapeHtml(req.id) + '">' +
+          '<td><strong>' + escapeHtml(req.no || '—') + '</strong></td>' +
+          '<td>' + escapeHtml(formatDateTimeShort_(req.date)) + '</td>' +
+          '<td>' + escapeHtml(req.requester || '—') + '</td>' +
+          '<td>' + escapeHtml(req.recipient || '—') + '</td>' +
+          '<td>' + escapeHtml(req.cashbox || '—') + '</td>' +
+          '<td>' + escapeHtml(req.basis || '—') + '</td>' +
+          '<td class="po-amount">' + escapeHtml(formatAmount_(req.amount)) + '</td>' +
+          '<td>' + escapeHtml(req.currency || '—') + '</td>' +
+          '<td><span class="request-path-pill ' + paymentRequestPathClass_(req.approvalPath) + '">' + escapeHtml(paymentRequestPathLabel_(req.approvalPath)) + '</span></td>' +
+          '<td><span class="po-status ' + paymentRequestStatusClass_(req.status) + '">' + escapeHtml(paymentRequestStatusLabel_(req.status)) + '</span></td>' +
+          '<td>' + escapeHtml(formatDateShort_(req.dueDate)) + '</td>' +
+          '<td><button type="button" class="small" data-request-open="' + escapeHtml(req.id) + '"><i class="ti ti-eye" aria-hidden="true"></i></button></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table>' +
+      '<div class="po-pagination"><span>Prikazano ' + (start + 1) + '–' + (start + visible.length) + ' od ' + rows.length + '</span>' +
+        '<button type="button" data-pr-page="prev">‹</button><strong>' + PAYMENT_REQUESTS_STATE.page + '</strong><button type="button" data-pr-page="next">›</button>' +
+      '</div>';
+    target.querySelectorAll('[data-request-id]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        PAYMENT_REQUESTS_STATE.selectedId = row.getAttribute('data-request-id') || '';
+        renderPaymentRequestTable_();
+        renderPaymentRequestDetail_(PAYMENT_REQUESTS_STATE.filtered.find(function(r) { return r.id === PAYMENT_REQUESTS_STATE.selectedId; }) || null);
+      });
+    });
+    target.querySelectorAll('[data-request-open]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        PAYMENT_REQUESTS_STATE.selectedId = btn.getAttribute('data-request-open') || '';
+        renderPaymentRequestTable_();
+        renderPaymentRequestDetail_(PAYMENT_REQUESTS_STATE.filtered.find(function(r) { return r.id === PAYMENT_REQUESTS_STATE.selectedId; }) || null);
+      });
+    });
+    target.querySelectorAll('[data-pr-page]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        PAYMENT_REQUESTS_STATE.page += btn.getAttribute('data-pr-page') === 'next' ? 1 : -1;
+        renderPaymentRequestTable_();
+      });
+    });
+  }
+
+  function renderPaymentRequestDetail_(req) {
+    var target = document.getElementById('d-request-detail-body');
+    if (!target) return;
+    if (!req) {
+      target.className = 'po-empty-detail';
+      target.innerHTML = 'Izaberite zahtev iz tabele za prikaz detalja.';
+      return;
+    }
+    target.className = '';
+    var limit = getPaymentRequestLimit_(req.currency);
+    var inLimit = req.amount <= limit;
+    var canDirect = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','APPROVED_FOR_DIRECT_PAYMENT'].indexOf(req.status) !== -1 && inLimit && req.status !== 'PAID';
+    var canCreateOrder = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1 && !req.linkedPaymentOrderId && req.status !== 'PAID';
+    var canReject = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','APPROVED_FOR_DIRECT_PAYMENT','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1;
+    var canReturn = canReject;
+    var isPaid = req.status === 'PAID';
+    target.innerHTML =
+      '<div class="po-detail-head"><h3>Detalji zahteva</h3><span class="po-status ' + paymentRequestStatusClass_(req.status) + '">' + escapeHtml(paymentRequestStatusLabel_(req.status)) + '</span></div>' +
+      '<div class="po-detail-amount">' + escapeHtml(formatAmount_(req.amount)) + ' ' + escapeHtml(req.currency || '') + '</div>' +
+      '<div class="po-detail-grid">' +
+        renderPaymentOrderField_('Broj zahteva', req.no) +
+        renderPaymentOrderField_('Datum i vreme', formatDateTimeShort_(req.date)) +
+        renderPaymentOrderField_('Podnosilac', req.requester) +
+        renderPaymentOrderField_('Primalac', req.recipient) +
+        renderPaymentOrderField_('Blagajna', req.cashbox) +
+        renderPaymentOrderField_('Valuta', req.currency) +
+        renderPaymentOrderField_('Rok za isplatu', formatDateShort_(req.dueDate)) +
+        renderPaymentOrderField_('Osnov zahteva', req.basis) +
+        renderPaymentOrderField_('Limit blagajnika', formatAmount_(limit) + ' ' + req.currency) +
+        renderPaymentOrderField_('Iznos u limitu', inLimit ? 'Da' : 'Ne') +
+        renderPaymentOrderField_('Preporučeni put', paymentRequestPathLabel_(req.approvalPath)) +
+        renderPaymentOrderField_('Povezani nalog', req.linkedPaymentOrderNo || '—') +
+      '</div>' +
+      '<div class="request-detail-note"><strong>Obrazloženje</strong><br>' + escapeHtml(req.explanation || '—') + '</div>' +
+      '<div class="po-tabs" data-request-detail-tabs><span class="active" data-tab="overview">Pregled</span><span data-tab="docs">Povezani dokumenti</span><span data-tab="activity">Aktivnosti</span></div>' +
+      '<div class="request-detail-tabs-panel" data-request-panel="overview">' +
+        '<div class="po-detail-columns">' +
+          '<div><h4>Tok zahteva</h4>' + renderPaymentRequestTimeline_(req) + '</div>' +
+          '<div><h4>Kontrola i validacija</h4>' + renderPaymentRequestControls_(req) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="request-detail-tabs-panel" data-request-panel="docs" hidden>' + renderPaymentRequestDocuments_(req) + '</div>' +
+      '<div class="request-detail-tabs-panel" data-request-panel="activity" hidden>' + renderPaymentRequestActivities_(req) + '</div>' +
+      '<div class="po-panel-actions">' +
+        '<button type="button" id="d-request-open-detail"><i class="ti ti-external-link" aria-hidden="true"></i> Otvori detalje</button>' +
+        '<button type="button" id="d-request-direct-pay" ' + (canDirect ? '' : 'disabled title="' + escapeHtml(isPaid ? 'Zahtev je već isplaćen.' : (!inLimit ? 'Iznos je preko limita; potreban je nalog.' : 'Akcija nije dostupna za status.')) + '"') + '><i class="ti ti-cash" aria-hidden="true"></i> Odobri direktnu isplatu</button>' +
+        '<button type="button" id="d-request-create-order" ' + (canCreateOrder ? '' : 'disabled title="' + escapeHtml(req.linkedPaymentOrderId ? 'Nalog je već kreiran.' : 'Kreiranje naloga nije dostupno za ovaj zahtev.') + '"') + '><i class="ti ti-file-invoice" aria-hidden="true"></i> Kreiraj nalog</button>' +
+        '<button type="button" id="d-request-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
+        '<button type="button" id="d-request-return" ' + (canReturn ? '' : 'disabled') + '><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Vrati na dopunu</button>' +
+      '</div>';
+    bindPaymentRequestDetailActions_(req);
+  }
+
+  function renderPaymentRequestTimeline_(req) {
+    var items = [
+      ['Kreiran', req.date, req.requester],
+      ['Poslat', req.date, req.requester],
+      ['U obradi', req.date, 'Blagajna']
+    ];
+    if (req.approvalPath === 'DIRECT_PAYMENT') items.push(['Direktna isplata', req.status === 'PAID' ? req.date : '', 'Blagajnik']);
+    if (req.approvalPath === 'PAYMENT_ORDER') items.push(['Nalog za isplatu', req.linkedPaymentOrderNo || req.linkedPaymentOrderId || 'čeka kreiranje', 'Viša instanca']);
+    if (req.status === 'PAID') items.push(['Isplaćen', req.date, 'Blagajna']);
+    if (req.status === 'REJECTED') items.push(['Odbijen', req.date, 'Obrada']);
+    if (req.status === 'RETURNED_FOR_CORRECTION') items.push(['Vraćen na dopunu', req.date, 'Obrada']);
+    if (req.status === 'CANCELLED') items.push(['Poništen', req.date, req.requester]);
+    return '<div class="po-timeline">' + items.map(function(item, index) {
+      return '<div class="po-timeline-item ' + (index === items.length - 1 ? 'current' : '') + '">' +
+        '<span></span><strong>' + escapeHtml(item[0]) + '</strong><small>' + escapeHtml(item[2] || '—') + ' · ' + escapeHtml(formatDateTimeShort_(item[1]) || item[1] || '—') + '</small>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function renderPaymentRequestControls_(req) {
+    var limit = getPaymentRequestLimit_(req.currency);
+    var inLimit = req.amount <= limit;
+    var rows = [
+      ['Podnosilac validan', req.requester ? 'Da' : 'Ne', Boolean(req.requester)],
+      ['Primalac identifikovan', req.recipient ? 'Da' : 'Ne', Boolean(req.recipient)],
+      ['Iznos u limitu blagajnika', inLimit ? 'Da' : 'Ne', inLimit],
+      ['Potrebna viša instanca', inLimit ? 'Ne' : 'Da', inLimit],
+      ['Dupli zahtev pronađen', 'Ne', true],
+      ['Prilozi prisutni', req.attachments.length ? 'Da' : 'Ne', true],
+      ['Sredstva proverava blagajnik', req.status === 'PAID' ? 'Da' : 'U toku', true]
+    ];
+    return '<div class="new-order-rules">' + rows.map(function(row) {
+      return '<div class="' + (row[2] ? 'request-rule-ok' : 'request-rule-warning') + '"><span>' + escapeHtml(row[0]) + '</span><strong>' + escapeHtml(row[1]) + '</strong></div>';
+    }).join('') + '</div>';
+  }
+
+  function renderPaymentRequestDocuments_(req) {
+    var docs = (req.attachments || []).map(function(doc) { return [doc.type || 'Prilog', doc.no || doc.name || '—', doc.date || '', doc.status || 'Dostavljen']; });
+    if (req.linkedPaymentOrderNo || req.linkedPaymentOrderId) docs.push(['Nalog za isplatu', req.linkedPaymentOrderNo || req.linkedPaymentOrderId, formatDateShort_(req.date), 'Povezan']);
+    if (req.directCashEventId) docs.push(['Blagajnički događaj', req.directCashEventId, formatDateShort_(req.date), 'Proknjižen']);
+    if (!docs.length) return '<div class="po-empty-docs">Nema povezanih dokumenata u dostupnim podacima.</div>';
+    return '<table class="po-doc-table"><thead><tr><th>Tip dokumenta</th><th>Broj dokumenta</th><th>Datum</th><th>Status</th></tr></thead><tbody>' +
+      docs.map(function(doc) {
+        return '<tr><td>' + escapeHtml(doc[0]) + '</td><td>' + escapeHtml(doc[1]) + '</td><td>' + escapeHtml(doc[2]) + '</td><td>' + escapeHtml(doc[3]) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function renderPaymentRequestActivities_(req) {
+    var rows = req.activities || [];
+    if (!rows.length) return '<div class="po-empty-docs">Nema aktivnosti za izabrani zahtev.</div>';
+    return '<div class="request-activity-list">' + rows.map(function(row) {
+      return '<div><strong>' + escapeHtml(row.title || 'Aktivnost') + '</strong><small>' + escapeHtml(formatDateTimeShort_(row.at)) + ' · ' + escapeHtml(row.user || '—') + '</small><span>' + escapeHtml(row.detail || '') + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  function bindPaymentRequestDetailActions_(req) {
+    document.querySelectorAll('[data-request-detail-tabs] span').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        var name = tab.getAttribute('data-tab');
+        document.querySelectorAll('[data-request-detail-tabs] span').forEach(function(t) { t.classList.toggle('active', t === tab); });
+        document.querySelectorAll('[data-request-panel]').forEach(function(panel) {
+          panel.hidden = panel.getAttribute('data-request-panel') !== name;
+        });
+      });
+    });
+    var open = document.getElementById('d-request-open-detail');
+    if (open) open.addEventListener('click', function() {
+      appHtmlDialog_({ title: 'Detalji zahteva ' + req.no, html: '<div class="request-detail-note">' + escapeHtml(req.explanation || 'Nema obrazloženja.') + '</div>' });
+    });
+    var direct = document.getElementById('d-request-direct-pay');
+    if (direct) direct.addEventListener('click', function() {
+      if (req.status === 'PAID') {
+        showDesktopMessage_('Isplaćen zahtev ne može ponovo da se isplati.', 'error');
+        return;
+      }
+      if (!shouldUseMockRequestAction_(req)) {
+        callApi('apiApprovePaymentRequestForDirectPayment', [req.id], function(updated) {
+          showDesktopMessage_('Zahtev je odobren za direktnu isplatu. Stanje blagajne se ne menja dok se ne kreira stvarni događaj isplate.', 'success');
+          replacePaymentRequestRecord_(req, updated);
+        }, { successMessage: 'Zahtev je odobren za direktnu isplatu.' });
+        return;
+      }
+      req.status = 'APPROVED_FOR_DIRECT_PAYMENT';
+      req.approvalPath = 'DIRECT_PAYMENT';
+      req.activities.push({ at: new Date().toISOString(), title: 'Odobreno za direktnu isplatu', user: newOrderCurrentUserName_(), detail: 'Mock odobrenje; stanje blagajne nije promenjeno.' });
+      showDesktopMessage_('Zahtev je odobren za direktnu isplatu. Stanje blagajne se ne menja dok se ne kreira cash payment event.', 'success');
+      renderPaymentRequestsOverview_();
+    });
+    var createOrder = document.getElementById('d-request-create-order');
+    if (createOrder) createOrder.addEventListener('click', function() {
+      if (req.linkedPaymentOrderId) {
+        showDesktopMessage_('Iz ovog zahteva je već kreiran nalog. Automatsko dupliranje nije dozvoljeno.', 'error');
+        return;
+      }
+      appConfirm_({
+        title: 'Kreiraj nalog iz zahteva?',
+        message: 'Biće kreiran nalog za isplatu i povezan sa zahtevom ' + req.no + '. Zahtev i nalog ne menjaju stanje blagajne.',
+        confirmText: 'Kreiraj nalog'
+      }, function() {
+        if (!shouldUseMockRequestAction_(req)) {
+          callApi('apiApproveAndIssuePaymentOrder', [req.id, { cashbox_id: req.cashboxId || getDefaultCashboxId() }], function(issued) {
+            req.status = 'ORDER_CREATED';
+            req.approvalPath = 'PAYMENT_ORDER';
+            req.linkedPaymentOrderId = issued.source_request_id ? issued.order_id : (issued.order_id || '');
+            req.linkedPaymentOrderNo = issued.order_id || '';
+            showDesktopMessage_('Nalog je kreiran i poslat blagajni. Stanje blagajne nije promenjeno.', 'success');
+            loadDesktopPaymentRequests_();
+          }, { successMessage: 'Nalog je kreiran iz zahteva.' });
+          return;
+        }
+        req.status = 'ORDER_CREATED';
+        req.approvalPath = 'PAYMENT_ORDER';
+        req.linkedPaymentOrderId = 'ORD-MOCK-' + String(Date.now()).slice(-5);
+        req.linkedPaymentOrderNo = 'NI-2026-' + req.linkedPaymentOrderId.slice(-5);
+        req.activities.push({ at: new Date().toISOString(), title: 'Kreiran nalog', user: newOrderCurrentUserName_(), detail: 'Mock nalog ' + req.linkedPaymentOrderNo + ' povezan sa zahtevom.' });
+        showDesktopMessage_('Mock nalog je kreiran i povezan sa zahtevom.', 'success');
+        renderPaymentRequestsOverview_();
+      });
+    });
+    var reject = document.getElementById('d-request-reject');
+    if (reject) reject.addEventListener('click', function() {
+      appPrompt_({
+        title: 'Odbijanje zahteva',
+        message: 'Unesite razlog odbijanja zahteva ' + req.no + '.',
+        confirmText: 'Odbij zahtev',
+        placeholder: 'Razlog odbijanja',
+        danger: true
+      }, function(reason) {
+        if (!shouldUseMockRequestAction_(req)) {
+          callApi('apiRejectPaymentRequest', [req.id, reason], function(updated) {
+            showDesktopMessage_('Zahtev je odbijen uz razlog.', 'success');
+            replacePaymentRequestRecord_(req, updated);
+          }, { successMessage: 'Zahtev je odbijen.' });
+          return;
+        }
+        req.status = 'REJECTED';
+        req.rejectionReason = reason;
+        req.activities.push({ at: new Date().toISOString(), title: 'Odbijeno', user: newOrderCurrentUserName_(), detail: reason });
+        showDesktopMessage_('Zahtev je odbijen uz razlog.', 'success');
+        renderPaymentRequestsOverview_();
+      });
+    });
+    var returnBtn = document.getElementById('d-request-return');
+    if (returnBtn) returnBtn.addEventListener('click', function() {
+      appPrompt_({
+        title: 'Vraćanje na dopunu',
+        message: 'Unesite šta podnosilac treba da dopuni za zahtev ' + req.no + '.',
+        confirmText: 'Vrati na dopunu',
+        placeholder: 'Šta treba dopuniti?'
+      }, function(note) {
+        if (!shouldUseMockRequestAction_(req)) {
+          callApi('apiReturnPaymentRequestForCorrection', [req.id, note], function(updated) {
+            showDesktopMessage_('Zahtev je vraćen na dopunu.', 'success');
+            replacePaymentRequestRecord_(req, updated);
+          }, { successMessage: 'Zahtev je vraćen na dopunu.' });
+          return;
+        }
+        req.status = 'RETURNED_FOR_CORRECTION';
+        req.returnedForCorrectionReason = note;
+        req.activities.push({ at: new Date().toISOString(), title: 'Vraćeno na dopunu', user: newOrderCurrentUserName_(), detail: note });
+        showDesktopMessage_('Zahtev je vraćen na dopunu.', 'success');
+        renderPaymentRequestsOverview_();
+      });
+    });
+  }
+
+  function bindNewPaymentRequestScreen_() {
+    if (window.__newPaymentRequestBound) return;
+    window.__newPaymentRequestBound = true;
+    var form = document.getElementById('new-payment-request-form');
+    if (!form) return;
+    var back = document.getElementById('new-request-back-btn');
+    if (back) back.addEventListener('click', function() { confirmLeaveNewPaymentRequest_(openPaymentRequestsOverview_); });
+    var cancel = document.getElementById('new-request-cancel');
+    if (cancel) cancel.addEventListener('click', function() { confirmLeaveNewPaymentRequest_(openPaymentRequestsOverview_); });
+    var save = document.getElementById('new-request-save-draft');
+    if (save) save.addEventListener('click', saveNewPaymentRequestDraft_);
+    var submit = document.getElementById('new-request-submit');
+    if (submit) submit.addEventListener('click', submitNewPaymentRequest_);
+    var file = document.getElementById('new-request-file');
+    if (file) file.addEventListener('change', handleNewRequestFiles_);
+    form.querySelectorAll('input,select,textarea').forEach(function(input) {
+      input.addEventListener('input', function() {
+        NEW_PAYMENT_REQUEST_STATE.dirty = true;
+        if (input.id === 'new-request-description') updateNewRequestDescriptionCounter_();
+        clearNewRequestFieldError_(input.id);
+        renderNewRequestPanels_();
+      });
+      input.addEventListener('change', function() {
+        NEW_PAYMENT_REQUEST_STATE.dirty = true;
+        clearNewRequestFieldError_(input.id);
+        renderNewRequestPanels_();
+      });
+    });
+    var amount = document.getElementById('new-request-amount');
+    if (amount) {
+      amount.addEventListener('focus', function() {
+        var value = parseAmountInput_(amount.value);
+        amount.value = value ? String(value).replace('.', ',') : '';
+      });
+      amount.addEventListener('blur', function() {
+        var value = parseAmountInput_(amount.value);
+        amount.value = value ? formatAmount_(value) : '';
+        renderNewRequestPanels_();
+      });
+    }
+  }
+
+  function openNewPaymentRequestScreen_() {
+    document.querySelectorAll('.d-section').forEach(function(section) {
+      section.classList.toggle('active', section.id === 'd-section-zahtev-novi');
+    });
+    document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'zahtevi');
+    });
+    updateDesktopDirectActionsVisibility_();
+    resetNewPaymentRequestForm_();
+  }
+
+  function openPaymentRequestsOverview_() {
+    openDesktopSection_('zahtevi');
+    loadDesktopPaymentRequests_();
+  }
+
+  function resetNewPaymentRequestForm_() {
+    var form = document.getElementById('new-payment-request-form');
+    if (!form) return;
+    NEW_PAYMENT_REQUEST_STATE.savedRequestId = '';
+    NEW_PAYMENT_REQUEST_STATE.status = 'PENDING_SEND';
+    NEW_PAYMENT_REQUEST_STATE.dirty = false;
+    NEW_PAYMENT_REQUEST_STATE.attachments = [];
+    NEW_PAYMENT_REQUEST_STATE.activities = [];
+    clearAllNewRequestErrors_();
+    var now = new Date();
+    setNewOrderValue_('new-request-number', 'ZI-' + now.getFullYear() + '-PRIPREMA');
+    setNewOrderValue_('new-request-date', toDateTimeLocal_(now));
+    setNewOrderValue_('new-request-requester', newOrderCurrentUserName_());
+    setNewOrderValue_('new-request-recipient', '');
+    setNewOrderValue_('new-request-amount', '');
+    setNewOrderValue_('new-request-purpose', '');
+    setNewOrderValue_('new-request-needed-by', toInputDate_(new Date(now.getTime() + 24 * 60 * 60 * 1000)));
+    setNewOrderValue_('new-request-priority', 'NORMAL');
+    setNewOrderValue_('new-request-description', '');
+    populateNewRequestSelects_();
+    populateNewRequestDatalists_();
+    addNewRequestActivity_('Kreiran dokument', 'Zahtev je pripremljen za unos.');
+    renderNewRequestAttachments_();
+    renderNewRequestPanels_();
+    renderNewRequestActivities_();
+    updateNewRequestStatusBadge_();
+    updateNewRequestDescriptionCounter_();
+  }
+
+  function populateNewRequestSelects_() {
+    var cashbox = document.getElementById('new-request-cashbox');
+    if (cashbox) {
+      var cashboxes = uiState.config.cashboxes || [{ cashbox_id: SESSION.cashboxId || 'CB_MAIN', name: SESSION.cashboxName || 'Glavna blagajna' }];
+      cashbox.innerHTML = cashboxes.map(function(item) {
+        return '<option value="' + escapeHtml(item.cashbox_id) + '">' + escapeHtml(item.name || item.cashbox_id) + '</option>';
+      }).join('');
+      cashbox.value = SESSION.cashboxId || (cashboxes[0] && cashboxes[0].cashbox_id) || '';
+    }
+    var currency = document.getElementById('new-request-currency');
+    if (currency) {
+      var currencies = uiState.config.currencies || [SESSION.currency || 'RSD', 'EUR', 'ČEK'];
+      currency.innerHTML = currencies.map(function(code) {
+        return '<option value="' + escapeHtml(code) + '">' + escapeHtml(code) + '</option>';
+      }).join('');
+      currency.value = SESSION.currency || currencies[0] || 'RSD';
+    }
+  }
+
+  function populateNewRequestDatalists_() {
+    var recipients = ['Petar Petrović', 'Ana Jovanović', 'Dobavljač AS DOO', 'Jelena Marković', 'Nikola Milošević'];
+    var recipientList = document.getElementById('new-request-recipient-list');
+    if (recipientList) recipientList.innerHTML = recipients.map(function(name) { return '<option value="' + escapeHtml(name) + '"></option>'; }).join('');
+    var basisList = document.getElementById('new-request-purpose-list');
+    if (basisList) basisList.innerHTML = [
+      'Putni trošak','Akontacija','Refundacija troška','Plaćanje računa','Nabavka materijala','Dnevnica','Povraćaj sredstava','Ostalo'
+    ].map(function(value) { return '<option value="' + escapeHtml(value) + '"></option>'; }).join('');
+  }
+
+  function collectNewPaymentRequestData_() {
+    return {
+      cashbox_id: valueOf_('new-request-cashbox'),
+      requested_for_name: valueOf_('new-request-recipient'),
+      amount: parseAmountInput_(valueOf_('new-request-amount')),
+      currency: valueOf_('new-request-currency'),
+      purpose: valueOf_('new-request-purpose'),
+      needed_by_date: valueOf_('new-request-needed-by'),
+      priority: valueOf_('new-request-priority') || 'NORMAL',
+      description: valueOf_('new-request-description'),
+      approvalPath: decidePaymentRequestPath_(parseAmountInput_(valueOf_('new-request-amount')), valueOf_('new-request-currency')),
+      document_status: NEW_PAYMENT_REQUEST_STATE.attachments.length ? 'ATTACHED' : 'NONE'
+    };
+  }
+
+  function validateNewPaymentRequest_() {
+    clearAllNewRequestErrors_();
+    var data = collectNewPaymentRequestData_();
+    var ok = true;
+    if (!data.cashbox_id) ok = setNewRequestFieldError_('new-request-cashbox', 'Izaberite blagajnu.') && false;
+    if (!data.requested_for_name) ok = setNewRequestFieldError_('new-request-recipient', 'Unesite primaoca isplate.') && false;
+    if (!data.amount || data.amount <= 0) ok = setNewRequestFieldError_('new-request-amount', 'Unesite iznos veći od nule.') && false;
+    if (!data.currency) ok = setNewRequestFieldError_('new-request-currency', 'Izaberite valutu.') && false;
+    if (!data.purpose) ok = setNewRequestFieldError_('new-request-purpose', 'Unesite osnov zahteva.') && false;
+    if (!data.description || data.description.length < 10) ok = setNewRequestFieldError_('new-request-description', 'Obrazloženje mora imati najmanje 10 karaktera.') && false;
+    if (data.description && data.description.length > 500) ok = setNewRequestFieldError_('new-request-description', 'Obrazloženje može imati najviše 500 karaktera.') && false;
+    if (data.needed_by_date) {
+      var requestDate = parseDateSafe_(valueOf_('new-request-date'));
+      var dueDate = parseDateSafe_(data.needed_by_date);
+      if (requestDate && dueDate && dueDate < new Date(requestDate.getFullYear(), requestDate.getMonth(), requestDate.getDate())) {
+        ok = setNewRequestFieldError_('new-request-needed-by', 'Rok ne sme biti pre datuma zahteva.') && false;
+      }
+    }
+    if (data.priority === 'VERY_URGENT' && data.description.length < 30) {
+      ok = setNewRequestFieldError_('new-request-description', 'Za vrlo hitno obrazloženje mora biti jasnije i duže.') && false;
+    }
+    if (!ok) showDesktopMessage_('Popunite obavezna polja pre slanja zahteva.', 'error');
+    return ok;
+  }
+
+  function buildPaymentRequestApiPayload_(data) {
+    return {
+      requested_for_name: data.requested_for_name,
+      amount: data.amount,
+      currency: data.currency,
+      purpose: data.purpose,
+      description: data.description,
+      preferred_cashbox_id: data.cashbox_id,
+      needed_by_date: data.needed_by_date,
+      priority: data.priority,
+      document_status: NEW_PAYMENT_REQUEST_STATE.attachments.length ? 'ATTACHED' : 'NONE'
+    };
+  }
+
+  function saveNewPaymentRequestDraft_() {
+    var data = collectNewPaymentRequestData_();
+    var canUseBackend = window.google && google.script && google.script.run &&
+      data.requested_for_name && data.amount && data.currency && data.purpose;
+    if (canUseBackend && !NEW_PAYMENT_REQUEST_STATE.savedRequestId) {
+      callApi('apiCreatePaymentRequest', [buildPaymentRequestApiPayload_(data)], function(created) {
+        NEW_PAYMENT_REQUEST_STATE.savedRequestId = created.request_id;
+        NEW_PAYMENT_REQUEST_STATE.status = created.status || 'DRAFT';
+        NEW_PAYMENT_REQUEST_STATE.dirty = false;
+        setNewOrderValue_('new-request-number', created.request_id);
+        addNewRequestActivity_('Sačuvan nacrt', 'Nacrt zahteva je sačuvan u evidenciji.');
+        renderNewRequestPanels_();
+        renderNewRequestActivities_();
+        updateNewRequestStatusBadge_();
+        showDesktopMessage_('Nacrt zahteva je sačuvan.', 'success');
+      }, { successMessage: 'Nacrt zahteva je sačuvan.' });
+      return;
+    }
+    if (!NEW_PAYMENT_REQUEST_STATE.savedRequestId) {
+      NEW_PAYMENT_REQUEST_STATE.savedRequestId = 'REQ-MOCK-' + String(Date.now()).slice(-5);
+      setNewOrderValue_('new-request-number', 'ZI-2026-' + NEW_PAYMENT_REQUEST_STATE.savedRequestId.slice(-5));
+    }
+    NEW_PAYMENT_REQUEST_STATE.status = 'DRAFT';
+    NEW_PAYMENT_REQUEST_STATE.dirty = false;
+    addNewRequestActivity_('Sačuvan nacrt', canUseBackend ? 'Nacrt je već evidentiran.' : 'Nacrt je sačuvan lokalno dok se ne popune obavezna polja.');
+    renderNewRequestPanels_();
+    renderNewRequestActivities_();
+    updateNewRequestStatusBadge_();
+    showDesktopMessage_('Nacrt zahteva je sačuvan.', 'success');
+  }
+
+  function submitNewPaymentRequest_() {
+    if (!validateNewPaymentRequest_()) return;
+    var data = collectNewPaymentRequestData_();
+    appConfirm_({
+      title: 'Pošalji zahtev za isplatu?',
+      message: 'Zahtev će biti poslat blagajni na obradu. Na osnovu iznosa i pravila odobravanja, zahtev može biti isplaćen direktno ili prosleđen na višu instancu radi kreiranja naloga za isplatu.',
+      confirmText: 'Pošalji zahtev'
+    }, function() {
+      if (!NEW_PAYMENT_REQUEST_STATE.savedRequestId) {
+        if (window.google && google.script && google.script.run) {
+          callApi('apiCreatePaymentRequest', [buildPaymentRequestApiPayload_(data)], function(created) {
+            NEW_PAYMENT_REQUEST_STATE.savedRequestId = created.request_id;
+            setNewOrderValue_('new-request-number', created.request_id);
+            callApi('apiSubmitPaymentRequest', [created.request_id], function() {
+              NEW_PAYMENT_REQUEST_STATE.status = 'SUBMITTED';
+              NEW_PAYMENT_REQUEST_STATE.dirty = false;
+              addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'DIRECT_PAYMENT' ? 'Očekivani put: direktna isplata.' : 'Očekivani put: nalog za isplatu.');
+              showDesktopMessage_('Zahtev je poslat na obradu. Stanje blagajne nije promenjeno.', 'success');
+              openPaymentRequestsOverview_();
+            }, { successMessage: 'Zahtev je poslat.' });
+          }, { successMessage: 'Zahtev je kreiran.' });
+          return;
+        }
+        NEW_PAYMENT_REQUEST_STATE.savedRequestId = 'REQ-MOCK-' + String(Date.now()).slice(-5);
+        setNewOrderValue_('new-request-number', 'ZI-2026-' + NEW_PAYMENT_REQUEST_STATE.savedRequestId.slice(-5));
+      } else if (window.google && google.script && google.script.run && NEW_PAYMENT_REQUEST_STATE.savedRequestId.indexOf('REQ-MOCK-') !== 0) {
+        callApi('apiSubmitPaymentRequest', [NEW_PAYMENT_REQUEST_STATE.savedRequestId], function() {
+          NEW_PAYMENT_REQUEST_STATE.status = 'SUBMITTED';
+          NEW_PAYMENT_REQUEST_STATE.dirty = false;
+          addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'DIRECT_PAYMENT' ? 'Očekivani put: direktna isplata.' : 'Očekivani put: nalog za isplatu.');
+          showDesktopMessage_('Zahtev je poslat na obradu. Stanje blagajne nije promenjeno.', 'success');
+          openPaymentRequestsOverview_();
+        }, { successMessage: 'Zahtev je poslat.' });
+        return;
+      }
+      NEW_PAYMENT_REQUEST_STATE.status = 'SUBMITTED';
+      NEW_PAYMENT_REQUEST_STATE.dirty = false;
+      addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'DIRECT_PAYMENT' ? 'Očekivani put: direktna isplata.' : 'Očekivani put: nalog za isplatu.');
+      var record = normalizePaymentRequest_({
+        id: NEW_PAYMENT_REQUEST_STATE.savedRequestId,
+        requestNo: valueOf_('new-request-number'),
+        createdAt: new Date().toISOString(),
+        createdBy: newOrderCurrentUserName_(),
+        requesterName: newOrderCurrentUserName_(),
+        cashboxId: data.cashbox_id,
+        cashboxName: newOrderCashboxName_(data.cashbox_id),
+        currency: data.currency,
+        amount: data.amount,
+        recipientName: data.requested_for_name,
+        requestBasis: data.purpose,
+        requestedPaymentDate: data.needed_by_date,
+        priority: data.priority,
+        explanation: data.description,
+        status: 'SUBMITTED',
+        approvalPath: data.approvalPath,
+        attachments: NEW_PAYMENT_REQUEST_STATE.attachments,
+        activities: NEW_PAYMENT_REQUEST_STATE.activities
+      });
+      MOCK_PAYMENT_REQUESTS.unshift(record.raw);
+      showDesktopMessage_('Zahtev je poslat na obradu. Stanje blagajne nije promenjeno.', 'success');
+      openPaymentRequestsOverview_();
+    });
+  }
+
+  function confirmLeaveNewPaymentRequest_(callback) {
+    if (!NEW_PAYMENT_REQUEST_STATE.dirty) {
+      callback();
+      return;
+    }
+    appConfirm_({
+      title: 'Nesačuvane izmene',
+      message: 'Imate nesačuvane izmene. Da li želite da napustite unos?',
+      confirmText: 'Napusti unos',
+      danger: true
+    }, callback);
+  }
+
+  function handleNewRequestFiles_(event) {
+    var files = Array.prototype.slice.call(event.target.files || []);
+    files.forEach(function(file) {
+      var okType = /\.(pdf|jpg|jpeg|png)$/i.test(file.name || '');
+      if (!okType) {
+        showDesktopMessage_('Prilog nije dodat: dozvoljeni su PDF, JPG i PNG fajlovi.', 'error');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        showDesktopMessage_('Prilog nije dodat: maksimalna veličina je 10 MB.', 'error');
+        return;
+      }
+      NEW_PAYMENT_REQUEST_STATE.attachments.push({
+        id: 'att-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+        name: file.name,
+        size: file.size,
+        type: 'Prilog',
+        status: 'Mock'
+      });
+      addNewRequestActivity_('Dodat prilog', 'Dodat prilog: ' + file.name + ' (mock upload).');
+      NEW_PAYMENT_REQUEST_STATE.dirty = true;
+    });
+    event.target.value = '';
+    renderNewRequestAttachments_();
+    renderNewRequestActivities_();
+    renderNewRequestPanels_();
+  }
+
+  function renderNewRequestAttachments_() {
+    var target = document.getElementById('new-request-attachment-list');
+    if (!target) return;
+    if (!NEW_PAYMENT_REQUEST_STATE.attachments.length) {
+      target.innerHTML = '<div class="new-order-empty-attachment">Još nema dodatih priloga.</div>';
+      return;
+    }
+    target.innerHTML = NEW_PAYMENT_REQUEST_STATE.attachments.map(function(att) {
+      return '<div class="new-order-attachment">' +
+        '<i class="ti ti-file-type-pdf" aria-hidden="true"></i>' +
+        '<div><strong>' + escapeHtml(att.name) + '</strong><span>' + escapeHtml(formatBytes_(att.size)) + ' · mock prilog</span></div>' +
+        '<button type="button" data-new-request-remove-att="' + escapeHtml(att.id) + '"><i class="ti ti-x" aria-hidden="true"></i></button>' +
+      '</div>';
+    }).join('');
+    target.querySelectorAll('[data-new-request-remove-att]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.getAttribute('data-new-request-remove-att');
+        NEW_PAYMENT_REQUEST_STATE.attachments = NEW_PAYMENT_REQUEST_STATE.attachments.filter(function(att) { return att.id !== id; });
+        NEW_PAYMENT_REQUEST_STATE.dirty = true;
+        addNewRequestActivity_('Uklonjen prilog', 'Prilog je uklonjen iz zahteva.');
+        renderNewRequestAttachments_();
+        renderNewRequestActivities_();
+        renderNewRequestPanels_();
+      });
+    });
+  }
+
+  function renderNewRequestPanels_() {
+    renderNewRequestSummary_();
+    renderNewRequestTimeline_();
+    renderNewRequestRules_();
+  }
+
+  function renderNewRequestSummary_() {
+    var target = document.getElementById('new-request-summary');
+    if (!target) return;
+    var data = collectNewPaymentRequestData_();
+    target.innerHTML =
+      newOrderSummaryRow_('Primalac', data.requested_for_name || '—') +
+      newOrderSummaryRow_('Iznos', data.amount ? formatAmount_(data.amount) : '—') +
+      newOrderSummaryRow_('Valuta', data.currency || '—') +
+      newOrderSummaryRow_('Blagajna', newOrderCashboxName_(data.cashbox_id)) +
+      newOrderSummaryRow_('Podnosilac', valueOf_('new-request-requester') || '—') +
+      newOrderSummaryRow_('Osnov', data.purpose || '—') +
+      newOrderSummaryRow_('Put', paymentRequestPathLabel_(data.approvalPath)) +
+      newOrderSummaryRow_('Prilozi', String(NEW_PAYMENT_REQUEST_STATE.attachments.length));
+  }
+
+  function renderNewRequestTimeline_() {
+    var target = document.getElementById('new-request-timeline');
+    if (!target) return;
+    var data = collectNewPaymentRequestData_();
+    var status = NEW_PAYMENT_REQUEST_STATE.status;
+    var steps = [
+      ['Kreiran', true, valueOf_('new-request-date')],
+      ['U pripremi', status === 'PENDING_SEND' || status === 'DRAFT', status === 'DRAFT' ? 'Nacrt sačuvan' : 'Nije sačuvan'],
+      ['Poslat blagajni', status === 'SUBMITTED', status === 'SUBMITTED' ? 'Čeka obradu' : '—'],
+      [data.approvalPath === 'PAYMENT_ORDER' ? 'Nalog za isplatu' : 'Direktna isplata', Boolean(data.amount), paymentRequestPathLabel_(data.approvalPath)],
+      ['Isplaćen / Odbijen', false, '—']
+    ];
+    target.innerHTML = '<div class="new-order-timeline">' + steps.map(function(step) {
+      return '<div class="' + (step[1] ? 'active' : '') + '"><span></span><strong>' + escapeHtml(step[0]) + '</strong><small>' + escapeHtml(step[2] || '—') + '</small></div>';
+    }).join('') + '</div>';
+  }
+
+  function renderNewRequestRules_() {
+    var target = document.getElementById('new-request-rules');
+    if (!target) return;
+    var data = collectNewPaymentRequestData_();
+    var limit = getPaymentRequestLimit_(data.currency || 'RSD');
+    var inLimit = data.amount > 0 && data.amount <= limit;
+    var requiredOk = data.cashbox_id && data.requested_for_name && data.amount > 0 && data.currency && data.purpose && data.description.length >= 10;
+    var rows = [
+      ['Podnosilac validan', 'Validno', true],
+      ['Obavezna polja', requiredOk ? 'Popunjeno' : 'Nedostaje', requiredOk],
+      ['Iznos u okviru limita blagajnika', data.amount ? (inLimit ? 'Da' : 'Ne') : '—', inLimit || !data.amount],
+      ['Potrebno više odobrenje', data.amount ? (inLimit ? 'Ne' : 'Da') : '—', inLimit || !data.amount],
+      ['Prilozi', NEW_PAYMENT_REQUEST_STATE.attachments.length ? 'Dostavljeni' : 'Nisu obavezni', true],
+      ['Dupli zahtev', 'Nije pronađen', true]
+    ];
+    target.innerHTML = rows.map(function(row) {
+      return '<div class="' + (row[2] ? 'request-rule-ok' : 'request-rule-warning') + '"><span>' + escapeHtml(row[0]) + '</span><strong>' + escapeHtml(row[1]) + '</strong></div>';
+    }).join('');
+  }
+
+  function renderNewRequestActivities_() {
+    var target = document.getElementById('new-request-activity-list');
+    if (!target) return;
+    var rows = NEW_PAYMENT_REQUEST_STATE.activities.slice(-8).reverse();
+    target.innerHTML = '<table><thead><tr><th>Vreme</th><th>Aktivnost</th><th>Korisnik</th><th>Detalji</th></tr></thead><tbody>' +
+      rows.map(function(row) {
+        return '<tr><td>' + escapeHtml(formatDateTimeShort_(row.at)) + '</td><td>' + escapeHtml(row.title) + '</td><td>' + escapeHtml(row.user) + '</td><td>' + escapeHtml(row.detail) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function addNewRequestActivity_(title, detail) {
+    NEW_PAYMENT_REQUEST_STATE.activities.push({
+      at: new Date().toISOString(),
+      title: title,
+      detail: detail || '',
+      user: newOrderCurrentUserName_()
+    });
+  }
+
+  function updateNewRequestDescriptionCounter_() {
+    var desc = document.getElementById('new-request-description');
+    var count = document.getElementById('new-request-description-count');
+    if (count) count.textContent = String((desc && desc.value || '').length);
+  }
+
+  function updateNewRequestStatusBadge_() {
+    var badge = document.getElementById('new-request-status-badge');
+    if (!badge) return;
+    var map = { PENDING_SEND: 'ČEKA SLANJE', DRAFT: 'NACRT', SUBMITTED: 'POSLAT' };
+    badge.textContent = map[NEW_PAYMENT_REQUEST_STATE.status] || NEW_PAYMENT_REQUEST_STATE.status;
+  }
+
+  function setNewRequestFieldError_(id, message) {
+    var el = document.getElementById(id);
+    if (!el) return false;
+    el.classList.add('invalid');
+    var label = el.closest('label') || el.parentElement;
+    var error = label ? label.querySelector('.new-order-error') : null;
+    if (!error && label) {
+      error = document.createElement('span');
+      error.className = 'new-order-error';
+      label.appendChild(error);
+    }
+    if (error) error.textContent = message;
+    return false;
+  }
+
+  function clearNewRequestFieldError_(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('invalid');
+    var label = el.closest('label') || el.parentElement;
+    var error = label ? label.querySelector('.new-order-error') : null;
+    if (error) error.remove();
+  }
+
+  function clearAllNewRequestErrors_() {
+    document.querySelectorAll('#new-payment-request-form .invalid').forEach(function(el) { el.classList.remove('invalid'); });
+    document.querySelectorAll('#new-payment-request-form .new-order-error').forEach(function(el) { el.remove(); });
   }
 
   function loadDesktopNavBadges_() {

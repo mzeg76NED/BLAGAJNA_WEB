@@ -45,8 +45,14 @@ Dozvoljeni statusi su:
 | DRAFT | Zahtev je sacuvan kao nacrt |
 | SUBMITTED | Zahtev je podnet na pregled |
 | IN_REVIEW | Zahtev je u obradi kod odobravaoca |
-| APPROVED | Zahtev je odobren |
+| CASHIER_REVIEW | Zahtev je u obradi blagajne / odobravaoca |
+| APPROVED | Legacy status za odobren zahtev |
+| APPROVED_FOR_DIRECT_PAYMENT | Zahtev je odobren za direktnu isplatu kroz poseban Cash Payment Event |
+| ESCALATED_TO_ORDER | Zahtev mora u visi nivo i iz njega nastaje nalog |
+| ORDER_CREATED | Iz zahteva je kreiran nalog za isplatu |
+| PAID | Zahtev je isplacen kroz Cash Payment Event |
 | REJECTED | Zahtev je odbijen |
+| RETURNED_FOR_CORRECTION | Zahtev je vracen podnosiocu na dopunu |
 | CONVERTED_TO_ORDER | Zahtev je kasnije pretvoren u nalog za isplatu |
 | CANCELLED | Zahtev je otkazan |
 
@@ -67,12 +73,16 @@ Payment Request koristi polja definisana u `PAYMENT_REQUESTS` sheetu:
 | description | no | Dodatno objasnjenje |
 | preferred_cashbox_id | no | Predlozena blagajna |
 | needed_by_date | no | Datum kada je novac potreban |
-| priority | yes | NORMAL ili URGENT |
+| priority | yes | NORMAL, URGENT ili VERY_URGENT |
 | status | yes | Trenutni status |
 | reviewed_by | no | Korisnik koji je pregledao zahtev |
 | reviewed_at | no | Vreme pregleda |
 | rejection_reason | no | Obavezno ako je zahtev odbijen |
-| linked_order_id | no | Popunjava se kasnije, kada Task 04 napravi nalog |
+| linked_order_id | no | Popunjava se kada je iz zahteva kreiran nalog |
+| approval_path | no | DIRECT_PAYMENT, PAYMENT_ORDER ili UNDECIDED |
+| direct_cash_event_id | no | Popunjava se kasnije kada stvarna direktna isplata napravi Cash Event |
+| returned_for_correction_reason | no | Obavezna napomena kada je zahtev vracen na dopunu |
+| cancellation_reason | no | Razlog ponistenja kada je potreban |
 | document_status | yes | NONE, MISSING ili ATTACHED |
 | updated_at | no | Vreme poslednje izmene |
 
@@ -82,14 +92,40 @@ Payment Request koristi polja definisana u `PAYMENT_REQUESTS` sheetu:
 2. Zahtev za isplatu ne ovlascuje blagajnika da izvrsi isplatu.
 3. Novi zahtev pocinje u statusu `DRAFT`.
 4. Samo `DRAFT` zahtev moze da predje u `SUBMITTED`.
-5. Samo `SUBMITTED` zahtev moze da predje u `IN_REVIEW`.
-6. Samo `SUBMITTED` ili `IN_REVIEW` zahtev moze da bude odobren.
-7. Samo `SUBMITTED` ili `IN_REVIEW` zahtev moze da bude odbijen.
+5. `SUBMITTED` zahtev moze da predje u `CASHIER_REVIEW`.
+6. `SUBMITTED`, `IN_REVIEW`, `CASHIER_REVIEW`, `ESCALATED_TO_ORDER` ili legacy `APPROVED` zahtev moze da bude obradjen.
+7. Zahtev u obradi moze da bude odbijen ili vracen na dopunu.
 8. Odbijanje zahteva mora imati razlog.
-9. Otkazan zahtev ostaje u sheetu i dobija status `CANCELLED`.
-10. Zahtev u statusu `CONVERTED_TO_ORDER` ne moze da se otkaze kroz ovaj workflow.
-11. Odobravanje zahteva ne pravi Payment Order u Task 03.
-12. Odobravanje zahteva ne pravi Cash Event i ne menja stanje blagajne.
+9. Vracanje na dopunu mora imati napomenu.
+10. Otkazan zahtev ostaje u sheetu i dobija status `CANCELLED`.
+11. Zahtev u statusu `ORDER_CREATED`, `CONVERTED_TO_ORDER` ili `PAID` ne moze da se otkaze kroz ovaj workflow.
+12. Odobravanje zahteva za direktnu isplatu ne pravi Cash Event i ne menja stanje blagajne.
+13. Kreiranje naloga iz zahteva ne menja stanje blagajne i ne sme se ponoviti ako zahtev vec ima povezan aktivan nalog.
+
+## UI tok i limiti
+
+Desktop UI sadrzi dva ekrana za rad sa zahtevima:
+
+- Novi zahtev za isplatu
+- Pregled zahteva za isplatu
+
+Ekrani prikazuju ocekivani put obrade zahteva:
+
+| Put | Znacenje |
+|---|---|
+| DIRECT_PAYMENT | Iznos je u okviru limita blagajnika i zahtev moze biti odobren za direktnu isplatu. Stanje blagajne se i dalje menja tek kroz Cash Payment Event. |
+| PAYMENT_ORDER | Iznos je preko limita ili je potrebna visa instanca, pa se iz zahteva kreira nalog za isplatu. |
+| UNDECIDED | Zahtev jos nema dovoljno podataka ili nije obradjen. |
+
+Trenutna konfiguracija limita je deljena iz backend konfiguracije i koristi se u UI za prikaz ocekivanog puta:
+
+| Valuta | Limit za direktno odobrenje |
+|---|---:|
+| RSD | 30.000 |
+| EUR | 100 |
+| CEK | 30.000 |
+
+Odbijanje zahteva u UI i backendu mora imati razlog. Vracanje na dopunu mora imati napomenu. Kreiranje naloga iz zahteva mora imati potvrdu i ne sme automatski kreirati drugi nalog ako zahtev vec ima povezan nalog ili aktivan nalog u `PAYMENT_ORDERS`.
 
 ## Lifecycle
 
@@ -98,18 +134,25 @@ Standardni tok u ovom tasku:
 ```text
 DRAFT
 -> SUBMITTED
--> IN_REVIEW
--> APPROVED ili REJECTED
+-> CASHIER_REVIEW / IN_REVIEW
+-> APPROVED_FOR_DIRECT_PAYMENT ili ESCALATED_TO_ORDER ili REJECTED ili RETURNED_FOR_CORRECTION
 ```
 
 Alternativni tok:
 
 ```text
-DRAFT ili SUBMITTED ili IN_REVIEW ili APPROVED
+DRAFT ili SUBMITTED ili IN_REVIEW ili CASHIER_REVIEW ili APPROVED_FOR_DIRECT_PAYMENT ili ESCALATED_TO_ORDER
 -> CANCELLED
 ```
 
-Prelaz iz `APPROVED` u `CONVERTED_TO_ORDER` pripada Task 04 i nije implementiran ovde.
+Tok za nalog:
+
+```text
+ESCALATED_TO_ORDER
+-> ORDER_CREATED
+-> PAYMENT_ORDER
+-> CASH_PAYMENT_EVENT
+```
 
 ## Validacije
 
@@ -120,9 +163,12 @@ Kreiranje zahteva proverava:
 - obavezna polja `requested_for_name`, `amount`, `currency`, `purpose`,
 - pozitivan iznos,
 - aktivnu valutu,
-- dozvoljeni prioritet `NORMAL` ili `URGENT`,
-- aktivnu predlozenu blagajnu ako je uneta,
+- dozvoljeni prioritet `NORMAL`, `URGENT` ili `VERY_URGENT`,
+- aktivnu predlozenu blagajnu i pravo pristupa blagajni ako je uneta,
+- izracunat `approval_path` na osnovu iznosa i valute,
 - dozvoljeni `document_status`.
+
+Podnosenje zahteva dodatno proverava da opis postoji i ima najmanje 10 karaktera.
 
 Promene statusa proveravaju:
 
@@ -142,6 +188,7 @@ Svaka vazna akcija dodaje red u `AUDIT_LOG`:
 | Oznacavanje kao u obradi | UPDATE |
 | Odobravanje zahteva | APPROVE |
 | Odbijanje zahteva | REJECT |
+| Vracanje na dopunu | UPDATE |
 | Otkazivanje zahteva | CANCEL |
 
 Audit log se ne menja i ne brise kroz poslovne funkcije.
@@ -167,16 +214,29 @@ Podnosenje zahteva:
 submitPaymentRequest(request.request_id);
 ```
 
-Odobravanje zahteva:
+Odobravanje zahteva za direktnu isplatu:
+
+```javascript
+approvePaymentRequestForDirectPayment(request.request_id);
+```
+
+Odobravanje zahteva preko limita i kreiranje naloga:
 
 ```javascript
 approvePaymentRequest(request.request_id);
+createPaymentOrderFromRequest(request.request_id, { cashbox_id: 'CB-001' });
 ```
 
 Odbijanje zahteva:
 
 ```javascript
 rejectPaymentRequest(request.request_id, 'Nedostaje poslovno obrazlozenje.');
+```
+
+Vracanje na dopunu:
+
+```javascript
+returnPaymentRequestForCorrection(request.request_id, 'Dodati fiskalni racun kao prilog.');
 ```
 
 Otkazivanje zahteva:

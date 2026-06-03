@@ -111,15 +111,33 @@ function apiListRequestsForApproval() {
   });
 }
 
+function apiListPaymentRequests(filters) {
+  return apiWrap_(function() {
+    return listPaymentRequests(filters || {});
+  });
+}
+
 function apiApprovePaymentRequest(requestId) {
   return apiWrap_(function() {
     return approvePaymentRequest(requestId);
   });
 }
 
+function apiApprovePaymentRequestForDirectPayment(requestId) {
+  return apiWrap_(function() {
+    return approvePaymentRequestForDirectPayment(requestId);
+  });
+}
+
 function apiRejectPaymentRequest(requestId, reason) {
   return apiWrap_(function() {
     return rejectPaymentRequest(requestId, reason);
+  });
+}
+
+function apiReturnPaymentRequestForCorrection(requestId, note) {
+  return apiWrap_(function() {
+    return returnPaymentRequestForCorrection(requestId, note);
   });
 }
 
@@ -619,6 +637,7 @@ function buildAppConfigForUi_(currentUser) {
     cashDenominations: getCurrencyDenominationMap(),
     cashboxes: cashboxes,
     requestPriorities: objectValues_(REQUEST_PRIORITIES),
+    paymentRequestApprovalRules: PAYMENT_REQUEST_APPROVAL_RULES,
     entityTypes: objectValues_(ENTITY_TYPES),
     defaultCashboxId: defaultCashboxId,
     defaultCashboxName: defaultCashbox.name || defaultCashbox.cashbox_id,

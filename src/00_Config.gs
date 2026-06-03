@@ -5,7 +5,7 @@
  * intentionally configures this project copy for one known environment.
  */
 const APP_NAME = 'BLAGAJNA WEB';
-const APP_VERSION = '2.0.20-pilot';
+const APP_VERSION = '2.0.21-pilot';
 const ENVIRONMENT = 'PILOT'; // DEV, PILOT, PROD
 const DEBUG_MODE = false;
 const DATABASE_SPREADSHEET_ID = '';
@@ -59,8 +59,14 @@ const REQUEST_STATUSES = Object.freeze({
   DRAFT: 'DRAFT',
   SUBMITTED: 'SUBMITTED',
   IN_REVIEW: 'IN_REVIEW',
+  CASHIER_REVIEW: 'CASHIER_REVIEW',
   APPROVED: 'APPROVED',
+  APPROVED_FOR_DIRECT_PAYMENT: 'APPROVED_FOR_DIRECT_PAYMENT',
+  ESCALATED_TO_ORDER: 'ESCALATED_TO_ORDER',
+  ORDER_CREATED: 'ORDER_CREATED',
+  PAID: 'PAID',
   REJECTED: 'REJECTED',
+  RETURNED_FOR_CORRECTION: 'RETURNED_FOR_CORRECTION',
   CONVERTED_TO_ORDER: 'CONVERTED_TO_ORDER',
   CANCELLED: 'CANCELLED'
 });
@@ -141,7 +147,26 @@ const ENTITY_TABLE_MAP = Object.freeze({
 
 const REQUEST_PRIORITIES = Object.freeze({
   NORMAL: 'NORMAL',
-  URGENT: 'URGENT'
+  URGENT: 'URGENT',
+  VERY_URGENT: 'VERY_URGENT'
+});
+
+const PAYMENT_REQUEST_APPROVAL_PATHS = Object.freeze({
+  DIRECT_PAYMENT: 'DIRECT_PAYMENT',
+  PAYMENT_ORDER: 'PAYMENT_ORDER',
+  UNDECIDED: 'UNDECIDED'
+});
+
+const PAYMENT_REQUEST_APPROVAL_RULES = Object.freeze({
+  RSD: Object.freeze({
+    cashierDirectApprovalLimit: 30000
+  }),
+  EUR: Object.freeze({
+    cashierDirectApprovalLimit: 100
+  }),
+  'ČEK': Object.freeze({
+    cashierDirectApprovalLimit: 30000
+  })
 });
 
 const ORDER_TYPES = Object.freeze({
@@ -238,6 +263,10 @@ const TABLE_HEADERS = Object.freeze({
     'reviewed_at',
     'rejection_reason',
     'linked_order_id',
+    'approval_path',
+    'direct_cash_event_id',
+    'returned_for_correction_reason',
+    'cancellation_reason',
     'document_status',
     'updated_at'
   ]),

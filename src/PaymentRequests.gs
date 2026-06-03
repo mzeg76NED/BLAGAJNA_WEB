@@ -20,6 +20,25 @@ const PAYMENT_REQUEST_REVIEWER_ROLES_ = Object.freeze([
   USER_ROLES.APPROVER
 ]);
 
+const PAYMENT_REQUEST_LIST_ROLES_ = Object.freeze([
+  USER_ROLES.ADMIN,
+  USER_ROLES.DIRECTOR,
+  USER_ROLES.FINANCE,
+  USER_ROLES.CASHIER_SUPERVISOR,
+  USER_ROLES.CASHIER,
+  USER_ROLES.APPROVER,
+  USER_ROLES.REQUESTER,
+  USER_ROLES.VIEWER
+]);
+
+const PAYMENT_REQUEST_OPEN_REVIEW_STATUSES_ = Object.freeze([
+  REQUEST_STATUSES.SUBMITTED,
+  REQUEST_STATUSES.IN_REVIEW,
+  REQUEST_STATUSES.CASHIER_REVIEW,
+  REQUEST_STATUSES.ESCALATED_TO_ORDER,
+  REQUEST_STATUSES.APPROVED
+]);
+
 function createPaymentRequest(data) {
   const currentUser = requireActiveUserWithRole_(PAYMENT_REQUEST_CREATOR_ROLES_);
   const requestData = data || {};
@@ -41,10 +60,13 @@ function createPaymentRequest(data) {
   const status = requestData.status || REQUEST_STATUSES.DRAFT;
   assertAllowedValue(status, [REQUEST_STATUSES.DRAFT], 'status');
 
-  if (requestData.preferred_cashbox_id) {
-    assertActiveCashbox(requestData.preferred_cashbox_id);
+  const cashboxId = requestData.preferred_cashbox_id || requestData.cashbox_id || '';
+  if (cashboxId) {
+    assertActiveCashbox(cashboxId);
+    assertCashboxAccess(cashboxId);
   }
 
+  const approvalPath = getPaymentRequestApprovalPath_(requestData.amount, requestData.currency);
   const now = getCurrentTimestamp_();
   const record = {
     request_id: generateId_('REQ'),
@@ -56,7 +78,7 @@ function createPaymentRequest(data) {
     currency: requestData.currency,
     purpose: String(requestData.purpose).trim(),
     description: requestData.description || '',
-    preferred_cashbox_id: requestData.preferred_cashbox_id || '',
+    preferred_cashbox_id: cashboxId,
     needed_by_date: requestData.needed_by_date || '',
     priority: priority,
     status: REQUEST_STATUSES.DRAFT,
@@ -64,6 +86,10 @@ function createPaymentRequest(data) {
     reviewed_at: '',
     rejection_reason: '',
     linked_order_id: '',
+    approval_path: approvalPath,
+    direct_cash_event_id: '',
+    returned_for_correction_reason: '',
+    cancellation_reason: '',
     document_status: requestData.document_status || DOCUMENT_STATUSES.NONE,
     updated_at: ''
   };
@@ -92,11 +118,13 @@ function submitPaymentRequest(requestId) {
   const match = getPaymentRequestMatchOrThrow_(requestId);
   assertRequestStatus_(match.record, [REQUEST_STATUSES.DRAFT]);
   assertCurrentUserCanOwnRequest_(match.record);
+  assertPaymentRequestReadyForSubmit_(match.record);
 
   return updatePaymentRequestWithAudit_(
     requestId,
     {
       status: REQUEST_STATUSES.SUBMITTED,
+      approval_path: getPaymentRequestApprovalPath_(match.record.amount, match.record.currency),
       updated_at: getCurrentTimestamp_()
     },
     AUDIT_ACTIONS.SUBMIT,
@@ -113,7 +141,7 @@ function markPaymentRequestInReview(requestId) {
   return updatePaymentRequestWithAudit_(
     requestId,
     {
-      status: REQUEST_STATUSES.IN_REVIEW,
+      status: REQUEST_STATUSES.CASHIER_REVIEW,
       updated_at: getCurrentTimestamp_()
     },
     AUDIT_ACTIONS.UPDATE,
@@ -124,19 +152,20 @@ function markPaymentRequestInReview(requestId) {
 function approvePaymentRequest(requestId, approvalData) {
   assertNonEmptyString(requestId, 'requestId');
   const match = getPaymentRequestMatchOrThrow_(requestId);
-  assertRequestStatus_(match.record, [
-    REQUEST_STATUSES.SUBMITTED,
-    REQUEST_STATUSES.IN_REVIEW
-  ]);
+  assertRequestStatus_(match.record, PAYMENT_REQUEST_OPEN_REVIEW_STATUSES_);
 
   const currentUser = requireActiveUserWithRole_(PAYMENT_REQUEST_REVIEWER_ROLES_);
   const data = approvalData || {};
   const now = getCurrentTimestamp_();
+  const approvalPath = getPaymentRequestApprovalPath_(match.record.amount, match.record.currency);
 
   return updatePaymentRequestWithAudit_(
     requestId,
     {
-      status: REQUEST_STATUSES.APPROVED,
+      status: approvalPath === PAYMENT_REQUEST_APPROVAL_PATHS.PAYMENT_ORDER
+        ? REQUEST_STATUSES.ESCALATED_TO_ORDER
+        : REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT,
+      approval_path: approvalPath,
       reviewed_by: data.reviewed_by || currentUser.email,
       reviewed_at: now,
       rejection_reason: '',
@@ -147,15 +176,40 @@ function approvePaymentRequest(requestId, approvalData) {
   );
 }
 
+function approvePaymentRequestForDirectPayment(requestId) {
+  assertNonEmptyString(requestId, 'requestId');
+  const match = getPaymentRequestMatchOrThrow_(requestId);
+  assertRequestStatus_(match.record, PAYMENT_REQUEST_OPEN_REVIEW_STATUSES_);
+
+  const approvalPath = getPaymentRequestApprovalPath_(match.record.amount, match.record.currency);
+  if (approvalPath !== PAYMENT_REQUEST_APPROVAL_PATHS.DIRECT_PAYMENT) {
+    throw new Error('Payment Request exceeds cashier direct payment limit and must become Payment Order.');
+  }
+
+  const currentUser = requireActiveUserWithRole_(PAYMENT_REQUEST_REVIEWER_ROLES_);
+  const now = getCurrentTimestamp_();
+  return updatePaymentRequestWithAudit_(
+    requestId,
+    {
+      status: REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT,
+      approval_path: approvalPath,
+      reviewed_by: currentUser.email,
+      reviewed_at: now,
+      rejection_reason: '',
+      returned_for_correction_reason: '',
+      updated_at: now
+    },
+    AUDIT_ACTIONS.APPROVE,
+    'Payment request approved for direct payment. Request approval does not affect cashbox balance.'
+  );
+}
+
 function rejectPaymentRequest(requestId, reason) {
   assertNonEmptyString(requestId, 'requestId');
   assertNonEmptyString(reason, 'reason');
 
   const match = getPaymentRequestMatchOrThrow_(requestId);
-  assertRequestStatus_(match.record, [
-    REQUEST_STATUSES.SUBMITTED,
-    REQUEST_STATUSES.IN_REVIEW
-  ]);
+  assertRequestStatus_(match.record, PAYMENT_REQUEST_OPEN_REVIEW_STATUSES_);
 
   const currentUser = requireActiveUserWithRole_(PAYMENT_REQUEST_REVIEWER_ROLES_);
   const now = getCurrentTimestamp_();
@@ -174,14 +228,45 @@ function rejectPaymentRequest(requestId, reason) {
   );
 }
 
+function returnPaymentRequestForCorrection(requestId, note) {
+  assertNonEmptyString(requestId, 'requestId');
+  assertNonEmptyString(note, 'note');
+
+  const match = getPaymentRequestMatchOrThrow_(requestId);
+  assertRequestStatus_(match.record, PAYMENT_REQUEST_OPEN_REVIEW_STATUSES_);
+
+  const currentUser = requireActiveUserWithRole_(PAYMENT_REQUEST_REVIEWER_ROLES_);
+  const now = getCurrentTimestamp_();
+  return updatePaymentRequestWithAudit_(
+    requestId,
+    {
+      status: REQUEST_STATUSES.RETURNED_FOR_CORRECTION,
+      reviewed_by: currentUser.email,
+      reviewed_at: now,
+      returned_for_correction_reason: String(note).trim(),
+      updated_at: now
+    },
+    AUDIT_ACTIONS.UPDATE,
+    'Payment request returned for correction.'
+  );
+}
+
 function cancelPaymentRequest(requestId, reason) {
   assertNonEmptyString(requestId, 'requestId');
 
   const match = getPaymentRequestMatchOrThrow_(requestId);
-  if (match.record.status === REQUEST_STATUSES.CONVERTED_TO_ORDER) {
-    throw new Error('Payment Request converted to order cannot be cancelled.');
+  if ([
+    REQUEST_STATUSES.CONVERTED_TO_ORDER,
+    REQUEST_STATUSES.ORDER_CREATED,
+    REQUEST_STATUSES.PAID
+  ].indexOf(match.record.status) !== -1) {
+    throw new Error('Payment Request with order or payment cannot be cancelled.');
   }
-  if (match.record.status === REQUEST_STATUSES.APPROVED) {
+  if ([
+    REQUEST_STATUSES.APPROVED,
+    REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT,
+    REQUEST_STATUSES.ESCALATED_TO_ORDER
+  ].indexOf(match.record.status) !== -1) {
     assertNonEmptyString(reason, 'reason');
   }
 
@@ -191,6 +276,7 @@ function cancelPaymentRequest(requestId, reason) {
     requestId,
     {
       status: REQUEST_STATUSES.CANCELLED,
+      cancellation_reason: reason || '',
       updated_at: getCurrentTimestamp_()
     },
     AUDIT_ACTIONS.CANCEL,
@@ -219,8 +305,7 @@ function listRequestsForApproval() {
 
   return listRecords(SHEET_NAMES.PAYMENT_REQUESTS)
     .filter(function(record) {
-      return record.status === REQUEST_STATUSES.SUBMITTED ||
-        record.status === REQUEST_STATUSES.IN_REVIEW;
+      return PAYMENT_REQUEST_OPEN_REVIEW_STATUSES_.indexOf(record.status) !== -1;
     })
     .sort(function(left, right) {
       const leftUrgent = left.priority === REQUEST_PRIORITIES.URGENT ? 1 : 0;
@@ -232,10 +317,49 @@ function listRequestsForApproval() {
     });
 }
 
+function listPaymentRequests(filters) {
+  const currentUser = assertUserHasRole(PAYMENT_REQUEST_LIST_ROLES_);
+  const data = filters || {};
+  const activeFilters = {};
+  [
+    'status',
+    'currency',
+    'preferred_cashbox_id',
+    'cashbox_id',
+    'approval_path',
+    'linked_order_id'
+  ].forEach(function(field) {
+    if (data[field] !== undefined && data[field] !== null && data[field] !== '') {
+      activeFilters[field] = data[field];
+    }
+  });
+
+  let records = listRecords(SHEET_NAMES.PAYMENT_REQUESTS);
+  if (currentUser.role === USER_ROLES.REQUESTER) {
+    records = records.filter(function(record) {
+      return record.created_by === currentUser.email || record.requester_user_id === currentUser.user_id;
+    });
+  }
+
+  records = records.filter(function(record) {
+    return Object.keys(activeFilters).every(function(field) {
+      if (field === 'cashbox_id') {
+        return record.preferred_cashbox_id === activeFilters[field] || record.cashbox_id === activeFilters[field];
+      }
+      return record[field] === activeFilters[field];
+    });
+  });
+
+  return sortRequestsNewestFirst_(records).map(enrichPaymentRequestForUi_);
+}
+
 function convertApprovedRequestToOrderPlaceholder(requestId, orderData) {
   assertNonEmptyString(requestId, 'requestId');
   const match = getPaymentRequestMatchOrThrow_(requestId);
-  assertRequestStatus_(match.record, [REQUEST_STATUSES.APPROVED]);
+  assertRequestStatus_(match.record, [
+    REQUEST_STATUSES.APPROVED,
+    REQUEST_STATUSES.ESCALATED_TO_ORDER
+  ]);
 
   return createPaymentOrderFromRequest(requestId, orderData || {});
 }
@@ -267,6 +391,45 @@ function assertCurrentUserCanOwnRequest_(request) {
   }
 
   assertUserHasRole(PAYMENT_REQUEST_REVIEWER_ROLES_);
+}
+
+function assertPaymentRequestReadyForSubmit_(request) {
+  assertNonEmptyString(request.requested_for_name, 'requested_for_name');
+  assertPositiveAmount(request.amount);
+  assertActiveCurrency(request.currency);
+  assertNonEmptyString(request.purpose, 'purpose');
+  assertNonEmptyString(request.description, 'description');
+  if (String(request.description).trim().length < 10) {
+    throw new Error('description must contain at least 10 characters.');
+  }
+  if (request.preferred_cashbox_id) {
+    assertActiveCashbox(request.preferred_cashbox_id);
+    assertCashboxAccess(request.preferred_cashbox_id);
+  }
+}
+
+function getPaymentRequestApprovalPath_(amount, currency) {
+  const numericAmount = Number(amount || 0);
+  if (!isFinite(numericAmount) || numericAmount <= 0) {
+    return PAYMENT_REQUEST_APPROVAL_PATHS.UNDECIDED;
+  }
+  return numericAmount <= getPaymentRequestDirectLimit_(currency)
+    ? PAYMENT_REQUEST_APPROVAL_PATHS.DIRECT_PAYMENT
+    : PAYMENT_REQUEST_APPROVAL_PATHS.PAYMENT_ORDER;
+}
+
+function getPaymentRequestDirectLimit_(currency) {
+  const rules = PAYMENT_REQUEST_APPROVAL_RULES[String(currency || 'RSD')] ||
+    PAYMENT_REQUEST_APPROVAL_RULES.RSD;
+  return Number(rules.cashierDirectApprovalLimit || 0);
+}
+
+function enrichPaymentRequestForUi_(record) {
+  const result = Object.assign({}, record);
+  result.approval_path = result.approval_path ||
+    getPaymentRequestApprovalPath_(result.amount, result.currency);
+  result.cashbox_id = result.cashbox_id || result.preferred_cashbox_id || '';
+  return result;
 }
 
 function updatePaymentRequestWithAudit_(requestId, updates, action, comment) {

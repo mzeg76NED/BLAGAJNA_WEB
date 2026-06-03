@@ -66,7 +66,11 @@ function createPaymentOrderFromRequest(requestId, orderData) {
 
     const requestMatch = getPaymentRequestMatchOrThrow_(requestId);
     const request = requestMatch.record;
-    assertEntityStatus(request, [REQUEST_STATUSES.APPROVED], 'Payment Request');
+    assertEntityStatus(request, [
+      REQUEST_STATUSES.APPROVED,
+      REQUEST_STATUSES.ESCALATED_TO_ORDER,
+      REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT
+    ], 'Payment Request');
 
     if (request.linked_order_id) {
       throw new Error('Payment Request already has linked payment order: ' + request.linked_order_id);
@@ -129,8 +133,9 @@ function createPaymentOrderFromRequest(requestId, orderData) {
       'request_id',
       request.request_id,
       {
-        status: REQUEST_STATUSES.CONVERTED_TO_ORDER,
+        status: REQUEST_STATUSES.ORDER_CREATED || REQUEST_STATUSES.CONVERTED_TO_ORDER,
         linked_order_id: order.order_id,
+        approval_path: PAYMENT_REQUEST_APPROVAL_PATHS.PAYMENT_ORDER,
         updated_at: now
       }
     );

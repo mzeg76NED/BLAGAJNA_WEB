@@ -4289,6 +4289,210 @@
     .po-table-wrap { max-height: none; }
   }
 
+  /* Payment requests overview */
+  .payment-requests-page {
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .request-status-tabs {
+    background: linear-gradient(180deg, rgba(9, 42, 74, .86), rgba(8, 25, 42, .92));
+    border: 1px solid rgba(79, 140, 210, .25);
+    border-radius: 12px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 10px;
+  }
+
+  .request-status-tabs button {
+    background: rgba(7, 23, 39, .72);
+    border: 1px solid rgba(120, 170, 220, .28);
+    border-radius: 999px;
+    color: var(--text);
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 900;
+    min-height: 34px;
+    padding: 0 13px;
+  }
+
+  .request-status-tabs button.active {
+    background: linear-gradient(135deg, #1d66d8, #1454b8);
+    border-color: rgba(96, 165, 250, .55);
+    color: #fff;
+  }
+
+  .request-layout {
+    grid-template-columns: minmax(0, 1.4fr) minmax(430px, .6fr);
+  }
+
+  .request-filters {
+    grid-template-columns: minmax(220px, 1.4fr) 128px 128px 130px 110px 130px 140px 140px 150px 42px;
+  }
+
+  .request-path-pill {
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 4px 9px;
+  }
+
+  .request-path-direct {
+    background: rgba(22, 163, 74, .20);
+    color: #4ade80;
+  }
+
+  .request-path-order {
+    background: rgba(245, 158, 11, .20);
+    color: #f8c35b;
+  }
+
+  .request-path-undecided {
+    background: rgba(148, 163, 184, .18);
+    color: #cbd5e1;
+  }
+
+  .request-rule-warning strong {
+    color: #f8c35b;
+  }
+
+  .request-rule-ok strong {
+    color: #42e078;
+  }
+
+  .request-detail-note {
+    background: rgba(3, 18, 33, .35);
+    border: 1px solid rgba(120, 170, 220, .14);
+    border-radius: 10px;
+    color: var(--muted);
+    margin-top: 12px;
+    padding: 12px;
+  }
+
+  .request-detail-tabs-panel[hidden] {
+    display: none;
+  }
+
+  .request-activity-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .request-activity-list div {
+    border-bottom: 1px solid rgba(120, 170, 220, .12);
+    display: grid;
+    gap: 2px;
+    padding: 8px 0;
+  }
+
+  .request-activity-list small {
+    color: var(--muted);
+  }
+
+  :root:not([data-theme="dark"]) .payment-requests-page,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-page-head,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-filters,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-kpi-card,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-table-panel,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-detail-panel,
+  :root:not([data-theme="dark"]) .request-status-tabs {
+    color: #111827;
+  }
+
+  :root:not([data-theme="dark"]) .payment-requests-page .po-page-head,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-filters,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-kpi-card,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-table-panel,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-detail-panel,
+  :root:not([data-theme="dark"]) .request-status-tabs {
+    background: rgba(255, 255, 255, .96);
+    border-color: #d8e0ea;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .08);
+  }
+
+  :root:not([data-theme="dark"]) .payment-requests-page .po-page-head p,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-kpi-card span,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-detail-field span,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-tabs span,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-timeline-item small,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-empty-detail,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-empty-docs,
+  :root:not([data-theme="dark"]) .request-detail-note {
+    color: #64748b;
+  }
+
+  :root:not([data-theme="dark"]) .payment-requests-page .po-filters input,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-filters select,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-pagination select {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #111827;
+  }
+
+  :root:not([data-theme="dark"]) .payment-requests-page .po-table th,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-doc-table th {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  :root:not([data-theme="dark"]) .payment-requests-page .po-table td,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-doc-table td {
+    border-color: #e2e8f0;
+  }
+
+  :root:not([data-theme="dark"]) .payment-requests-page .po-row:hover,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-row-selected {
+    background: #eff6ff;
+  }
+
+  :root:not([data-theme="dark"]) .payment-requests-page .po-doc-table,
+  :root:not([data-theme="dark"]) .request-detail-note {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  :root:not([data-theme="dark"]) .request-status-tabs button,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-secondary-btn,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-panel-actions button,
+  :root:not([data-theme="dark"]) .payment-requests-page .po-filters button {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #334155;
+  }
+
+  :root:not([data-theme="dark"]) .request-status-tabs button.active {
+    background: #1d63d4;
+    color: #fff;
+  }
+
+  :root:not([data-theme="dark"]) .request-path-direct {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  :root:not([data-theme="dark"]) .request-path-order {
+    background: #fffbeb;
+    color: #92400e;
+  }
+
+  :root:not([data-theme="dark"]) .request-path-undecided {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  @media (max-width: 1280px) {
+    .request-layout { grid-template-columns: 1fr; }
+    .request-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 760px) {
+    .request-filters { grid-template-columns: 1fr; }
+  }
+
   /* ─── Novi nalog za isplatu ─────────────────────────────────── */
 
   .new-order-page {
