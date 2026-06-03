@@ -162,6 +162,12 @@ function apiListOrdersWaitingForPayment() {
   });
 }
 
+function apiListPaymentOrders(filters) {
+  return apiWrap_(function() {
+    return listPaymentOrders(filters || {});
+  });
+}
+
 function apiRejectPaymentOrderByCashier(orderId, reason) {
   return apiWrap_(function() {
     return rejectPaymentOrderByCashier(orderId, reason);

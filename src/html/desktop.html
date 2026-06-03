@@ -333,15 +333,56 @@
 
           <!-- SEKCIJA: NALOZI -->
           <section id="d-section-nalozi" class="d-section">
-            <div class="card">
-              <div class="card-head">
-                <i class="ti ti-file-invoice" aria-hidden="true"></i>
-                <h2>Nalozi za isplatu</h2>
-                <button id="d-load-nalozi-btn" type="button" style="min-height:32px;font-size:12px">
-                  <i class="ti ti-refresh" aria-hidden="true"></i> Učitaj
-                </button>
+            <div class="payment-orders-page">
+              <div class="po-page-head">
+                <div>
+                  <h2>Pregled naloga za isplatu <i class="ti ti-info-circle" aria-hidden="true"></i></h2>
+                  <p>Lista svih naloga za isplatu sa statusom i osnovnim informacijama.</p>
+                </div>
+                <div class="po-head-actions">
+                  <button id="d-order-new-btn" class="po-primary-btn" type="button">
+                    <i class="ti ti-plus" aria-hidden="true"></i> Novi nalog za isplatu
+                  </button>
+                  <button id="d-order-export-btn" class="po-secondary-btn" type="button">
+                    <i class="ti ti-download" aria-hidden="true"></i> Izvezi
+                  </button>
+                </div>
               </div>
-              <div id="d-nalozi-list" class="result-box"></div>
+
+              <div class="po-kpis">
+                <div class="po-kpi-card"><i class="ti ti-briefcase" aria-hidden="true"></i><span>Ukupno naloga</span><strong id="d-order-kpi-total">0</strong></div>
+                <div class="po-kpi-card"><i class="ti ti-file-dollar" aria-hidden="true"></i><span>Čeka isplatu</span><strong id="d-order-kpi-waiting">0</strong></div>
+                <div class="po-kpi-card"><i class="ti ti-cash" aria-hidden="true"></i><span>Isplaćeni</span><strong id="d-order-kpi-paid">0</strong></div>
+                <div class="po-kpi-card"><i class="ti ti-circle-x" aria-hidden="true"></i><span>Odbijeni</span><strong id="d-order-kpi-rejected">0</strong></div>
+                <div class="po-kpi-card"><i class="ti ti-refresh-off" aria-hidden="true"></i><span>Poništeni</span><strong id="d-order-kpi-cancelled">0</strong></div>
+                <div class="po-kpi-card"><i class="ti ti-progress" aria-hidden="true"></i><span>U obradi</span><strong id="d-order-kpi-processing">0</strong></div>
+              </div>
+
+              <div class="po-layout">
+                <div class="po-table-panel">
+                  <div class="po-filters">
+                    <select id="d-order-period-filter">
+                      <option value="today">Danas</option>
+                      <option value="7">Poslednjih 7 dana</option>
+                      <option value="30">Poslednjih 30 dana</option>
+                      <option value="all">Sve</option>
+                    </select>
+                    <input id="d-order-search" type="search" placeholder="Pretraži...">
+                    <select id="d-order-cashbox-filter"><option value="">Blagajna</option></select>
+                    <select id="d-order-currency-filter"><option value="">Valuta</option></select>
+                    <select id="d-order-status-filter"><option value="">Status</option></select>
+                    <button id="d-order-reset-filters" type="button" title="Resetuj filtere"><i class="ti ti-filter-off" aria-hidden="true"></i></button>
+                    <button id="d-load-nalozi-btn" type="button" title="Osveži"><i class="ti ti-refresh" aria-hidden="true"></i></button>
+                  </div>
+                  <div id="d-nalozi-list" class="po-table-wrap"></div>
+                </div>
+
+                <aside class="po-detail-panel" id="d-order-detail-panel">
+                  <div id="d-order-detail-body" class="po-empty-detail">
+                    Izaberite nalog iz tabele za prikaz detalja.
+                  </div>
+                </aside>
+              </div>
               <div id="execute-payment-form-card" style="display:none"></div>
             </div>
           </section>

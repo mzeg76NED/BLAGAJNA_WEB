@@ -4765,6 +4765,7 @@
 
     var loadNaloziBtn = document.getElementById('d-load-nalozi-btn');
     if (loadNaloziBtn) loadNaloziBtn.addEventListener('click', loadDesktopNalozi_);
+    bindPaymentOrdersOverview_();
 
     var loadApprBtn = document.getElementById('d-load-approval-btn');
     if (loadApprBtn) loadApprBtn.addEventListener('click', function() { loadApprovalRequestsTo_('d-zahtevi-list', false); });
@@ -5108,6 +5109,368 @@
         loadKnjiga_(true);
         refreshBalance_();
       }, { successMessage: 'Isplata je izvršena.' });
+    });
+  }
+
+  var PAYMENT_ORDERS_STATE = {
+    records: [],
+    filtered: [],
+    selectedId: '',
+    page: 1,
+    pageSize: 20
+  };
+
+  function bindPaymentOrdersOverview_() {
+    if (window.__paymentOrdersOverviewBound) return;
+    window.__paymentOrdersOverviewBound = true;
+    ['d-order-period-filter','d-order-cashbox-filter','d-order-currency-filter','d-order-status-filter'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function() {
+        PAYMENT_ORDERS_STATE.page = 1;
+        renderPaymentOrdersOverview_();
+      });
+    });
+    var search = document.getElementById('d-order-search');
+    if (search) search.addEventListener('input', function() {
+      PAYMENT_ORDERS_STATE.page = 1;
+      renderPaymentOrdersOverview_();
+    });
+    var reset = document.getElementById('d-order-reset-filters');
+    if (reset) reset.addEventListener('click', function() {
+      ['d-order-cashbox-filter','d-order-currency-filter','d-order-status-filter'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      var period = document.getElementById('d-order-period-filter');
+      if (period) period.value = 'today';
+      if (search) search.value = '';
+      PAYMENT_ORDERS_STATE.page = 1;
+      renderPaymentOrdersOverview_();
+    });
+    var newBtn = document.getElementById('d-order-new-btn');
+    if (newBtn) newBtn.addEventListener('click', function() {
+      showDesktopMessage_('Postojeći ekran za novi nalog ostaje odvojen; navigacija će biti povezana u narednoj fazi.', 'info');
+    });
+    var exportBtn = document.getElementById('d-order-export-btn');
+    if (exportBtn) exportBtn.addEventListener('click', function() {
+      showDesktopMessage_('Izvoz pregleda naloga je TODO; podaci su prikazani bez izmene poslovne logike.', 'info');
+    });
+  }
+
+  function loadDesktopNalozi_() {
+    callApi('apiListPaymentOrders', [{}], function(result) {
+      PAYMENT_ORDERS_STATE.records = Array.isArray(result) ? result.map(normalizePaymentOrder_) : [];
+      PAYMENT_ORDERS_STATE.page = 1;
+      populatePaymentOrderFilters_();
+      renderPaymentOrdersOverview_();
+      loadDesktopNavBadges_();
+    }, { quiet: true });
+  }
+
+  function normalizePaymentOrder_(order) {
+    order = order || {};
+    var amountOrdered = Number(order.amount_ordered || order.amount || 0);
+    var amountPaid = Number(order.amount_paid || 0);
+    var remaining = Math.max(0, amountOrdered - amountPaid);
+    return {
+      raw: order,
+      id: order.order_id || order.id || '',
+      date: order.issued_at || order.created_at || order.updated_at || '',
+      createdAt: order.created_at || '',
+      issuedAt: order.issued_at || '',
+      executedAt: order.executed_at || order.paid_at || '',
+      issuer: order.issued_by || order.created_by || '',
+      recipient: order.pay_to_name || order.recipient_name || order.requested_for_name || '',
+      cashbox: order.cashbox_id || '',
+      basis: order.purpose || order.payment_basis || order.description || '',
+      amountOrdered: amountOrdered,
+      amountPaid: amountPaid,
+      remaining: remaining,
+      currency: order.currency || '',
+      status: order.status || '',
+      dueDate: order.due_date || order.payment_due_date || '',
+      sourceRequestId: order.source_request_id || '',
+      cashEventId: order.linked_cash_event_id || order.cash_event_id || '',
+      note: order.note || order.rejection_reason || ''
+    };
+  }
+
+  function paymentOrderStatusLabel_(status) {
+    var map = {
+      DRAFT: 'NACRT',
+      ISSUED: 'ČEKA ISPLATU',
+      WAITING_PAYMENT: 'ČEKA ISPLATU',
+      PARTIALLY_PAID: 'DELIMIČNO',
+      PAID: 'ISPLAĆEN',
+      CLOSED: 'ISPLAĆEN',
+      IN_PROGRESS: 'U OBRADI',
+      REJECTED: 'ODBIJEN',
+      REJECTED_BY_CASHIER: 'ODBIJEN',
+      CANCELLED: 'PONIŠTEN'
+    };
+    return map[status] || status || '—';
+  }
+
+  function paymentOrderStatusClass_(status) {
+    if (status === 'PAID' || status === 'CLOSED') return 'po-status-paid';
+    if (status === 'REJECTED' || status === 'REJECTED_BY_CASHIER') return 'po-status-rejected';
+    if (status === 'CANCELLED') return 'po-status-cancelled';
+    if (status === 'IN_PROGRESS' || status === 'PARTIALLY_PAID') return 'po-status-processing';
+    return 'po-status-waiting';
+  }
+
+  function populatePaymentOrderFilters_() {
+    populatePaymentOrderSelect_('d-order-cashbox-filter', 'Blagajna', PAYMENT_ORDERS_STATE.records.map(function(o) { return o.cashbox; }));
+    populatePaymentOrderSelect_('d-order-currency-filter', 'Valuta', PAYMENT_ORDERS_STATE.records.map(function(o) { return o.currency; }));
+    populatePaymentOrderSelect_('d-order-status-filter', 'Status', PAYMENT_ORDERS_STATE.records.map(function(o) { return o.status; }), paymentOrderStatusLabel_);
+  }
+
+  function populatePaymentOrderSelect_(id, label, values, formatter) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var current = el.value;
+    var unique = [];
+    (values || []).forEach(function(value) {
+      if (value && unique.indexOf(value) === -1) unique.push(value);
+    });
+    unique.sort();
+    el.innerHTML = '<option value="">' + escapeHtml(label) + '</option>' + unique.map(function(value) {
+      return '<option value="' + escapeHtml(value) + '">' + escapeHtml(formatter ? formatter(value) : value) + '</option>';
+    }).join('');
+    if (unique.indexOf(current) !== -1) el.value = current;
+  }
+
+  function filterPaymentOrders_() {
+    var period = (document.getElementById('d-order-period-filter') || {}).value || 'today';
+    var search = ((document.getElementById('d-order-search') || {}).value || '').toLowerCase().trim();
+    var cashbox = (document.getElementById('d-order-cashbox-filter') || {}).value || '';
+    var currency = (document.getElementById('d-order-currency-filter') || {}).value || '';
+    var status = (document.getElementById('d-order-status-filter') || {}).value || '';
+    var now = new Date();
+    var start = null;
+    if (period === 'today') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (period !== 'all') {
+      start = new Date(now.getTime() - (Number(period) || 0) * 24 * 60 * 60 * 1000);
+    }
+    return PAYMENT_ORDERS_STATE.records.filter(function(order) {
+      var d = order.date ? new Date(order.date) : null;
+      if (start && d && d < start) return false;
+      if (cashbox && order.cashbox !== cashbox) return false;
+      if (currency && order.currency !== currency) return false;
+      if (status && order.status !== status) return false;
+      if (search) {
+        var haystack = [order.id, order.recipient, order.issuer, order.basis, order.currency, order.cashbox, order.status].join(' ').toLowerCase();
+        if (haystack.indexOf(search) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderPaymentOrdersOverview_() {
+    PAYMENT_ORDERS_STATE.filtered = filterPaymentOrders_();
+    renderPaymentOrderKpis_();
+    renderPaymentOrderTable_();
+    var selected = PAYMENT_ORDERS_STATE.filtered.find(function(o) { return o.id === PAYMENT_ORDERS_STATE.selectedId; }) || PAYMENT_ORDERS_STATE.filtered[0] || null;
+    PAYMENT_ORDERS_STATE.selectedId = selected ? selected.id : '';
+    renderPaymentOrderDetail_(selected);
+  }
+
+  function renderPaymentOrderKpis_() {
+    var rows = PAYMENT_ORDERS_STATE.filtered;
+    var counts = { waiting: 0, paid: 0, rejected: 0, cancelled: 0, processing: 0 };
+    rows.forEach(function(order) {
+      if (order.status === 'PAID' || order.status === 'CLOSED') counts.paid++;
+      else if (order.status === 'REJECTED' || order.status === 'REJECTED_BY_CASHIER') counts.rejected++;
+      else if (order.status === 'CANCELLED') counts.cancelled++;
+      else if (order.status === 'IN_PROGRESS' || order.status === 'PARTIALLY_PAID') counts.processing++;
+      else counts.waiting++;
+    });
+    setText_('d-order-kpi-total', rows.length);
+    setText_('d-order-kpi-waiting', counts.waiting);
+    setText_('d-order-kpi-paid', counts.paid);
+    setText_('d-order-kpi-rejected', counts.rejected);
+    setText_('d-order-kpi-cancelled', counts.cancelled);
+    setText_('d-order-kpi-processing', counts.processing);
+  }
+
+  function renderPaymentOrderTable_() {
+    var target = document.getElementById('d-nalozi-list');
+    if (!target) return;
+    var rows = PAYMENT_ORDERS_STATE.filtered;
+    if (!rows.length) {
+      target.innerHTML = '<div class="empty-state"><i class="ti ti-inbox-off" aria-hidden="true"></i><p>Nema naloga za izabrane filtere.</p></div>';
+      return;
+    }
+    var pageSize = PAYMENT_ORDERS_STATE.pageSize;
+    var totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+    PAYMENT_ORDERS_STATE.page = Math.min(Math.max(1, PAYMENT_ORDERS_STATE.page), totalPages);
+    var start = (PAYMENT_ORDERS_STATE.page - 1) * pageSize;
+    var visible = rows.slice(start, start + pageSize);
+    target.innerHTML =
+      '<table class="po-table"><thead><tr>' +
+        '<th>Broj naloga</th><th>Datum</th><th>Izdavalac</th><th>Primalac</th><th>Blagajna</th><th>Osnov isplate</th><th>Iznos</th><th>Valuta</th><th>Status</th>' +
+      '</tr></thead><tbody>' +
+      visible.map(function(order) {
+        var selected = order.id === PAYMENT_ORDERS_STATE.selectedId ? ' po-row-selected' : '';
+        return '<tr class="po-row' + selected + '" data-order-id="' + escapeHtml(order.id) + '">' +
+          '<td><strong>' + escapeHtml(order.id || '—') + '</strong></td>' +
+          '<td>' + escapeHtml(formatDateTimeShort_(order.date)) + '</td>' +
+          '<td>' + escapeHtml(shortUserLabel_(order.issuer || '—')) + '</td>' +
+          '<td>' + escapeHtml(order.recipient || '—') + '</td>' +
+          '<td>' + escapeHtml(order.cashbox || '—') + '</td>' +
+          '<td>' + escapeHtml(order.basis || '—') + '</td>' +
+          '<td class="po-amount">' + escapeHtml(formatAmount_(order.remaining || order.amountOrdered)) + '</td>' +
+          '<td>' + escapeHtml(order.currency || '—') + '</td>' +
+          '<td><span class="po-status ' + paymentOrderStatusClass_(order.status) + '">' + escapeHtml(paymentOrderStatusLabel_(order.status)) + '</span></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table>' +
+      '<div class="po-pagination"><span>Prikazano ' + (start + 1) + '–' + (start + visible.length) + ' od ' + rows.length + '</span>' +
+        '<button type="button" data-po-page="prev">‹</button><strong>' + PAYMENT_ORDERS_STATE.page + '</strong><button type="button" data-po-page="next">›</button>' +
+        '<select id="d-order-page-size"><option value="20">20 po strani</option><option value="50">50 po strani</option></select>' +
+      '</div>';
+    var pageSizeEl = document.getElementById('d-order-page-size');
+    if (pageSizeEl) {
+      pageSizeEl.value = String(PAYMENT_ORDERS_STATE.pageSize);
+      pageSizeEl.addEventListener('change', function() {
+        PAYMENT_ORDERS_STATE.pageSize = Number(this.value) || 20;
+        PAYMENT_ORDERS_STATE.page = 1;
+        renderPaymentOrderTable_();
+      });
+    }
+    target.querySelectorAll('[data-order-id]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        PAYMENT_ORDERS_STATE.selectedId = row.getAttribute('data-order-id') || '';
+        renderPaymentOrderTable_();
+        renderPaymentOrderDetail_(PAYMENT_ORDERS_STATE.filtered.find(function(o) { return o.id === PAYMENT_ORDERS_STATE.selectedId; }) || null);
+      });
+    });
+    target.querySelectorAll('[data-po-page]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var dir = btn.getAttribute('data-po-page');
+        PAYMENT_ORDERS_STATE.page += dir === 'next' ? 1 : -1;
+        renderPaymentOrderTable_();
+      });
+    });
+  }
+
+  function renderPaymentOrderDetail_(order) {
+    var target = document.getElementById('d-order-detail-body');
+    if (!target) return;
+    if (!order) {
+      target.className = 'po-empty-detail';
+      target.innerHTML = 'Izaberite nalog iz tabele za prikaz detalja.';
+      return;
+    }
+    target.className = '';
+    var isPaid = order.status === 'PAID' || order.status === 'CLOSED';
+    var canPay = order.status === 'WAITING_PAYMENT' || order.status === 'ISSUED' || order.status === 'PARTIALLY_PAID';
+    var canReject = !isPaid && order.status !== 'CANCELLED' && order.status !== 'REJECTED' && order.status !== 'REJECTED_BY_CASHIER';
+    var canApprove = order.status === 'DRAFT';
+    var amount = order.remaining || order.amountOrdered;
+    target.innerHTML =
+      '<div class="po-detail-head"><h3>Detalji naloga</h3><span class="po-status ' + paymentOrderStatusClass_(order.status) + '">' + escapeHtml(paymentOrderStatusLabel_(order.status)) + '</span></div>' +
+      '<div class="po-detail-grid">' +
+        renderPaymentOrderField_('Broj naloga', order.id) +
+        renderPaymentOrderField_('Datum i vreme', formatDateTimeShort_(order.date)) +
+        renderPaymentOrderField_('Izdavalac', shortUserLabel_(order.issuer || '—')) +
+        renderPaymentOrderField_('Primalac', order.recipient) +
+        renderPaymentOrderField_('Blagajna', order.cashbox) +
+        renderPaymentOrderField_('Valuta', order.currency) +
+        renderPaymentOrderField_('Rok za isplatu', formatDateShort_(order.dueDate)) +
+        renderPaymentOrderField_('Osnov isplate', order.basis) +
+      '</div>' +
+      '<div class="po-detail-amount">' + escapeHtml(formatAmount_(amount)) + ' ' + escapeHtml(order.currency || '') + '</div>' +
+      '<div class="po-tabs"><span class="active">Pregled</span><span>Povezani dokumenti</span><span>Aktivnosti</span></div>' +
+      '<div class="po-detail-columns">' +
+        '<div><h4>Tok naloga</h4>' + renderPaymentOrderTimeline_(order) + '</div>' +
+        '<div><h4>Povezani dokumenti</h4>' + renderPaymentOrderDocuments_(order) + '</div>' +
+      '</div>' +
+      '<div class="po-panel-actions">' +
+        '<button type="button" id="d-order-open-detail"><i class="ti ti-external-link" aria-hidden="true"></i> Otvori detalje</button>' +
+        '<button type="button" id="d-order-approve" ' + (canApprove ? '' : 'disabled') + '><i class="ti ti-check" aria-hidden="true"></i> Odobri</button>' +
+        '<button type="button" id="d-order-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
+        '<button type="button" id="d-order-pay" ' + (canPay && !isPaid ? '' : 'disabled') + '><i class="ti ti-credit-card" aria-hidden="true"></i> Označi kao isplaćen</button>' +
+      '</div>';
+    bindPaymentOrderDetailActions_(order);
+  }
+
+  function renderPaymentOrderField_(label, value) {
+    return '<div class="po-detail-field"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value || '—') + '</strong></div>';
+  }
+
+  function renderPaymentOrderTimeline_(order) {
+    var items = [
+      ['Nalog kreiran', order.createdAt || order.date, order.issuer],
+      ['Poslat na odobrenje', order.issuedAt || order.date, order.issuer],
+      ['Čeka isplatu', order.date, 'Sistem']
+    ];
+    if (order.executedAt || order.status === 'PAID' || order.status === 'CLOSED') items.push(['Isplaćen', order.executedAt || order.date, 'Blagajna']);
+    if (order.status === 'REJECTED' || order.status === 'REJECTED_BY_CASHIER') items.push(['Odbijen', order.raw.updated_at || order.date, order.issuer]);
+    if (order.status === 'CANCELLED') items.push(['Poništen', order.raw.updated_at || order.date, order.issuer]);
+    return '<div class="po-timeline">' + items.map(function(item, index) {
+      return '<div class="po-timeline-item ' + (index === items.length - 1 ? 'current' : '') + '">' +
+        '<span></span><strong>' + escapeHtml(item[0]) + '</strong><small>' + escapeHtml(shortUserLabel_(item[2] || '—')) + ' · ' + escapeHtml(formatDateTimeShort_(item[1])) + '</small>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function renderPaymentOrderDocuments_(order) {
+    var docs = [];
+    if (order.sourceRequestId) docs.push(['Zahtev za isplatu', order.sourceRequestId, formatDateShort_(order.date)]);
+    if (order.cashEventId) docs.push(['Blagajnički događaj', order.cashEventId, formatDateShort_(order.executedAt || order.date)]);
+    if (!docs.length) return '<div class="po-empty-docs">Nema povezanih dokumenata u dostupnim podacima.</div>';
+    return '<table class="po-doc-table"><thead><tr><th>Tip dokumenta</th><th>Broj dokumenta</th><th>Datum</th></tr></thead><tbody>' +
+      docs.map(function(doc) {
+        return '<tr><td>' + escapeHtml(doc[0]) + '</td><td>' + escapeHtml(doc[1]) + '</td><td>' + escapeHtml(doc[2]) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function bindPaymentOrderDetailActions_(order) {
+    var open = document.getElementById('d-order-open-detail');
+    if (open) open.addEventListener('click', function() {
+      showDesktopMessage_('Detaljan prikaz naloga biće povezan sa ekranom za novi/detaljni nalog u narednoj fazi.', 'info');
+    });
+    var approve = document.getElementById('d-order-approve');
+    if (approve) approve.addEventListener('click', function() {
+      callApi('apiIssuePaymentOrder', [order.id], function() {
+        showDesktopMessage_('Nalog je odobren i poslat na isplatu.', 'success');
+        loadDesktopNalozi_();
+      });
+    });
+    var reject = document.getElementById('d-order-reject');
+    if (reject) reject.addEventListener('click', function() {
+      appPrompt_({
+        title: 'Odbijanje naloga',
+        message: 'Unesite razlog odbijanja naloga ' + order.id + '.',
+        confirmText: 'Odbij nalog',
+        placeholder: 'Razlog odbijanja'
+      }, function(reason) {
+        if (!String(reason || '').trim()) {
+          showDesktopMessage_('Razlog odbijanja je obavezan.', 'error');
+          return;
+        }
+        callApi('apiRejectPaymentOrderByCashier', [order.id, reason], function() {
+          showDesktopMessage_('Nalog je odbijen.', 'success');
+          loadDesktopNalozi_();
+        });
+      });
+    });
+    var pay = document.getElementById('d-order-pay');
+    if (pay) pay.addEventListener('click', function() {
+      appConfirm_({
+        title: 'Označi kao isplaćen',
+        message: 'Potvrđujete izvršenje isplate za nalog ' + order.id + '?',
+        confirmText: 'Potvrdi isplatu'
+      }, function() {
+        callApi('apiExecutePaymentOrder', [order.id, {}], function() {
+          showDesktopMessage_('Nalog je isplaćen.', 'success');
+          loadDesktopNalozi_();
+          loadKnjiga_(true);
+          refreshBalance_();
+        });
+      });
     });
   }
 
