@@ -4801,6 +4801,7 @@
     bindModernShellForms_();
     bindModernReportButtons_();
     bindModernPrintButtons_();
+    bindNewPaymentOrderScreen_();
   }
 
   function bindModernShellForms_() {
@@ -5120,6 +5121,14 @@
     pageSize: 20
   };
 
+  var NEW_PAYMENT_ORDER_STATE = {
+    savedOrderId: '',
+    status: 'PENDING_SEND',
+    dirty: false,
+    attachments: [],
+    activities: []
+  };
+
   function bindPaymentOrdersOverview_() {
     if (window.__paymentOrdersOverviewBound) return;
     window.__paymentOrdersOverviewBound = true;
@@ -5149,7 +5158,7 @@
     });
     var newBtn = document.getElementById('d-order-new-btn');
     if (newBtn) newBtn.addEventListener('click', function() {
-      showDesktopMessage_('Postojeći ekran za novi nalog ostaje odvojen; navigacija će biti povezana u narednoj fazi.', 'info');
+      openNewPaymentOrderScreen_();
     });
     var exportBtn = document.getElementById('d-order-export-btn');
     if (exportBtn) exportBtn.addEventListener('click', function() {
@@ -5472,6 +5481,415 @@
         });
       });
     });
+  }
+
+  function bindNewPaymentOrderScreen_() {
+    if (window.__newPaymentOrderBound) return;
+    window.__newPaymentOrderBound = true;
+    var form = document.getElementById('new-payment-order-form');
+    if (!form) return;
+    var back = document.getElementById('new-order-back-btn');
+    if (back) back.addEventListener('click', function() { confirmLeaveNewPaymentOrder_(openPaymentOrdersOverview_); });
+    var cancel = document.getElementById('new-order-cancel');
+    if (cancel) cancel.addEventListener('click', function() { confirmLeaveNewPaymentOrder_(openPaymentOrdersOverview_); });
+    var save = document.getElementById('new-order-save-draft');
+    if (save) save.addEventListener('click', function() { saveNewPaymentOrderDraft_(); });
+    var issue = document.getElementById('new-order-issue');
+    if (issue) issue.addEventListener('click', issueNewPaymentOrder_);
+    var file = document.getElementById('new-order-file');
+    if (file) file.addEventListener('change', handleNewOrderFiles_);
+    form.querySelectorAll('input,select,textarea').forEach(function(input) {
+      input.addEventListener('input', function() {
+        NEW_PAYMENT_ORDER_STATE.dirty = true;
+        if (input.id === 'new-order-note') updateNewOrderNoteCounter_();
+        clearNewOrderFieldError_(input.id);
+        renderNewOrderSummary_();
+      });
+      input.addEventListener('change', function() {
+        NEW_PAYMENT_ORDER_STATE.dirty = true;
+        clearNewOrderFieldError_(input.id);
+        renderNewOrderSummary_();
+      });
+    });
+    var amount = document.getElementById('new-order-amount');
+    if (amount) {
+      amount.addEventListener('focus', function() {
+        var value = parseAmountInput_(amount.value);
+        amount.value = value ? String(value).replace('.', ',') : '';
+      });
+      amount.addEventListener('blur', function() {
+        var value = parseAmountInput_(amount.value);
+        amount.value = value ? formatAmount_(value) : '';
+        renderNewOrderSummary_();
+      });
+    }
+  }
+
+  function openNewPaymentOrderScreen_() {
+    document.querySelectorAll('.d-section').forEach(function(section) {
+      section.classList.toggle('active', section.id === 'd-section-nalog-novi');
+    });
+    document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'nalozi');
+    });
+    updateDesktopDirectActionsVisibility_();
+    resetNewPaymentOrderForm_();
+  }
+
+  function openPaymentOrdersOverview_() {
+    openDesktopSection_('nalozi');
+    loadDesktopNalozi_();
+  }
+
+  function resetNewPaymentOrderForm_() {
+    var form = document.getElementById('new-payment-order-form');
+    if (!form) return;
+    NEW_PAYMENT_ORDER_STATE.savedOrderId = '';
+    NEW_PAYMENT_ORDER_STATE.status = 'PENDING_SEND';
+    NEW_PAYMENT_ORDER_STATE.dirty = false;
+    NEW_PAYMENT_ORDER_STATE.attachments = [];
+    NEW_PAYMENT_ORDER_STATE.activities = [];
+    clearAllNewOrderErrors_();
+    var now = new Date();
+    setNewOrderValue_('new-order-number', 'NI-' + now.getFullYear() + '-PRIPREMA');
+    setNewOrderValue_('new-order-date', toDateTimeLocal_(now));
+    setNewOrderValue_('new-order-issuer', newOrderCurrentUserName_());
+    setNewOrderValue_('new-order-recipient', '');
+    setNewOrderValue_('new-order-amount', '');
+    setNewOrderValue_('new-order-purpose', '');
+    setNewOrderValue_('new-order-due-date', toInputDate_(new Date(now.getTime() + 24 * 60 * 60 * 1000)));
+    setNewOrderValue_('new-order-note', '');
+    populateNewOrderSelects_();
+    populateNewOrderDatalists_();
+    addNewOrderActivity_('Kreiran dokument', 'Nalog je pripremljen za unos.');
+    updateNewOrderNoteCounter_();
+    renderNewOrderAttachments_();
+    renderNewOrderSummary_();
+    renderNewOrderTimeline_();
+    renderNewOrderActivities_();
+    updateNewOrderStatusBadge_();
+  }
+
+  function populateNewOrderSelects_() {
+    var cashbox = document.getElementById('new-order-cashbox');
+    if (cashbox) {
+      var cashboxes = uiState.config.cashboxes || [{ cashbox_id: SESSION.cashboxId || 'CB_MAIN', name: SESSION.cashboxName || 'Glavna blagajna' }];
+      cashbox.innerHTML = cashboxes.map(function(item) {
+        return '<option value="' + escapeHtml(item.cashbox_id) + '">' + escapeHtml(item.name || item.cashbox_id) + '</option>';
+      }).join('');
+      cashbox.value = SESSION.cashboxId || (cashboxes[0] && cashboxes[0].cashbox_id) || '';
+    }
+    var currency = document.getElementById('new-order-currency');
+    if (currency) {
+      var currencies = uiState.config.currencies || [SESSION.currency || 'RSD'];
+      currency.innerHTML = currencies.map(function(code) {
+        return '<option value="' + escapeHtml(code) + '">' + escapeHtml(code) + '</option>';
+      }).join('');
+      currency.value = SESSION.currency || currencies[0] || 'RSD';
+    }
+  }
+
+  function populateNewOrderDatalists_() {
+    var recipientList = document.getElementById('new-order-recipient-list');
+    if (recipientList) {
+      var recipients = PAYMENT_ORDERS_STATE.records.map(function(o) { return o.recipient; }).filter(Boolean);
+      ['Petar Petrović', 'Ana Jovanović', 'Dobavljač AS DOO', 'Jelena Marković'].forEach(function(name) {
+        if (recipients.indexOf(name) === -1) recipients.push(name);
+      });
+      recipientList.innerHTML = recipients.slice(0, 30).map(function(name) {
+        return '<option value="' + escapeHtml(name) + '"></option>';
+      }).join('');
+    }
+    var purposeList = document.getElementById('new-order-purpose-list');
+    if (purposeList) {
+      purposeList.innerHTML = [
+        'Akontacija za službeni put',
+        'Isplata dobavljaču',
+        'Plaćanje računa',
+        'Dnevnice',
+        'Refundacija troškova',
+        'Povraćaj sredstava',
+        'Isplata zarade'
+      ].map(function(value) {
+        return '<option value="' + escapeHtml(value) + '"></option>';
+      }).join('');
+    }
+  }
+
+  function collectNewPaymentOrderData_() {
+    return {
+      cashbox_id: valueOf_('new-order-cashbox'),
+      pay_to_name: valueOf_('new-order-recipient'),
+      amount_ordered: parseAmountInput_(valueOf_('new-order-amount')),
+      currency: valueOf_('new-order-currency'),
+      purpose: valueOf_('new-order-purpose'),
+      due_date: valueOf_('new-order-due-date'),
+      description: valueOf_('new-order-note'),
+      document_status: NEW_PAYMENT_ORDER_STATE.attachments.length ? 'ATTACHED' : 'NONE'
+    };
+  }
+
+  function validateNewPaymentOrder_() {
+    clearAllNewOrderErrors_();
+    var data = collectNewPaymentOrderData_();
+    var ok = true;
+    if (!data.cashbox_id) ok = setNewOrderFieldError_('new-order-cashbox', 'Izaberite blagajnu.') && false;
+    if (!data.pay_to_name) ok = setNewOrderFieldError_('new-order-recipient', 'Unesite primaoca isplate.') && false;
+    if (!data.amount_ordered || data.amount_ordered <= 0) ok = setNewOrderFieldError_('new-order-amount', 'Unesite iznos veći od nule.') && false;
+    if (!data.currency) ok = setNewOrderFieldError_('new-order-currency', 'Izaberite valutu.') && false;
+    if (!data.purpose) ok = setNewOrderFieldError_('new-order-purpose', 'Unesite osnov isplate.') && false;
+    if (!valueOf_('new-order-date')) ok = setNewOrderFieldError_('new-order-date', 'Unesite datum i vreme.') && false;
+    if (!ok) showDesktopMessage_('Popunite obavezna polja pre čuvanja naloga.', 'error');
+    return ok;
+  }
+
+  function saveNewPaymentOrderDraft_(afterSave) {
+    if (!validateNewPaymentOrder_()) return;
+    if (NEW_PAYMENT_ORDER_STATE.savedOrderId) {
+      addNewOrderActivity_('Sačuvan nacrt', 'Nalog ' + NEW_PAYMENT_ORDER_STATE.savedOrderId + ' je već sačuvan.');
+      NEW_PAYMENT_ORDER_STATE.dirty = false;
+      renderNewOrderActivities_();
+      showDesktopMessage_('Nacrt je već sačuvan. Izmene postojećeg nacrta će biti dostupne u narednoj fazi.', 'info');
+      if (afterSave) afterSave(NEW_PAYMENT_ORDER_STATE.savedOrderId);
+      return;
+    }
+    callApi('apiCreateDirectPaymentOrder', [collectNewPaymentOrderData_()], function(result) {
+      var orderId = result && result.order_id || result && result.id || '';
+      NEW_PAYMENT_ORDER_STATE.savedOrderId = orderId;
+      NEW_PAYMENT_ORDER_STATE.status = 'DRAFT';
+      NEW_PAYMENT_ORDER_STATE.dirty = false;
+      if (orderId) setNewOrderValue_('new-order-number', orderId);
+      addNewOrderActivity_('Sačuvan nacrt', 'Nacrt naloga je sačuvan.');
+      updateNewOrderStatusBadge_();
+      renderNewOrderSummary_();
+      renderNewOrderTimeline_();
+      renderNewOrderActivities_();
+      if (afterSave) afterSave(orderId);
+    }, { successMessage: 'Nacrt naloga je sačuvan.' });
+  }
+
+  function issueNewPaymentOrder_() {
+    if (!validateNewPaymentOrder_()) return;
+    appConfirm_({
+      title: 'Izdavanje naloga',
+      message: 'Da li ste sigurni da želite da izdate nalog blagajni? Nakon izdavanja, blagajnik će videti nalog i moći će da ga izvrši.',
+      confirmText: 'Izdaj nalog'
+    }, function() {
+      var issueSaved = function(orderId) {
+        if (!orderId) {
+          showDesktopMessage_('Nalog nije sačuvan i ne može biti izdat.', 'error');
+          return;
+        }
+        callApi('apiIssuePaymentOrder', [orderId], function() {
+          NEW_PAYMENT_ORDER_STATE.status = 'WAITING_PAYMENT';
+          NEW_PAYMENT_ORDER_STATE.dirty = false;
+          addNewOrderActivity_('Izdat nalog', 'Nalog je poslat blagajni na isplatu.');
+          showDesktopMessage_('Nalog je izdat i čeka isplatu.', 'success');
+          openPaymentOrdersOverview_();
+        }, { successMessage: 'Nalog je izdat.' });
+      };
+      if (NEW_PAYMENT_ORDER_STATE.savedOrderId) {
+        issueSaved(NEW_PAYMENT_ORDER_STATE.savedOrderId);
+      } else {
+        saveNewPaymentOrderDraft_(issueSaved);
+      }
+    });
+  }
+
+  function confirmLeaveNewPaymentOrder_(callback) {
+    if (!NEW_PAYMENT_ORDER_STATE.dirty) {
+      callback();
+      return;
+    }
+    appConfirm_({
+      title: 'Nesačuvane izmene',
+      message: 'Imate nesačuvane izmene na nalogu. Da li želite da izađete bez čuvanja?',
+      confirmText: 'Izađi bez čuvanja',
+      danger: true
+    }, callback);
+  }
+
+  function handleNewOrderFiles_(event) {
+    var files = Array.prototype.slice.call(event.target.files || []);
+    files.forEach(function(file) {
+      var okType = /\.(pdf|jpg|jpeg|png)$/i.test(file.name || '');
+      if (!okType) {
+        showDesktopMessage_('Prilog nije dodat: dozvoljeni su PDF, JPG i PNG fajlovi.', 'error');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        showDesktopMessage_('Prilog nije dodat: maksimalna veličina je 10 MB.', 'error');
+        return;
+      }
+      NEW_PAYMENT_ORDER_STATE.attachments.push({
+        id: 'att-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+        name: file.name,
+        size: file.size,
+        type: file.type || 'file'
+      });
+      addNewOrderActivity_('Dodat prilog', 'Dodat prilog: ' + file.name);
+      NEW_PAYMENT_ORDER_STATE.dirty = true;
+    });
+    event.target.value = '';
+    renderNewOrderAttachments_();
+    renderNewOrderActivities_();
+    renderNewOrderSummary_();
+  }
+
+  function renderNewOrderAttachments_() {
+    var target = document.getElementById('new-order-attachment-list');
+    if (!target) return;
+    if (!NEW_PAYMENT_ORDER_STATE.attachments.length) {
+      target.innerHTML = '<div class="new-order-empty-attachment">Još nema dodatih priloga.</div>';
+      return;
+    }
+    target.innerHTML = NEW_PAYMENT_ORDER_STATE.attachments.map(function(att) {
+      return '<div class="new-order-attachment">' +
+        '<i class="ti ti-file-type-pdf" aria-hidden="true"></i>' +
+        '<div><strong>' + escapeHtml(att.name) + '</strong><span>' + escapeHtml(formatBytes_(att.size)) + ' · lokalni prilog</span></div>' +
+        '<button type="button" data-new-order-remove-att="' + escapeHtml(att.id) + '"><i class="ti ti-x" aria-hidden="true"></i></button>' +
+      '</div>';
+    }).join('');
+    target.querySelectorAll('[data-new-order-remove-att]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.getAttribute('data-new-order-remove-att');
+        NEW_PAYMENT_ORDER_STATE.attachments = NEW_PAYMENT_ORDER_STATE.attachments.filter(function(att) { return att.id !== id; });
+        NEW_PAYMENT_ORDER_STATE.dirty = true;
+        addNewOrderActivity_('Uklonjen prilog', 'Prilog je uklonjen iz naloga.');
+        renderNewOrderAttachments_();
+        renderNewOrderActivities_();
+        renderNewOrderSummary_();
+      });
+    });
+  }
+
+  function renderNewOrderSummary_() {
+    var target = document.getElementById('new-order-summary');
+    if (!target) return;
+    var data = collectNewPaymentOrderData_();
+    target.innerHTML =
+      newOrderSummaryRow_('Primalac', data.pay_to_name || '—') +
+      newOrderSummaryRow_('Iznos', data.amount_ordered ? formatAmount_(data.amount_ordered) : '—') +
+      newOrderSummaryRow_('Valuta', data.currency || '—') +
+      newOrderSummaryRow_('Blagajna', newOrderCashboxName_(data.cashbox_id)) +
+      newOrderSummaryRow_('Izdavalac', valueOf_('new-order-issuer') || '—') +
+      newOrderSummaryRow_('Prilozi', String(NEW_PAYMENT_ORDER_STATE.attachments.length));
+  }
+
+  function renderNewOrderTimeline_() {
+    var target = document.getElementById('new-order-timeline');
+    if (!target) return;
+    var status = NEW_PAYMENT_ORDER_STATE.status;
+    var steps = [
+      ['Kreiran', true, valueOf_('new-order-date')],
+      ['U pripremi', status === 'PENDING_SEND' || status === 'DRAFT', status === 'DRAFT' ? 'Nacrt sačuvan' : 'Nije sačuvan'],
+      ['Poslat blagajni', status === 'WAITING_PAYMENT', status === 'WAITING_PAYMENT' ? 'Čeka isplatu' : '—'],
+      ['Isplaćen', false, '—']
+    ];
+    target.innerHTML = '<div class="new-order-timeline">' + steps.map(function(step) {
+      return '<div class="' + (step[1] ? 'active' : '') + '"><span></span><strong>' + escapeHtml(step[0]) + '</strong><small>' + escapeHtml(step[2] || '—') + '</small></div>';
+    }).join('') + '</div>';
+  }
+
+  function renderNewOrderActivities_() {
+    var target = document.getElementById('new-order-activity-list');
+    if (!target) return;
+    var rows = NEW_PAYMENT_ORDER_STATE.activities.slice(-8).reverse();
+    target.innerHTML = '<table><thead><tr><th>Vreme</th><th>Aktivnost</th><th>Korisnik</th><th>Detalji</th></tr></thead><tbody>' +
+      rows.map(function(row) {
+        return '<tr><td>' + escapeHtml(formatDateTimeShort_(row.at)) + '</td><td>' + escapeHtml(row.title) + '</td><td>' + escapeHtml(row.user) + '</td><td>' + escapeHtml(row.detail) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function addNewOrderActivity_(title, detail) {
+    NEW_PAYMENT_ORDER_STATE.activities.push({
+      at: new Date().toISOString(),
+      title: title,
+      detail: detail || '',
+      user: newOrderCurrentUserName_()
+    });
+  }
+
+  function updateNewOrderNoteCounter_() {
+    var note = document.getElementById('new-order-note');
+    var count = document.getElementById('new-order-note-count');
+    if (count) count.textContent = String((note && note.value || '').length);
+  }
+
+  function updateNewOrderStatusBadge_() {
+    var badge = document.getElementById('new-order-status-badge');
+    if (!badge) return;
+    var label = NEW_PAYMENT_ORDER_STATE.status === 'DRAFT' ? 'NACRT' :
+      NEW_PAYMENT_ORDER_STATE.status === 'WAITING_PAYMENT' ? 'ČEKA ISPLATU' : 'ČEKA SLANJE';
+    badge.textContent = label;
+  }
+
+  function setNewOrderFieldError_(id, message) {
+    var el = document.getElementById(id);
+    if (!el) return false;
+    el.classList.add('invalid');
+    var label = el.closest('label') || el.parentElement;
+    var error = label ? label.querySelector('.new-order-error') : null;
+    if (!error && label) {
+      error = document.createElement('span');
+      error.className = 'new-order-error';
+      label.appendChild(error);
+    }
+    if (error) error.textContent = message;
+    return false;
+  }
+
+  function clearNewOrderFieldError_(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('invalid');
+    var label = el.closest('label') || el.parentElement;
+    var error = label ? label.querySelector('.new-order-error') : null;
+    if (error) error.remove();
+  }
+
+  function clearAllNewOrderErrors_() {
+    document.querySelectorAll('#new-payment-order-form .invalid').forEach(function(el) { el.classList.remove('invalid'); });
+    document.querySelectorAll('#new-payment-order-form .new-order-error').forEach(function(el) { el.remove(); });
+  }
+
+  function newOrderSummaryRow_(label, value) {
+    return '<div class="new-order-summary-row"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value || '—') + '</strong></div>';
+  }
+
+  function newOrderCashboxName_(cashboxId) {
+    var cashbox = (uiState.config.cashboxes || []).filter(function(item) {
+      return item.cashbox_id === cashboxId;
+    })[0];
+    return cashbox ? (cashbox.name || cashbox.cashbox_id) : (cashboxId || '—');
+  }
+
+  function newOrderCurrentUserName_() {
+    var user = uiState.currentUser || {};
+    return user.full_name || shortUserLabel_(user.email || user.user_email || '') || 'Korisnik';
+  }
+
+  function setNewOrderValue_(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.value = value || '';
+  }
+
+  function valueOf_(id) {
+    var el = document.getElementById(id);
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  function toDateTimeLocal_(date) {
+    var d = parseDateSafe_(date) || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') +
+      'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function formatBytes_(bytes) {
+    var size = Number(bytes) || 0;
+    if (size < 1024) return size + ' B';
+    if (size < 1024 * 1024) return Math.round(size / 1024) + ' KB';
+    return (size / (1024 * 1024)).toLocaleString('sr-RS', { maximumFractionDigits: 1 }) + ' MB';
   }
 
   function loadDesktopNavBadges_() {

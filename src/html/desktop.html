@@ -387,6 +387,123 @@
             </div>
           </section>
 
+          <!-- SEKCIJA: NOVI NALOG -->
+          <section id="d-section-nalog-novi" class="d-section">
+            <div class="new-order-page">
+              <div class="new-order-breadcrumb">
+                <span>Blagajna</span><i class="ti ti-chevron-right" aria-hidden="true"></i>
+                <span>Isplate</span><i class="ti ti-chevron-right" aria-hidden="true"></i>
+                <strong>Nalog za isplatu</strong>
+              </div>
+
+              <div class="new-order-titlebar">
+                <div>
+                  <h2>Nalog za isplatu <span id="new-order-status-badge" class="new-order-status">ČEKA SLANJE</span></h2>
+                  <p>Ovlašćeno lice izdaje nalog blagajni kome i koliko treba isplatiti.</p>
+                </div>
+                <button id="new-order-back-btn" type="button" class="new-order-ghost-btn">
+                  <i class="ti ti-arrow-left" aria-hidden="true"></i> Pregled naloga
+                </button>
+              </div>
+
+              <div class="new-order-layout">
+                <form id="new-payment-order-form" class="new-order-form" novalidate>
+                  <section class="new-order-card">
+                    <h3><i class="ti ti-file-text" aria-hidden="true"></i> 1) Osnovni podaci</h3>
+                    <div class="new-order-grid">
+                      <label>Broj naloga
+                        <input id="new-order-number" name="order_number" type="text" readonly>
+                      </label>
+                      <label>Datum i vreme
+                        <input id="new-order-date" name="created_at" type="datetime-local" required>
+                      </label>
+                      <label>Izdavalac naloga
+                        <input id="new-order-issuer" name="issuer" type="text" readonly>
+                      </label>
+                      <label>Blagajna
+                        <select id="new-order-cashbox" name="cashbox_id" required></select>
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class="new-order-card">
+                    <h3><i class="ti ti-file-dollar" aria-hidden="true"></i> 2) Podaci za isplatu</h3>
+                    <div class="new-order-grid">
+                      <label>Primalac isplate
+                        <input id="new-order-recipient" name="pay_to_name" list="new-order-recipient-list" type="text" required>
+                        <datalist id="new-order-recipient-list"></datalist>
+                      </label>
+                      <label>Iznos
+                        <input id="new-order-amount" name="amount_ordered" inputmode="decimal" type="text" required>
+                      </label>
+                      <label>Valuta
+                        <select id="new-order-currency" name="currency" required></select>
+                      </label>
+                      <label>Osnov isplate
+                        <input id="new-order-purpose" name="purpose" list="new-order-purpose-list" type="text" required>
+                        <datalist id="new-order-purpose-list"></datalist>
+                      </label>
+                      <label>Rok za isplatu
+                        <input id="new-order-due-date" name="due_date" type="date">
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class="new-order-card">
+                    <h3><i class="ti ti-message-circle" aria-hidden="true"></i> 3) Napomena</h3>
+                    <textarea id="new-order-note" name="description" maxlength="500" rows="5"></textarea>
+                    <div class="new-order-counter"><span id="new-order-note-count">0</span> / 500</div>
+                  </section>
+
+                  <section class="new-order-card">
+                    <h3><i class="ti ti-paperclip" aria-hidden="true"></i> 4) Prilozi</h3>
+                    <div class="new-order-attachments">
+                      <div id="new-order-attachment-list" class="new-order-attachment-list"></div>
+                      <label class="new-order-dropzone">
+                        <i class="ti ti-cloud-upload" aria-hidden="true"></i>
+                        <strong>Prevucite fajl ovde ili kliknite za izbor</strong>
+                        <span>Dozvoljeni formati: PDF, JPG, PNG (max 10 MB)</span>
+                        <input id="new-order-file" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple hidden>
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class="new-order-card">
+                    <h3><i class="ti ti-clock" aria-hidden="true"></i> Poslednje aktivnosti</h3>
+                    <div id="new-order-activity-list" class="new-order-activity-list"></div>
+                  </section>
+                </form>
+
+                <aside class="new-order-side">
+                  <section class="new-order-side-card">
+                    <h3><i class="ti ti-file-description" aria-hidden="true"></i> A) Sažetak naloga</h3>
+                    <div id="new-order-summary"></div>
+                  </section>
+                  <section class="new-order-side-card">
+                    <h3><i class="ti ti-clock-share" aria-hidden="true"></i> B) Status i tok</h3>
+                    <div id="new-order-timeline"></div>
+                  </section>
+                  <section class="new-order-side-card">
+                    <h3><i class="ti ti-shield-check" aria-hidden="true"></i> C) Pravila i kontrola</h3>
+                    <div class="new-order-rules">
+                      <div><span>Ovlašćeno lice:</span><strong><i class="ti ti-circle-check" aria-hidden="true"></i> Validno</strong></div>
+                      <div><span>Dostupnost sredstava:</span><strong>proverava se po izvršenju</strong></div>
+                      <div><span>Duple isplate:</span><strong><i class="ti ti-circle-check" aria-hidden="true"></i> Zaštićeno</strong></div>
+                    </div>
+                  </section>
+                  <section class="new-order-side-card">
+                    <h3><i class="ti ti-bolt" aria-hidden="true"></i> D) Akcije</h3>
+                    <div class="new-order-actions">
+                      <button id="new-order-save-draft" type="button"><i class="ti ti-file" aria-hidden="true"></i> Sačuvaj nacrt</button>
+                      <button id="new-order-issue" type="button"><i class="ti ti-send" aria-hidden="true"></i> Izdaj nalog</button>
+                      <button id="new-order-cancel" type="button"><i class="ti ti-x" aria-hidden="true"></i> Poništi</button>
+                    </div>
+                  </section>
+                </aside>
+              </div>
+            </div>
+          </section>
+
           <!-- SEKCIJA: ZAHTEVI -->
           <section id="d-section-zahtevi" class="d-section">
             <div class="desktop-two-col">
