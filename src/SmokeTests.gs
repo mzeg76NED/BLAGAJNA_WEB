@@ -458,6 +458,33 @@ function smokeTestCashMovementsReportLimit() {
   });
 }
 
+function smokeTestPermissionsMatrix() {
+  return runSmokeTest_('Permissions matrix', function() {
+    if (!userHasPrivilege_({ role: USER_ROLES.ADMIN }, USER_PRIVILEGES.USERS_CREATE)) {
+      throw new Error('ADMIN is missing users:create privilege.');
+    }
+    if (!userHasPrivilege_({ role: USER_ROLES.REQUESTER }, USER_PRIVILEGES.PAYMENT_REQUESTS_CREATE)) {
+      throw new Error('REQUESTER is missing payment_requests:create privilege.');
+    }
+    if (userHasPrivilege_({ role: USER_ROLES.REQUESTER }, USER_PRIVILEGES.PAYMENT_ORDERS_EXECUTE)) {
+      throw new Error('REQUESTER must not execute payment orders.');
+    }
+    if (!userHasPrivilege_({ role: USER_ROLES.CASHIER }, USER_PRIVILEGES.PAYMENT_ORDERS_EXECUTE)) {
+      throw new Error('CASHIER is missing payment_orders:execute privilege.');
+    }
+    if (userHasPrivilege_({ role: USER_ROLES.CASHIER }, USER_PRIVILEGES.USERS_CREATE)) {
+      throw new Error('CASHIER must not create users.');
+    }
+    return {
+      message: 'Permissions matrix contains expected minimum role privileges.',
+      details: {
+        roles: objectValues_(USER_ROLES).length,
+        privileges: objectValues_(USER_PRIVILEGES).length
+      }
+    };
+  });
+}
+
 function runAllSmokeTests() {
   const tests = [
     smokeTestDatabaseInitialization(),
@@ -474,7 +501,8 @@ function runAllSmokeTests() {
     smokeTestDuplicateOrderPrevention(),
     smokeTestRequestUnderLimitAutoCreatesOrder(),
     smokeTestRequestOverLimitRequiresApproval(),
-    smokeTestCashMovementsReportLimit()
+    smokeTestCashMovementsReportLimit(),
+    smokeTestPermissionsMatrix()
   ];
   return {
     ok: tests.every(function(test) { return test.status === 'PASS' || test.status === 'SKIPPED'; }),

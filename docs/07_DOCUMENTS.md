@@ -110,14 +110,15 @@ SHIFT i DAILY_CLOSING u pocetnom modelu nemaju `document_status`, pa se njihovo 
 `attachDocumentToEntity(entityType, entityId, filePayload, note)`:
 
 1. proverava aktivnog korisnika,
-2. proverava rolu,
+2. proverava privilegiju `documents:attach`,
 3. proverava `entityType`,
 4. proverava da povezani entitet postoji,
-5. validira file payload,
-6. uploaduje fajl u Google Drive,
-7. dodaje red u `DOCUMENTS`,
-8. azurira `document_status` povezanog entiteta na `ATTACHED`,
-9. upisuje audit log `CREATE`.
+5. proverava da korisnik sme da pristupi tom entitetu,
+6. validira file payload,
+7. uploaduje fajl u Google Drive,
+8. dodaje red u `DOCUMENTS`,
+9. azurira `document_status` povezanog entiteta na `ATTACHED`,
+10. upisuje audit log `CREATE`.
 
 Ocekivani `filePayload`:
 
@@ -137,7 +138,7 @@ Ako `mimeType` nije poslat, koristi se `application/octet-stream`.
 
 1. proverava da dokument postoji,
 2. zahteva razlog,
-3. dozvoljava samo elevated role,
+3. zahteva privilegiju `documents:cancel`,
 4. postavlja `status = CANCELLED`,
 5. ne brise Drive fajl,
 6. azurira `document_status` povezanog entiteta prema aktivnim dokumentima,
@@ -147,12 +148,23 @@ Ako `mimeType` nije poslat, koristi se `application/octet-stream`.
 
 `replaceDocument(documentId, filePayload, note)` je implementiran u Task 06:
 
-1. stari dokument dobija `status = REPLACED`,
-2. novi fajl se uploaduje u Drive,
-3. kreira se novi `ACTIVE` red u `DOCUMENTS`,
-4. novi dokument ostaje povezan sa istim entitetom,
-5. stari Drive fajl se ne brise,
-6. audit log belezi `UPDATE` za stari dokument i `CREATE` za novi.
+1. zahteva privilegiju `documents:cancel`,
+2. stari dokument dobija `status = REPLACED`,
+3. novi fajl se uploaduje u Drive,
+4. kreira se novi `ACTIVE` red u `DOCUMENTS`,
+5. novi dokument ostaje povezan sa istim entitetom,
+6. stari Drive fajl se ne brise,
+7. audit log belezi `UPDATE` za stari dokument i `CREATE` za novi.
+
+## Vidljivost dokumenata
+
+Patch 02 dodaje minimalnu proveru vidljivosti dokumenata:
+
+- za `PAYMENT_REQUEST`, prilog moze da doda/vidi kreator zahteva, `requester_user_id`, ili korisnik sa pravom `payment_requests:view_all` / `payment_requests:approve`;
+- za `PAYMENT_ORDER`, prilog moze da doda/vidi kreator ili izdavalac naloga, ili korisnik sa pravom `payment_orders:view`, `payment_orders:create` ili `payment_orders:issue`;
+- za ostale tipove entiteta ostaje operativna provera privilegije `documents:attach` ili `documents:view`.
+
+Frontend prikaz dokumenata nije bezbednosna granica. Svaki API poziv ponovo proverava privilegiju i poslovnu vidljivost entiteta.
 
 ## Audit pravila
 

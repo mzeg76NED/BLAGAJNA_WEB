@@ -11,19 +11,12 @@ const DOCUMENT_ATTACH_ROLES_ = Object.freeze([
   USER_ROLES.REQUESTER
 ]);
 
-const DOCUMENT_MANAGE_ROLES_ = Object.freeze([
-  USER_ROLES.ADMIN,
-  USER_ROLES.DIRECTOR,
-  USER_ROLES.FINANCE,
-  USER_ROLES.CASHIER_SUPERVISOR
-]);
-
 function attachDocumentToEntity(entityType, entityId, filePayload, note) {
-  requireActiveUserWithRole_(DOCUMENT_ATTACH_ROLES_);
   assertEntityType(entityType);
   assertNonEmptyString(entityId, 'entityId');
   assertValidFilePayload(filePayload);
-  assertEntityExists_(entityType, entityId);
+  const entity = assertEntityExists_(entityType, entityId);
+  assertCanAttachDocumentToEntity_(entityType, entity);
 
   const fileInfo = uploadFileToDrive_(entityType, filePayload);
   const document = createDocumentMetadata(entityType, entityId, fileInfo, note);
@@ -92,9 +85,10 @@ function uploadFileToDrive_(entityType, filePayload) {
 }
 
 function listDocumentsForEntity(entityType, entityId) {
-  requireActiveUserWithRole_(DOCUMENT_ATTACH_ROLES_);
   assertEntityType(entityType);
   assertNonEmptyString(entityId, 'entityId');
+  const entity = assertEntityExists_(entityType, entityId);
+  assertCanViewDocumentsForEntity_(entityType, entity);
 
   return listRecords(SHEET_NAMES.DOCUMENTS, {
     entity_type: entityType,
@@ -111,7 +105,7 @@ function listActiveDocumentsForEntity(entityType, entityId) {
 }
 
 function cancelDocument(documentId, reason) {
-  requireActiveUserWithRole_(DOCUMENT_MANAGE_ROLES_);
+  assertCurrentUserHasPrivilege_(USER_PRIVILEGES.DOCUMENTS_CANCEL);
   assertNonEmptyString(documentId, 'documentId');
   assertNonEmptyString(reason, 'reason');
 
@@ -141,7 +135,7 @@ function cancelDocument(documentId, reason) {
 }
 
 function replaceDocument(documentId, filePayload, note) {
-  requireActiveUserWithRole_(DOCUMENT_MANAGE_ROLES_);
+  assertCurrentUserHasPrivilege_(USER_PRIVILEGES.DOCUMENTS_CANCEL);
   assertNonEmptyString(documentId, 'documentId');
   assertValidFilePayload(filePayload);
 
@@ -208,6 +202,49 @@ function assertEntityExists_(entityType, entityId) {
   }
 
   return match.record;
+}
+
+function assertCanAttachDocumentToEntity_(entityType, entity) {
+  const user = assertCurrentUserHasPrivilege_(USER_PRIVILEGES.DOCUMENTS_ATTACH);
+  if (canUserAccessDocumentsForEntity_(user, entityType, entity)) {
+    return user;
+  }
+  throw new Error('User cannot attach documents to this entity.');
+}
+
+function assertCanViewDocumentsForEntity_(entityType, entity) {
+  const user = assertCurrentUserHasPrivilege_(USER_PRIVILEGES.DOCUMENTS_VIEW);
+  if (canUserAccessDocumentsForEntity_(user, entityType, entity)) {
+    return user;
+  }
+  throw new Error('User cannot view documents for this entity.');
+}
+
+function canUserAccessDocumentsForEntity_(user, entityType, entity) {
+  if (!user || !entity) {
+    return false;
+  }
+  if (user.role === USER_ROLES.ADMIN) {
+    return true;
+  }
+
+  if (entityType === ENTITY_TYPES.PAYMENT_REQUEST) {
+    return entity.created_by === user.email ||
+      entity.requester_user_id === user.user_id ||
+      userHasPrivilege_(user, USER_PRIVILEGES.PAYMENT_REQUESTS_VIEW_ALL) ||
+      userHasPrivilege_(user, USER_PRIVILEGES.PAYMENT_REQUESTS_APPROVE);
+  }
+
+  if (entityType === ENTITY_TYPES.PAYMENT_ORDER) {
+    return entity.created_by === user.email ||
+      entity.issued_by === user.email ||
+      userHasPrivilege_(user, USER_PRIVILEGES.PAYMENT_ORDERS_VIEW) ||
+      userHasPrivilege_(user, USER_PRIVILEGES.PAYMENT_ORDERS_CREATE) ||
+      userHasPrivilege_(user, USER_PRIVILEGES.PAYMENT_ORDERS_ISSUE);
+  }
+
+  return userHasPrivilege_(user, USER_PRIVILEGES.DOCUMENTS_VIEW) ||
+    userHasPrivilege_(user, USER_PRIVILEGES.DOCUMENTS_ATTACH);
 }
 
 function getDocumentRootFolder_() {

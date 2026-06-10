@@ -499,14 +499,33 @@ function apiGetUiBootstrap(includeDashboard) {
   });
 }
 
+function apiListUsers(filters) {
+  return apiWrap_(function() {
+    return listUsers(filters || {});
+  });
+}
+
+function apiCreateUser(userData) {
+  return apiWrap_(function() {
+    return createUser(userData || {});
+  });
+}
+
+function apiUpdateUserPermissions(userId, permissionsData) {
+  return apiWrap_(function() {
+    return updateUserPermissions(userId, permissionsData || {});
+  });
+}
+
+function apiGetPermissionsMatrix() {
+  return apiWrap_(function() {
+    return getPermissionsMatrix();
+  });
+}
+
 function apiGetAuditLog(filters) {
   return apiWrap_(function() {
-    assertUserHasRole([
-      USER_ROLES.ADMIN,
-      USER_ROLES.DIRECTOR,
-      USER_ROLES.FINANCE,
-      USER_ROLES.CASHIER_SUPERVISOR
-    ]);
+    assertCurrentUserHasPrivilege_(USER_PRIVILEGES.AUDIT_VIEW);
     const limit = Number((filters || {}).limit || 100);
     return listRecords(SHEET_NAMES.AUDIT_LOG)
       .sort(function(left, right) {

@@ -19,6 +19,8 @@ Prava pristupa se ne oslanjaju na frontend. Frontend može da sakrije dugme, ali
 
 ## Matrica prava
 
+Patch 02 uvodi server-side privilegije u `Users.gs`. Ova tabela opisuje nameru matrice; backend funkcije i dalje rade dodatne provere statusa, vlasnistva i poslovnog toka.
+
 | Action | ADMIN | DIRECTOR | FINANCE | CASHIER_SUPERVISOR | CASHIER | APPROVER | REQUESTER | VIEWER |
 |---|---|---|---|---|---|---|---|---|
 | View dashboard | yes | yes | yes | yes | yes | yes | limited | yes |
@@ -41,6 +43,42 @@ Prava pristupa se ne oslanjaju na frontend. Frontend može da sakrije dugme, ali
 | View audit log | yes | yes | yes | yes | no | no | no | no |
 | Initialize database | yes | no | no | no | no | no | no | no |
 
+## Privilegije po backend modelu
+
+| Privilege | Znacenje |
+|---|---|
+| `users:create` | Kreiranje korisnika |
+| `users:update` | Izmena osnovnih podataka korisnika |
+| `users:disable` | Deaktivacija korisnika |
+| `users:assign_roles` | Dodela i promena role |
+| `payment_requests:create` | Kreiranje zahteva |
+| `payment_requests:view_own` | Pregled sopstvenih zahteva |
+| `payment_requests:view_all` | Pregled svih zahteva |
+| `payment_requests:approve` | Odobravanje zahteva |
+| `payment_requests:reject` | Odbijanje zahteva |
+| `payment_requests:return_for_correction` | Vracanje zahteva na dopunu |
+| `payment_orders:create` | Kreiranje naloga |
+| `payment_orders:view` | Pregled naloga |
+| `payment_orders:issue` | Izdavanje/slanje naloga |
+| `payment_orders:reject` | Odbijanje naloga u blagajni |
+| `payment_orders:execute` | Blagajnicko izvrsenje naloga |
+| `documents:attach` | Dodavanje priloga |
+| `documents:view` | Pregled priloga |
+| `documents:cancel` | Otkazivanje/zamena priloga |
+| `audit:view` | Pregled audit log-a |
+
+## Mapiranje korisnika i prava
+
+`ADMIN` ima sve privilegije.
+
+`DIRECTOR`, `FINANCE`, `CASHIER_SUPERVISOR` i `APPROVER` imaju prava za pregled i obradu zahteva, kao i kreiranje/izdavanje naloga u skladu sa postojecim tokom.
+
+`CASHIER` ima operativna prava za pregled naloga, odbijanje naloga u blagajni i blagajnicko izvrsenje naloga. `CASHIER` ne kreira korisnike i ne menja prava.
+
+`REQUESTER` kreira i prati sopstvene zahteve. Moze da dodaje i vidi priloge samo kada ima poslovnu vidljivost nad entitetom.
+
+`VIEWER` ima ogranicen pregled i nema operativne akcije.
+
 ## Napomene
 
 `yes-own` znaci da korisnik moze da radi samo nad svojim zapisom ili svojom smenom.
@@ -48,3 +86,5 @@ Prava pristupa se ne oslanjaju na frontend. Frontend može da sakrije dugme, ali
 `limited` znaci da korisnik vidi samo sopstvene zahteve ili ogranicen operativni pregled.
 
 Server-side provere su autoritativne. UI je samo pomocni sloj i ne sme da odlucuje o autorizaciji.
+
+Korisnicka administracija u ovom patch-u postoji kao backend/API osnova: `apiListUsers`, `apiCreateUser`, `apiUpdateUserPermissions` i `apiGetPermissionsMatrix`.
