@@ -55,6 +55,14 @@ const PAYMENT_ORDER_WAITING_LIST_ROLES_ = Object.freeze([
   USER_ROLES.DIRECTOR
 ]);
 
+const PAYMENT_ORDER_SEND_TO_CASHIER_ROLES_ = Object.freeze([
+  USER_ROLES.ADMIN,
+  USER_ROLES.DIRECTOR,
+  USER_ROLES.FINANCE,
+  USER_ROLES.CASHIER_SUPERVISOR,
+  USER_ROLES.APPROVER
+]);
+
 function createPaymentOrderFromRequest(requestId, orderData) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -340,8 +348,96 @@ function issuePaymentOrder(orderId) {
       updated_at: now
     },
     AUDIT_ACTIONS.SUBMIT,
-    'Payment order issued to cash desk. Issued order still does not affect balance.'
+    'Payment order approved. Approved order still does not affect balance and must be sent to cashier before payment.'
   );
+}
+
+function sendPaymentOrderToCashier(orderId) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    const currentUser = requireActiveUserWithRole_(PAYMENT_ORDER_SEND_TO_CASHIER_ROLES_);
+    assertNonEmptyString(orderId, 'orderId');
+
+    const match = getPaymentOrderMatchOrThrow_(orderId);
+    const order = match.record;
+    assertEntityStatus(order, [
+      ORDER_STATUSES.WAITING_PAYMENT,
+      ORDER_STATUSES.PARTIALLY_PAID
+    ], 'Payment Order');
+
+    const existingPending = findPendingPaymentOutflowForOrder_(order.order_id);
+    if (existingPending) {
+      return {
+        paymentOrder: order,
+        pendingPayment: existingPending,
+        alreadyPending: true
+      };
+    }
+
+    const amountOrdered = Number(order.amount_ordered);
+    const amountPaid = Number(order.amount_paid || 0);
+    const remainingAmount = amountOrdered - amountPaid;
+    assertPositiveAmount(remainingAmount, 'remainingAmount');
+    assertActiveCashbox(order.cashbox_id);
+    assertCashboxAccess(order.cashbox_id);
+    assertActiveCurrency(order.currency);
+
+    const now = getCurrentTimestamp_();
+    const pendingPayment = {
+      event_id: generateId_('CEV'),
+      created_at: now,
+      created_by: currentUser.email,
+      event_date: now,
+      event_type: CASH_EVENT_TYPES.CASH_OUTFLOW,
+      cashbox_id: order.cashbox_id,
+      currency: order.currency,
+      direction: 'OUT',
+      amount: remainingAmount,
+      linked_request_id: order.linked_request_id || order.source_request_id || '',
+      linked_order_id: order.order_id,
+      partner_name: order.pay_to_name,
+      description: buildCashPaymentDescription_(order.purpose, 'Pending ISPLATA po nalogu ' + order.order_id),
+      document_status: DOCUMENT_STATUSES.MISSING,
+      status: CASH_EVENT_STATUSES.SUBMITTED,
+      posted_by: '',
+      posted_at: '',
+      locked_by: '',
+      locked_at: '',
+      reversal_of_event_id: '',
+      updated_at: ''
+    };
+
+    appendRecord(SHEET_NAMES.CASH_EVENTS, pendingPayment);
+    const orderAfter = updatePaymentOrderWithAudit_(
+      order.order_id,
+      {
+        status: ORDER_STATUSES.WAITING_PAYMENT,
+        linked_cash_event_id: pendingPayment.event_id,
+        updated_at: now
+      },
+      AUDIT_ACTIONS.SUBMIT,
+      'Payment order sent to cashier as pending ISPLATA. Pending cash event does not affect balance.'
+    );
+
+    writeAuditLog(
+      AUDIT_ACTIONS.CREATE,
+      SHEET_NAMES.CASH_EVENTS,
+      pendingPayment.event_id,
+      null,
+      pendingPayment,
+      'Pending ISPLATA created from payment order ' + order.order_id + '.'
+    );
+
+    return {
+      paymentOrder: orderAfter,
+      pendingPayment: pendingPayment,
+      alreadyPending: false
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function cancelPaymentOrder(orderId, reason) {
@@ -443,6 +539,150 @@ function listOrdersWaitingForPayment() {
       const rightDue = toTime_(right.due_date) || toTime_(right.created_at);
       return leftDue - rightDue;
     });
+}
+
+function findPendingPaymentOutflowForOrder_(orderId) {
+  const pending = listRecords(SHEET_NAMES.CASH_EVENTS, {
+    linked_order_id: orderId,
+    status: CASH_EVENT_STATUSES.SUBMITTED
+  }).filter(function(event) {
+    return event.event_type === CASH_EVENT_TYPES.CASH_OUTFLOW;
+  });
+  return pending.length ? pending[0] : null;
+}
+
+function listPendingPaymentOrderOutflows(filters) {
+  requireActiveUserWithRole_(PAYMENT_ORDER_WAITING_LIST_ROLES_);
+  const scoped = filters || {};
+  return listRecords(SHEET_NAMES.CASH_EVENTS, {
+    status: CASH_EVENT_STATUSES.SUBMITTED
+  }).filter(function(event) {
+    return event.event_type === CASH_EVENT_TYPES.CASH_OUTFLOW &&
+      event.linked_order_id &&
+      (!scoped.cashbox_id || event.cashbox_id === scoped.cashbox_id) &&
+      (!scoped.currency || event.currency === scoped.currency);
+  }).map(function(event) {
+    const order = getPaymentOrderById(event.linked_order_id) || {};
+    return {
+      pending_payment_id: event.event_id,
+      event_id: event.event_id,
+      created_at: event.created_at,
+      event_date: event.event_date,
+      cashbox_id: event.cashbox_id,
+      currency: event.currency,
+      amount: Number(event.amount || 0),
+      status: event.status,
+      linked_order_id: event.linked_order_id,
+      linked_request_id: event.linked_request_id || '',
+      partner_name: event.partner_name || order.pay_to_name || '',
+      description: event.description || order.purpose || '',
+      order_id: order.order_id || event.linked_order_id,
+      order_status: order.status || '',
+      purpose: order.purpose || event.description || '',
+      pay_to_name: order.pay_to_name || event.partner_name || ''
+    };
+  }).sort(function(left, right) {
+    return toTime_(right.created_at || right.event_date) - toTime_(left.created_at || left.event_date);
+  });
+}
+
+function getPaymentOrderTimeline(orderId) {
+  requireActiveUserWithRole_(PAYMENT_ORDER_LIST_ROLES_);
+  assertNonEmptyString(orderId, 'orderId');
+  const order = getPaymentOrderById(orderId);
+  if (!order) {
+    throw new Error('Payment Order not found: ' + orderId);
+  }
+  const events = [];
+  events.push({
+    label: 'Nalog kreiran',
+    at: order.created_at,
+    by: order.created_by,
+    tone: ''
+  });
+  if (order.issued_at || order.status !== ORDER_STATUSES.DRAFT) {
+    events.push({
+      label: 'Nalog odobren',
+      at: order.issued_at || order.created_at,
+      by: order.issued_by || order.created_by,
+      tone: ''
+    });
+  }
+
+  listRecords(SHEET_NAMES.AUDIT_LOG).filter(function(log) {
+    return String(log.entity_type) === String(SHEET_NAMES.PAYMENT_ORDERS) &&
+      String(log.entity_id) === String(orderId);
+  }).forEach(function(log) {
+    const comment = String(log.comment || '');
+    if (comment.indexOf('sent to cashier as pending ISPLATA') !== -1) {
+      events.push({
+        label: 'Poslato blagajni na isplatu',
+        at: log.timestamp,
+        by: log.user,
+        tone: 'warning'
+      });
+    }
+    if (comment.indexOf('Insufficient balance') !== -1) {
+      events.push({
+        label: 'Nedovoljno sredstava za isplatu',
+        at: log.timestamp,
+        by: log.user,
+        tone: 'danger'
+      });
+    }
+    if (comment.indexOf('cash payment execution') !== -1 || comment.indexOf('Pending ISPLATA executed') !== -1) {
+      events.push({
+        label: 'Stvarna isplata izvršena',
+        at: log.timestamp,
+        by: log.user,
+        tone: 'success'
+      });
+    }
+  });
+
+  listRecords(SHEET_NAMES.CASH_EVENTS, {
+    linked_order_id: orderId
+  }).filter(function(event) {
+    return event.event_type === CASH_EVENT_TYPES.CASH_OUTFLOW;
+  }).forEach(function(event) {
+    if (event.status === CASH_EVENT_STATUSES.SUBMITTED) {
+      events.push({
+        label: 'Pending ISPLATA čeka blagajnika',
+        at: event.created_at,
+        by: event.created_by,
+        tone: 'warning'
+      });
+    }
+    if (event.status === CASH_EVENT_STATUSES.POSTED || event.status === CASH_EVENT_STATUSES.LOCKED) {
+      events.push({
+        label: 'CASH_OUTFLOW proknjižen',
+        at: event.posted_at || event.created_at,
+        by: event.posted_by || event.created_by,
+        tone: 'success'
+      });
+    }
+  });
+
+  if (order.status === ORDER_STATUSES.REJECTED_BY_CASHIER) {
+    events.push({
+      label: 'Odbijen od blagajne',
+      at: order.updated_at || order.created_at,
+      by: order.executed_by || order.issued_by || order.created_by,
+      tone: 'danger'
+    });
+  }
+  if (order.status === ORDER_STATUSES.CANCELLED) {
+    events.push({
+      label: 'Otkazan',
+      at: order.updated_at || order.created_at,
+      by: order.issued_by || order.created_by,
+      tone: 'danger'
+    });
+  }
+
+  return events.sort(function(left, right) {
+    return toTime_(left.at) - toTime_(right.at);
+  });
 }
 
 function listPaymentOrders(filters) {

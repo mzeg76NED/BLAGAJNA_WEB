@@ -2320,6 +2320,7 @@
     }
     updateDesktopDirectActionsVisibility_();
     updateMobileDirectActionsVisibility_();
+    loadPendingPaymentOrderOutflows_(true);
   }
 
   function updateDesktopDirectActionsVisibility_() {
@@ -3757,8 +3758,73 @@
     })], function(events) {
       LAST_KNJIGA_EVENTS = events || [];
       renderKnjigaTable_(events || []);
+      loadPendingPaymentOrderOutflows_(true);
       refreshBalance_();
     }, { quiet: true });
+  }
+
+  function loadPendingPaymentOrderOutflows_(isBackground) {
+    var target = document.getElementById('d-pending-payments-list');
+    if (!target) return;
+    if (!isBackground) {
+      target.innerHTML = '<div class="empty-state compact"><p>Učitavam pending isplate...</p></div>';
+    }
+    callApi('apiListPendingPaymentOrderOutflows', [withUiDefaults({
+      cashbox_id: SESSION.cashboxId,
+      currency: SESSION.currency
+    })], function(rows) {
+      renderPendingPaymentOrderOutflows_(rows || []);
+    }, { quiet: true });
+  }
+
+  function renderPendingPaymentOrderOutflows_(rows) {
+    var target = document.getElementById('d-pending-payments-list');
+    if (!target) return;
+    if (!rows.length) {
+      target.innerHTML = '<div class="empty-state compact"><p>Nema pending isplata.</p></div>';
+      return;
+    }
+    var canExecute = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
+    target.innerHTML = rows.map(function(row) {
+      var disabled = canExecute ? '' : ' disabled';
+      var title = canExecute ? '' : ' title="Potrebna je aktivna smena glavnog blagajnika."';
+      return '<div class="pending-payment-row" data-pending-payment-id="' + escapeHtml(row.pending_payment_id || row.event_id || '') + '">' +
+        '<div><strong>' + escapeHtml(row.order_id || row.linked_order_id || '—') + '</strong>' +
+          '<span>' + escapeHtml(row.pay_to_name || row.partner_name || '—') + '</span>' +
+          '<small>' + escapeHtml(row.purpose || row.description || '—') + '</small></div>' +
+        '<div class="pending-payment-amount">' + escapeHtml(formatAmount_(row.amount)) + ' ' + escapeHtml(row.currency || '') + '</div>' +
+        '<button type="button" class="cash-count-action save" data-execute-pending-payment' + disabled + title + '>' +
+          '<i class="ti ti-cash" aria-hidden="true"></i> Izvrši isplatu</button>' +
+      '</div>';
+    }).join('');
+    target.querySelectorAll('[data-execute-pending-payment]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var row = btn.closest('[data-pending-payment-id]');
+        var pendingId = row ? row.getAttribute('data-pending-payment-id') : '';
+        if (!pendingId) return;
+        executePendingPaymentOrderOutflow_(pendingId);
+      });
+    });
+  }
+
+  function executePendingPaymentOrderOutflow_(pendingPaymentId) {
+    if (!(uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_())) {
+      showDesktopMessage_('Isplatu može izvršiti samo glavni blagajnik aktivne smene.', 'error');
+      return;
+    }
+    appConfirm_({
+      title: 'Izvršenje isplate',
+      message: 'Potvrđujete stvarnu isplatu iz pending zapisa ' + pendingPaymentId + '? Tek ova akcija menja stanje blagajne.',
+      confirmText: 'Izvrši isplatu'
+    }, function() {
+      callApi('apiExecutePendingPaymentOrderOutflow', [pendingPaymentId, {}], function(result) {
+        showDesktopMessage_('Isplata je proknjižena. CASH_OUTFLOW je kreiran kroz blagajnički tok.', 'success');
+        loadPendingPaymentOrderOutflows_(true);
+        loadKnjiga_(true);
+        loadDesktopNalozi_();
+        refreshBalance_();
+      }, { successMessage: 'Isplata je izvršena.' });
+    });
   }
 
   function updateKnjigaContext_() {
@@ -4753,6 +4819,8 @@
 
     var refreshBtn = document.getElementById('d-knjiga-refresh');
     if (refreshBtn) refreshBtn.addEventListener('click', function() { loadKnjiga_(); });
+    var pendingRefreshBtn = document.getElementById('d-pending-payments-refresh');
+    if (pendingRefreshBtn) pendingRefreshBtn.addEventListener('click', function() { loadPendingPaymentOrderOutflows_(); });
     var countRefreshBtn = document.getElementById('d-count-refresh');
     if (countRefreshBtn) countRefreshBtn.addEventListener('click', loadCashCounts_);
     var countNewBtn = document.getElementById('d-count-new-btn');
@@ -5421,11 +5489,13 @@
     }
     target.className = '';
     var isPaid = order.status === 'PAID' || order.status === 'CLOSED';
-    var canSendToCashier = order.status === 'WAITING_PAYMENT' || order.status === 'PARTIALLY_PAID';
+    var pendingPaymentId = order.status === 'WAITING_PAYMENT' && order.cashEventId && !isPaid ? order.cashEventId : '';
+    var canSendToCashier = (order.status === 'WAITING_PAYMENT' || order.status === 'PARTIALLY_PAID') && !pendingPaymentId;
     var canReject = order.status === 'WAITING_PAYMENT';
     var canApprove = order.status === 'DRAFT';
     var canEdit = order.status === 'DRAFT';
     var amount = order.remaining || order.amountOrdered;
+    var sendLabel = pendingPaymentId ? 'Poslato blagajni' : 'Pošalji na isplatu';
     target.innerHTML =
       '<div class="po-detail-head"><h3>Detalji naloga</h3><span class="po-status ' + paymentOrderStatusClass_(order.status) + '">' + escapeHtml(paymentOrderStatusLabel_(order.status)) + '</span></div>' +
       '<div class="po-detail-grid">' +
@@ -5441,16 +5511,17 @@
       '<div class="po-detail-amount">' + escapeHtml(formatAmount_(amount)) + ' ' + escapeHtml(order.currency || '') + '</div>' +
       '<div class="po-tabs"><span class="active">Pregled</span><span>Povezani dokumenti</span><span>Aktivnosti</span></div>' +
       '<div class="po-detail-columns">' +
-        '<div><h4>Tok naloga</h4>' + renderPaymentOrderTimeline_(order) + '</div>' +
+        '<div><h4>Tok naloga</h4><div id="d-order-timeline">' + renderPaymentOrderTimeline_(order) + '</div></div>' +
         '<div><h4>Povezani dokumenti</h4>' + renderPaymentOrderDocuments_(order) + '</div>' +
       '</div>' +
       '<div class="po-panel-actions">' +
         '<button type="button" class="cash-count-action draft" id="d-order-edit" ' + (canEdit ? '' : 'disabled') + '><i class="ti ti-pencil" aria-hidden="true"></i> Edituj nacrt</button>' +
         '<button type="button" class="cash-count-action save" id="d-order-approve" ' + (canApprove ? '' : 'disabled') + '><i class="ti ti-check" aria-hidden="true"></i> Odobri nalog</button>' +
         '<button type="button" class="cash-count-action cancel" id="d-order-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
-        '<button type="button" class="cash-count-action draft" id="d-order-send-payment" ' + (canSendToCashier && !isPaid ? '' : 'disabled') + '><i class="ti ti-send" aria-hidden="true"></i> Čeka blagajnika</button>' +
+        '<button type="button" class="cash-count-action draft" id="d-order-send-payment" ' + (canSendToCashier && !isPaid ? '' : 'disabled') + '><i class="ti ti-send" aria-hidden="true"></i> ' + sendLabel + '</button>' +
       '</div>';
     bindPaymentOrderDetailActions_(order);
+    loadPaymentOrderTimeline_(order.id);
   }
 
   function renderPaymentOrderField_(label, value) {
@@ -5470,6 +5541,29 @@
       var cls = 'po-timeline-item ' + (index === items.length - 1 ? 'current ' : '') + (item[3] || '');
       return '<div class="' + cls + '">' +
         '<span></span><strong>' + escapeHtml(item[0]) + '</strong><small>' + escapeHtml(shortUserLabel_(item[2] || '—')) + ' · ' + escapeHtml(formatDateTimeShort_(item[1])) + '</small>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function loadPaymentOrderTimeline_(orderId) {
+    if (!orderId || !document.getElementById('d-order-timeline')) return;
+    callApi('apiGetPaymentOrderTimeline', [orderId], function(items) {
+      var target = document.getElementById('d-order-timeline');
+      if (!target || PAYMENT_ORDERS_STATE.selectedId !== orderId) return;
+      target.innerHTML = renderPaymentOrderTimelineItems_(items || []);
+    }, { quiet: true });
+  }
+
+  function renderPaymentOrderTimelineItems_(items) {
+    if (!items.length) {
+      return '<div class="po-empty-docs">Nema aktivnosti za nalog.</div>';
+    }
+    return '<div class="po-timeline">' + items.map(function(item, index) {
+      var tone = item.tone || '';
+      var cls = 'po-timeline-item ' + (index === items.length - 1 ? 'current ' : '') + tone;
+      return '<div class="' + cls + '">' +
+        '<span></span><strong>' + escapeHtml(item.label || 'Aktivnost') + '</strong>' +
+        '<small>' + escapeHtml(shortUserLabel_(item.by || '—')) + ' · ' + escapeHtml(formatDateTimeShort_(item.at)) + '</small>' +
       '</div>';
     }).join('') + '</div>';
   }
@@ -5501,7 +5595,7 @@
     var approve = document.getElementById('d-order-approve');
     if (approve) approve.addEventListener('click', function() {
       callApi('apiIssuePaymentOrder', [order.id], function() {
-        showDesktopMessage_('Nalog je odobren i poslat na isplatu.', 'success');
+        showDesktopMessage_('Nalog je odobren. Sledeći korak je slanje blagajni na isplatu.', 'success');
         loadDesktopNalozi_();
       });
     });
@@ -5525,7 +5619,21 @@
     });
     var sendPayment = document.getElementById('d-order-send-payment');
     if (sendPayment) sendPayment.addEventListener('click', function() {
-      showDesktopMessage_('Nalog je već odobren i čeka blagajnika. Direktno izvršenje iz pregleda naloga je blokirano jer bi odmah promenilo stanje blagajne.', 'info');
+      if (order.cashEventId) {
+        showDesktopMessage_('Nalog je već poslat blagajni i čeka isplatu.', 'info');
+        return;
+      }
+      appConfirm_({
+        title: 'Slanje naloga blagajni',
+        message: 'Kreira se pending ISPLATA za nalog ' + order.id + '. Stanje blagajne se neće promeniti dok blagajnik ne potvrdi isplatu.',
+        confirmText: 'Pošalji na isplatu'
+      }, function() {
+        callApi('apiSendPaymentOrderToCashier', [order.id], function() {
+          showDesktopMessage_('Nalog je poslat blagajni na isplatu.', 'success');
+          loadDesktopNalozi_();
+          loadPendingPaymentOrderOutflows_(true);
+        });
+      });
     });
   }
 

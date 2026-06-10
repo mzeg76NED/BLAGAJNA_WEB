@@ -2393,6 +2393,58 @@
     display: none;
   }
 
+  .pending-payments-card {
+    margin-top: 12px;
+  }
+
+  .pending-payments-card .card-head {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .pending-payments-card .card-head h3 {
+    margin: 0;
+  }
+
+  .pending-payments-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .pending-payment-row {
+    align-items: center;
+    background: rgba(234, 179, 8, 0.10);
+    border: 1px solid rgba(234, 179, 8, 0.30);
+    border-radius: 8px;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 10px;
+  }
+
+  .pending-payment-row strong,
+  .pending-payment-row span,
+  .pending-payment-row small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pending-payment-row small {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .pending-payment-amount {
+    color: #facc15;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: right;
+  }
+
   .cashbook-quick-form {
     margin-top: 12px;
   }
@@ -4333,6 +4385,10 @@
   .po-timeline-item.current > span,
   .po-timeline-item.success > span {
     background: #22c55e;
+  }
+
+  .po-timeline-item.warning > span {
+    background: #eab308;
   }
 
   .po-timeline-item.danger > span {

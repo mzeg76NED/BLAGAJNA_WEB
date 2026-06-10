@@ -16,11 +16,17 @@ Cash Payment Event je stvarna isplata. Tek knjizen Cash Event menja izracunato s
 
 ## Workflow napomena za UI
 
-Supervizor moze da odobri ili izda nalog, ali supervizorska akcija nad nalogom ne sme direktno da menja stanje blagajne.
+Supervizor moze da odobri ili izda nalog, ali supervizor ne isplacuje novac.
 
-Akcija tipa "Izvrsi nalog" u pregledu naloga ne sme pozivati direktno knjizenje `CASH_OUTFLOW`. Dok ne postoji poseban pending ISPLATA model, UI treba da prikaze da nalog ceka blagajnika i da blokira direktno izvrsenje iz pregleda naloga.
+Akcija `Posalji na isplatu` u pregledu naloga kreira pending ISPLATA zapis u `CASH_EVENTS` kao:
 
-Sledeci mali patch treba da uvede eksplicitan pending ISPLATA zapis koji nastaje iz odobrenog naloga i ceka blagajnika. Tek blagajnikovo izvrsenje tog zapisa sme da kreira knjizen `CASH_OUTFLOW`.
+- `event_type = CASH_OUTFLOW`
+- `status = SUBMITTED`
+- `linked_order_id = order_id`
+
+Pending ISPLATA ne menja stanje blagajne i ne oznacava nalog kao placen.
+
+Stvarnu isplatu izvrsava blagajnik kroz blagajnicki tok. Tek blagajnikovo izvrsenje pending ISPLATA zapisa menja status cash event-a u `POSTED`, smanjuje stanje blagajne i azurira nalog na `PAID` ili `PARTIALLY_PAID`.
 
 ## Tipovi naloga
 
@@ -75,7 +81,7 @@ Blagajnik moze da odbije/vrati nalog ako ne moze da ga izvrsi. Dozvoljene role:
 |---|---|
 | DRAFT | Nalog je pripremljen, ali jos nije izdat blagajni |
 | ISSUED | Rezervisano za kasniji detaljniji tok izdavanja |
-| WAITING_PAYMENT | Nalog je izdat blagajni i ceka izvrsenje |
+| WAITING_PAYMENT | Nalog je odobren i moze biti poslat blagajni ili vec ceka pending ISPLATA zapis |
 | PARTIALLY_PAID | Deo naloga je placen, potpuna logika pripada kasnijem tasku |
 | PAID | Nalog je placen, popunjava se tek nakon izvrsenja placanja |
 | REJECTED_BY_CASHIER | Blagajnik ne moze da izvrsi nalog kako je zadat |
@@ -122,6 +128,8 @@ Nalog iz zahteva:
 SUBMITTED PAYMENT_REQUEST u okviru limita ili APPROVED PAYMENT_REQUEST preko limita
 -> WAITING_PAYMENT
 -> request status ORDER_CREATED
+-> pending CASH_OUTFLOW SUBMITTED kada se posalje blagajni
+-> CASH_OUTFLOW POSTED tek kada blagajnik izvrsi isplatu
 ```
 
 Direktan nalog:
@@ -129,6 +137,8 @@ Direktan nalog:
 ```text
 DRAFT PAYMENT_ORDER
 -> WAITING_PAYMENT
+-> pending CASH_OUTFLOW SUBMITTED
+-> CASH_OUTFLOW POSTED
 ```
 
 Otkazivanje:
@@ -161,6 +171,10 @@ Izvrsenje naloga i prelaz u `PAID` ili `PARTIALLY_PAID` nisu deo Task 04.
 10. Placeni ili zatvoreni nalog ne moze se direktno otkazati.
 11. Delimicno placen nalog se ne otkazuje u ovom tasku.
 12. Blagajnik moze da odbije samo nalog u statusu `WAITING_PAYMENT`.
+13. Slanje naloga blagajni ne menja stanje blagajne.
+14. Slanje naloga blagajni kreira pending `CASH_OUTFLOW` sa statusom `SUBMITTED`.
+15. Samo blagajnik koji ima aktivnu smenu za blagajnu moze da izvrsi pending ISPLATA zapis.
+16. Ako nema dovoljno sredstava, pending ISPLATA ostaje `SUBMITTED`, nalog ostaje neplacen, stanje se ne menja i u audit/tok naloga se upisuje neuspesan pokusaj.
 
 ## Validacije
 
@@ -205,6 +219,8 @@ Svaka vazna akcija dodaje red u `AUDIT_LOG`:
 | Kreiranje naloga | CREATE |
 | Povezivanje zahteva sa nalogom | UPDATE |
 | Izdavanje naloga blagajni | SUBMIT |
+| Slanje pending ISPLATA blagajni | SUBMIT / CREATE |
+| Neuspesan pokusaj zbog nedovoljno sredstava | UPDATE |
 | Otkazivanje naloga | CANCEL |
 | Odbijanje naloga od strane blagajnika | REJECT |
 

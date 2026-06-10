@@ -128,6 +128,14 @@ function smokeTestCashPaymentFlow() {
     });
     const request = createSmokeSubmittedInLimitRequest_(1000);
     const issued = getPaymentOrderById(request.linked_order_id);
+    const pending = sendPaymentOrderToCashier(issued.order_id);
+    const balanceAfterPending = calculateCashboxBalance('TEST_CB_MAIN', 'RSD');
+    if (balanceAfterPending !== balanceBefore + 10000) {
+      throw new Error('Pending ISPLATA changed balance before cashier execution.');
+    }
+    if (pending.pendingPayment.status !== CASH_EVENT_STATUSES.SUBMITTED) {
+      throw new Error('Pending ISPLATA was not created as SUBMITTED.');
+    }
     const payment = executePaymentOrder(issued.order_id, { amount: 1000 });
     const balanceAfter = calculateCashboxBalance('TEST_CB_MAIN', 'RSD');
 
@@ -143,6 +151,7 @@ function smokeTestCashPaymentFlow() {
       details: {
         inflow_event_id: inflow.event_id,
         order_id: issued.order_id,
+        pending_payment_id: pending.pendingPayment.event_id,
         cash_outflow_event_id: payment.cashEvent.event_id,
         balanceBefore: balanceBefore,
         balanceAfter: balanceAfter
@@ -313,6 +322,7 @@ function smokeTestOverpaymentRejected() {
     });
     const request = createSmokeSubmittedInLimitRequest_(1000);
     const order = getPaymentOrderById(request.linked_order_id);
+    sendPaymentOrderToCashier(order.order_id);
     const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
     let failed = false;
     try {

@@ -35,13 +35,32 @@ const LOCKED_CASH_EVENT_REVERSAL_ROLES_ = Object.freeze([
 ]);
 
 function executePaymentOrder(orderId, paymentData) {
+  const pendingPayment = findPendingPaymentOutflowForOrder_(orderId);
+  if (!pendingPayment) {
+    throw new Error('Payment order must first be sent to cashier as pending ISPLATA.');
+  }
+  return executePendingPaymentOrderOutflow(pendingPayment.event_id, paymentData || {});
+}
+
+function executePendingPaymentOrderOutflow(pendingPaymentId, paymentData) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
   try {
     const currentUser = requireActiveUserWithRole_(PAYMENT_EXECUTION_ROLES_);
-    assertNonEmptyString(orderId, 'orderId');
+    assertNonEmptyString(pendingPaymentId, 'pendingPaymentId');
 
+    const pendingMatch = findRecordById(SHEET_NAMES.CASH_EVENTS, 'event_id', pendingPaymentId);
+    if (!pendingMatch) {
+      throw new Error('Pending ISPLATA not found: ' + pendingPaymentId);
+    }
+    const pendingBefore = pendingMatch.record;
+    if (pendingBefore.event_type !== CASH_EVENT_TYPES.CASH_OUTFLOW || !pendingBefore.linked_order_id) {
+      throw new Error('Pending ISPLATA must be a CASH_OUTFLOW linked to payment order.');
+    }
+    assertEntityStatus(pendingBefore, [CASH_EVENT_STATUSES.SUBMITTED], 'Pending ISPLATA');
+
+    const orderId = pendingBefore.linked_order_id;
     const orderBefore = getPaymentOrderById(orderId);
     if (!orderBefore) {
       throw new Error('Payment Order not found: ' + orderId);
@@ -56,7 +75,7 @@ function executePaymentOrder(orderId, paymentData) {
     const amountAlreadyPaid = Number(orderBefore.amount_paid || 0);
     const remainingAmount = amountOrdered - amountAlreadyPaid;
     const paymentAmount = data.amount === undefined || data.amount === null || data.amount === ''
-      ? remainingAmount
+      ? Number(pendingBefore.amount || remainingAmount)
       : Number(data.amount);
     const paymentCurrency = data.currency || orderBefore.currency;
     const paymentCashboxId = data.cashbox_id || orderBefore.cashbox_id;
@@ -75,38 +94,39 @@ function executePaymentOrder(orderId, paymentData) {
     assertActiveCashbox(paymentCashboxId);
     assertCashboxAccess(paymentCashboxId);
     assertActiveCurrency(paymentCurrency);
+    assertCurrentUserOwnsOpenShiftForCashbox_(paymentCashboxId);
 
     const previousBalance = calculateCashboxBalance(paymentCashboxId, paymentCurrency);
-    assertSufficientBalance(previousBalance, paymentAmount, paymentCashboxId, paymentCurrency);
+    if (Number(previousBalance) < Number(paymentAmount)) {
+      writeAuditLog(
+        AUDIT_ACTIONS.UPDATE,
+        SHEET_NAMES.PAYMENT_ORDERS,
+        orderBefore.order_id,
+        orderBefore,
+        orderBefore,
+        'Insufficient balance for pending ISPLATA ' + pendingBefore.event_id + '. Available: ' + previousBalance + ', required: ' + paymentAmount + '.'
+      );
+      assertSufficientBalance(previousBalance, paymentAmount, paymentCashboxId, paymentCurrency);
+    }
 
     const now = getCurrentTimestamp_();
-    const cashEvent = {
-      event_id: generateId_('CEV'),
-      created_at: now,
-      created_by: currentUser.email,
-      event_date: data.event_date || now,
-      event_type: CASH_EVENT_TYPES.CASH_OUTFLOW,
-      cashbox_id: paymentCashboxId,
-      currency: paymentCurrency,
-      direction: 'OUT',
-      amount: paymentAmount,
-      linked_request_id: orderBefore.linked_request_id || orderBefore.source_request_id || '',
-      linked_order_id: orderBefore.order_id,
-      partner_name: orderBefore.pay_to_name,
-      description: buildCashPaymentDescription_(orderBefore.purpose, data.note),
-      document_status: data.document_status === DOCUMENT_STATUSES.ATTACHED
-        ? DOCUMENT_STATUSES.ATTACHED
-        : DOCUMENT_STATUSES.MISSING,
-      status: CASH_EVENT_STATUSES.POSTED,
-      posted_by: currentUser.email,
-      posted_at: now,
-      locked_by: '',
-      locked_at: '',
-      reversal_of_event_id: '',
-      updated_at: ''
-    };
-
-    appendRecord(SHEET_NAMES.CASH_EVENTS, cashEvent);
+    const cashEvent = updateRecordById(
+      SHEET_NAMES.CASH_EVENTS,
+      'event_id',
+      pendingBefore.event_id,
+      {
+        event_date: data.event_date || now,
+        amount: paymentAmount,
+        description: buildCashPaymentDescription_(orderBefore.purpose, data.note),
+        document_status: data.document_status === DOCUMENT_STATUSES.ATTACHED
+          ? DOCUMENT_STATUSES.ATTACHED
+          : DOCUMENT_STATUSES.MISSING,
+        status: CASH_EVENT_STATUSES.POSTED,
+        posted_by: currentUser.email,
+        posted_at: now,
+        updated_at: now
+      }
+    );
 
     const totalPaid = amountAlreadyPaid + paymentAmount;
     const fullyPaid = totalPaid >= amountOrdered;
@@ -123,9 +143,9 @@ function executePaymentOrder(orderId, paymentData) {
       AUDIT_ACTIONS.POST,
       SHEET_NAMES.CASH_EVENTS,
       cashEvent.event_id,
-      null,
+      pendingBefore,
       cashEvent,
-      'Payment order executed by posted CASH_OUTFLOW event.'
+      'Pending ISPLATA executed by cashier and posted as CASH_OUTFLOW event.'
     );
     writeAuditLog(
       AUDIT_ACTIONS.UPDATE,
@@ -140,7 +160,8 @@ function executePaymentOrder(orderId, paymentData) {
       cashEvent: cashEvent,
       paymentOrder: orderAfter,
       previousBalance: previousBalance,
-      newBalance: previousBalance - paymentAmount
+      newBalance: previousBalance - paymentAmount,
+      pendingPayment: cashEvent
     };
   } finally {
     lock.releaseLock();

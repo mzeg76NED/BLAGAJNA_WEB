@@ -190,6 +190,30 @@ function apiListOrdersWaitingForPayment() {
   });
 }
 
+function apiSendPaymentOrderToCashier(orderId) {
+  return apiWrap_(function() {
+    return sendPaymentOrderToCashier(orderId);
+  });
+}
+
+function apiListPendingPaymentOrderOutflows(filters) {
+  return apiWrap_(function() {
+    return listPendingPaymentOrderOutflows(withDefaultCashbox_(filters || {}));
+  });
+}
+
+function apiExecutePendingPaymentOrderOutflow(pendingPaymentId, paymentData) {
+  return apiWrap_(function() {
+    return executePendingPaymentOrderOutflow(pendingPaymentId, withDefaultCashbox_(paymentData || {}));
+  });
+}
+
+function apiGetPaymentOrderTimeline(orderId) {
+  return apiWrap_(function() {
+    return getPaymentOrderTimeline(orderId);
+  });
+}
+
 function apiListPaymentOrders(filters) {
   return apiWrap_(function() {
     return listPaymentOrders(filters || {});

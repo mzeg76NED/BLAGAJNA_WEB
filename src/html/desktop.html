@@ -214,6 +214,17 @@
                     <div class="card permission-card" id="d-direct-permission-card" hidden>
                       <p id="d-direct-permission-text">Direktne uplate i isplate može knjižiti samo glavni blagajnik aktivne smene.</p>
                     </div>
+                    <div class="card pending-payments-card">
+                      <div class="card-head">
+                        <h3>Čeka isplatu</h3>
+                        <button class="btn-ghost small" id="d-pending-payments-refresh" type="button" title="Osveži">
+                          <i class="ti ti-refresh" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                      <div id="d-pending-payments-list" class="pending-payments-list">
+                        <div class="empty-state compact"><p>Nema pending isplata.</p></div>
+                      </div>
+                    </div>
                     <div class="card cashbook-quick-form" id="d-quick-form-card" hidden>
                       <div class="card-head"><h3>Nova transakcija</h3></div>
                       <div class="type-toggle">

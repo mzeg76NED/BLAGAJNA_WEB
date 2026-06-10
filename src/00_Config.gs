@@ -5,7 +5,7 @@
  * intentionally configures this project copy for one known environment.
  */
 const APP_NAME = 'BLAGAJNA WEB';
-const APP_VERSION = '2.0.24-pilot-ui-correction';
+const APP_VERSION = '2.0.25-pilot-pending-isplata';
 const ENVIRONMENT = 'PILOT'; // DEV, PILOT, PROD
 const DEBUG_MODE = false;
 const DATABASE_SPREADSHEET_ID = '';

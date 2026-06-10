@@ -10,12 +10,20 @@ Stanje blagajne ne menja zahtev za isplatu i ne menja nalog za isplatu. Stanje b
 
 Cash Payment Event je stvarna isplata koju blagajnik izvrsi na osnovu validnog Payment Order-a.
 
-U ovom sistemu izvrsenje isplate iz naloga kreira `CASH_OUTFLOW` dogadjaj sa:
+U ovom sistemu slanje odobrenog naloga blagajni kreira pending `CASH_OUTFLOW` dogadjaj sa:
 
 - `direction = OUT`
-- `status = POSTED`
+- `status = SUBMITTED`
 - vezom na `linked_order_id`
 - vezom na `linked_request_id` ako nalog potice iz zahteva
+
+Pending `SUBMITTED` dogadjaj ne ulazi u stanje blagajne.
+
+Tek kada blagajnik potvrdi isplatu, isti dogadjaj prelazi u:
+
+- `status = POSTED`
+- `posted_by = blagajnik`
+- `posted_at = vreme izvrsenja`
 
 To je prvi trenutak kada se stanje blagajne smanjuje.
 
@@ -81,28 +89,42 @@ Opening balance jos nije poseban modul. Do uvodjenja opening balance-a ili pocet
 
 ## Izvrsenje naloga za isplatu
 
-`executePaymentOrder(orderId, paymentData)`:
+`sendPaymentOrderToCashier(orderId)`:
+
+1. proverava da nalog postoji,
+2. dozvoljava samo nalog koji ceka isplatu,
+3. proverava da ne postoji vec otvorena pending ISPLATA za isti nalog,
+4. kreira `CASH_OUTFLOW` sa statusom `SUBMITTED`,
+5. povezuje zapis sa nalogom kroz `linked_order_id`,
+6. ne menja stanje blagajne,
+7. ne oznacava nalog kao placen.
+
+`executePendingPaymentOrderOutflow(pendingPaymentId, paymentData)`:
 
 1. proverava aktivnog korisnika i rolu blagajnika,
-2. proverava da nalog postoji,
-3. dozvoljava samo statuse `WAITING_PAYMENT` i `PARTIALLY_PAID`,
-4. racuna preostali iznos naloga,
-5. proverava valutu i blagajnu,
-6. proverava trenutno stanje blagajne,
-7. sprecava negativno stanje,
-8. kreira `CASH_OUTFLOW` sa statusom `POSTED`,
-9. azurira `amount_paid` na nalogu,
-10. prebacuje nalog u `PAID` ili `PARTIALLY_PAID`,
-11. upisuje audit log za cash event i nalog.
+2. proverava da postoji pending `CASH_OUTFLOW` sa statusom `SUBMITTED`,
+3. proverava povezani nalog,
+4. dozvoljava samo statuse naloga `WAITING_PAYMENT` i `PARTIALLY_PAID`,
+5. proverava aktivnu smenu blagajnika za tu blagajnu,
+6. proverava valutu i blagajnu,
+7. proverava trenutno stanje blagajne,
+8. sprecava negativno stanje,
+9. prebacuje pending `CASH_OUTFLOW` u `POSTED`,
+10. azurira `amount_paid` na nalogu,
+11. prebacuje nalog u `PAID` ili `PARTIALLY_PAID`,
+12. upisuje audit log za cash event i nalog.
+
+`executePaymentOrder(orderId, paymentData)` je zadrzan kao kompatibilni ulaz, ali sada zahteva da za nalog vec postoji pending ISPLATA zapis.
 
 ## Pravilo nedovoljnog stanja
 
 Ako je trenutno stanje blagajne manje od trazenog iznosa isplate:
 
 1. sistem baca jasnu gresku,
-2. ne kreira se `CASH_OUTFLOW`,
+2. pending `CASH_OUTFLOW` ostaje `SUBMITTED`,
 3. nalog ostaje nepromenjen,
-4. stanje blagajne ostaje nepromenjeno.
+4. stanje blagajne ostaje nepromenjeno,
+5. u audit/tok naloga upisuje se neuspesan pokusaj.
 
 ## Audit pravila
 

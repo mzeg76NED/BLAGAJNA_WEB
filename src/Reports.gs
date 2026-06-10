@@ -543,7 +543,8 @@ function getCashMovementsReport(filters) {
 
   return eventRows.concat(countRows)
     .filter(function(row) {
-      return (!scopedFilters.status || row.status === scopedFilters.status) &&
+      return (row.source_type !== 'CASH_EVENT' || isCashEventBalanceAffecting(row)) &&
+        (!scopedFilters.status || row.status === scopedFilters.status) &&
         (!userFilter || String(row.posted_by || row.created_by || '').toLowerCase().indexOf(userFilter) !== -1) &&
         (!shiftRange || (
           row.cashbox_id === shiftRange.cashbox_id &&
