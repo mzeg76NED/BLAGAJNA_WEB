@@ -89,7 +89,7 @@
     'REJECTED': 'Odbijen',
     'CANCELLED': 'Otkazan',
     'CONVERTED_TO_ORDER': 'Pretvoren u nalog',
-    'WAITING_PAYMENT': 'Čeka isplatu',
+    'WAITING_PAYMENT': 'Čeka na isplati',
     'PARTIALLY_PAID': 'Delimično isplaćen',
     'PAID': 'Isplaćen',
     'CLOSED': 'Zatvoren',
@@ -1368,22 +1368,8 @@
 
   function waitingOrderActions_(record) {
     return [
-      actionButton('Izvrši odmah', function() {
-        appConfirm_({
-          title: 'Izvršenje naloga',
-          message: 'Izvršiti isplatu za nalog ' + record.order_id + '?',
-          confirmText: 'Izvrši isplatu'
-        }, function() {
-          callApi('apiExecutePaymentOrder', [record.order_id, {}], function(result) {
-            renderPaymentExecutionSummary('execute-payment-result', result);
-            loadWaitingOrders(true);
-            refreshDashboardInBackground();
-          }, { successMessage: 'Isplata je izvršena za nalog ' + record.order_id + '.' });
-        });
-      }),
-      actionButton('Popuni formu', function() {
-        showSection('execute-payment');
-        setInputValue('execute-payment-form', 'order_id', record.order_id);
+      actionButton('Čeka blagajnika', function() {
+        showMessage('Nalog ' + record.order_id + ' čeka blagajnika. Direktno izvršenje iz pregleda naloga je blokirano dok se ne uvede pending ISPLATA zapis.', 'info');
       }),
       actionButton('Odbij izvršenje', function() {
         appPrompt_({
@@ -5142,7 +5128,7 @@
             '<div class="m-entry-meta">' + escapeHtml(order.order_id) + ' · ' + formatAmount_(remaining) + ' ' + escapeHtml(order.currency||'') + '</div>' +
           '</div>' +
           '<button onclick="executeOrderDirect_(\'' + escapeHtml(order.order_id) + '\')" ' +
-            'style="background:var(--color-out-bg);border:1px solid var(--color-out-border);color:var(--color-out);font-size:12px;min-height:32px;padding:4px 12px;border-radius:6px;cursor:pointer">Izvrši</button>' +
+            'style="background:rgba(234,179,8,.16);border:1px solid rgba(234,179,8,.38);color:#facc15;font-size:12px;min-height:32px;padding:4px 12px;border-radius:6px;cursor:pointer">Čeka</button>' +
         '</div>';
       }).join('');
       updateTabCounts_(null, result.length);
@@ -5150,17 +5136,9 @@
   }
 
   function executeOrderDirect_(orderId) {
-    appConfirm_({
-      title: 'Izvršenje naloga',
-      message: 'Izvršiti isplatu za nalog ' + orderId + '?',
-      confirmText: 'Izvrši isplatu'
-    }, function() {
-      callApi('apiExecutePaymentOrder', [orderId, {}], function() {
-        loadMobileNalozi_();
-        loadKnjiga_(true);
-        refreshBalance_();
-      }, { successMessage: 'Isplata je izvršena.' });
-    });
+    showDesktopMessage_(
+      'Nalog ' + orderId + ' čeka blagajnika. Direktno izvršenje naloga iz pregleda je blokirano dok se ne uvede ISPLATA zapis.'
+    );
   }
 
   var PAYMENT_ORDERS_STATE = {
@@ -5173,6 +5151,7 @@
 
   var NEW_PAYMENT_ORDER_STATE = {
     savedOrderId: '',
+    mode: 'create',
     status: 'PENDING_SEND',
     dirty: false,
     attachments: [],
@@ -5274,16 +5253,16 @@
 
   function paymentOrderStatusLabel_(status) {
     var map = {
-      DRAFT: 'NACRT',
-      ISSUED: 'ČEKA ISPLATU',
-      WAITING_PAYMENT: 'ČEKA ISPLATU',
-      PARTIALLY_PAID: 'DELIMIČNO',
-      PAID: 'ISPLAĆEN',
-      CLOSED: 'ISPLAĆEN',
-      IN_PROGRESS: 'U OBRADI',
-      REJECTED: 'ODBIJEN',
-      REJECTED_BY_CASHIER: 'ODBIJEN',
-      CANCELLED: 'PONIŠTEN'
+      DRAFT: 'Nacrt',
+      ISSUED: 'Čeka na isplati',
+      WAITING_PAYMENT: 'Čeka na isplati',
+      PARTIALLY_PAID: 'Delimično isplaćen',
+      PAID: 'Isplaćen',
+      CLOSED: 'Zatvoren',
+      IN_PROGRESS: 'U obradi',
+      REJECTED: 'Odbijen',
+      REJECTED_BY_CASHIER: 'Odbijen od blagajne',
+      CANCELLED: 'Otkazan'
     };
     return map[status] || status || '—';
   }
@@ -5442,9 +5421,10 @@
     }
     target.className = '';
     var isPaid = order.status === 'PAID' || order.status === 'CLOSED';
-    var canPay = order.status === 'WAITING_PAYMENT' || order.status === 'PARTIALLY_PAID';
+    var canSendToCashier = order.status === 'WAITING_PAYMENT' || order.status === 'PARTIALLY_PAID';
     var canReject = order.status === 'WAITING_PAYMENT';
     var canApprove = order.status === 'DRAFT';
+    var canEdit = order.status === 'DRAFT';
     var amount = order.remaining || order.amountOrdered;
     target.innerHTML =
       '<div class="po-detail-head"><h3>Detalji naloga</h3><span class="po-status ' + paymentOrderStatusClass_(order.status) + '">' + escapeHtml(paymentOrderStatusLabel_(order.status)) + '</span></div>' +
@@ -5465,9 +5445,10 @@
         '<div><h4>Povezani dokumenti</h4>' + renderPaymentOrderDocuments_(order) + '</div>' +
       '</div>' +
       '<div class="po-panel-actions">' +
+        '<button type="button" class="cash-count-action draft" id="d-order-edit" ' + (canEdit ? '' : 'disabled') + '><i class="ti ti-pencil" aria-hidden="true"></i> Edituj nacrt</button>' +
         '<button type="button" class="cash-count-action save" id="d-order-approve" ' + (canApprove ? '' : 'disabled') + '><i class="ti ti-check" aria-hidden="true"></i> Odobri nalog</button>' +
         '<button type="button" class="cash-count-action cancel" id="d-order-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
-        '<button type="button" class="cash-count-action save" id="d-order-pay" ' + (canPay && !isPaid ? '' : 'disabled') + '><i class="ti ti-credit-card" aria-hidden="true"></i> Izvrši nalog</button>' +
+        '<button type="button" class="cash-count-action draft" id="d-order-send-payment" ' + (canSendToCashier && !isPaid ? '' : 'disabled') + '><i class="ti ti-send" aria-hidden="true"></i> Čeka blagajnika</button>' +
       '</div>';
     bindPaymentOrderDetailActions_(order);
   }
@@ -5478,15 +5459,16 @@
 
   function renderPaymentOrderTimeline_(order) {
     var items = [
-      ['Nalog kreiran', order.createdAt || order.date, order.issuer],
-      ['Poslat na odobrenje', order.issuedAt || order.date, order.issuer],
-      ['Čeka isplatu', order.date, 'Sistem']
+      ['Nalog kreiran', order.createdAt || order.date, order.issuer, ''],
+      ['Poslat na odobrenje', order.issuedAt || order.date, order.issuer, ''],
+      ['Čeka na isplati', order.date, 'Sistem', '']
     ];
-    if (order.executedAt || order.status === 'PAID' || order.status === 'CLOSED') items.push(['Isplaćen', order.executedAt || order.date, 'Blagajna']);
-    if (order.status === 'REJECTED' || order.status === 'REJECTED_BY_CASHIER') items.push(['Odbijen', order.raw.updated_at || order.date, order.issuer]);
-    if (order.status === 'CANCELLED') items.push(['Poništen', order.raw.updated_at || order.date, order.issuer]);
+    if (order.executedAt || order.status === 'PAID' || order.status === 'CLOSED') items.push(['Stvarna isplata izvršena', order.executedAt || order.date, 'Blagajna', 'success']);
+    if (order.status === 'REJECTED' || order.status === 'REJECTED_BY_CASHIER') items.push(['Odbijen', order.raw.updated_at || order.date, order.issuer, 'danger']);
+    if (order.status === 'CANCELLED') items.push(['Otkazan', order.raw.updated_at || order.date, order.issuer, 'danger']);
     return '<div class="po-timeline">' + items.map(function(item, index) {
-      return '<div class="po-timeline-item ' + (index === items.length - 1 ? 'current' : '') + '">' +
+      var cls = 'po-timeline-item ' + (index === items.length - 1 ? 'current ' : '') + (item[3] || '');
+      return '<div class="' + cls + '">' +
         '<span></span><strong>' + escapeHtml(item[0]) + '</strong><small>' + escapeHtml(shortUserLabel_(item[2] || '—')) + ' · ' + escapeHtml(formatDateTimeShort_(item[1])) + '</small>' +
       '</div>';
     }).join('') + '</div>';
@@ -5504,6 +5486,14 @@
   }
 
   function bindPaymentOrderDetailActions_(order) {
+    var edit = document.getElementById('d-order-edit');
+    if (edit) edit.addEventListener('click', function() {
+      if (order.status !== 'DRAFT') {
+        showDesktopMessage_('Izmena je dostupna samo za nacrt naloga.', 'error');
+        return;
+      }
+      openEditPaymentOrderScreen_(order);
+    });
     var open = document.getElementById('d-order-open-detail');
     if (open) open.addEventListener('click', function() {
       showDesktopMessage_('Detaljan prikaz naloga biće povezan sa ekranom za novi/detaljni nalog u narednoj fazi.', 'info');
@@ -5533,20 +5523,9 @@
         });
       });
     });
-    var pay = document.getElementById('d-order-pay');
-    if (pay) pay.addEventListener('click', function() {
-      appConfirm_({
-        title: 'Izvršenje naloga',
-        message: 'Potvrđujete izvršenje naloga ' + order.id + ' kroz standardni tok isplate?',
-        confirmText: 'Izvrši nalog'
-      }, function() {
-        callApi('apiExecutePaymentOrder', [order.id, {}], function() {
-          showDesktopMessage_('Nalog je izvršen kroz standardni tok isplate.', 'success');
-          loadDesktopNalozi_();
-          loadKnjiga_(true);
-          refreshBalance_();
-        });
-      });
+    var sendPayment = document.getElementById('d-order-send-payment');
+    if (sendPayment) sendPayment.addEventListener('click', function() {
+      showDesktopMessage_('Nalog je već odobren i čeka blagajnika. Direktno izvršenje iz pregleda naloga je blokirano jer bi odmah promenilo stanje blagajne.', 'info');
     });
   }
 
@@ -5603,6 +5582,17 @@
     resetNewPaymentOrderForm_();
   }
 
+  function openEditPaymentOrderScreen_(order) {
+    document.querySelectorAll('.d-section').forEach(function(section) {
+      section.classList.toggle('active', section.id === 'd-section-nalog-novi');
+    });
+    document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'nalozi');
+    });
+    updateDesktopDirectActionsVisibility_();
+    populateExistingPaymentOrderForm_(order);
+  }
+
   function openPaymentOrdersOverview_() {
     openDesktopSection_('nalozi');
     loadDesktopNalozi_();
@@ -5612,6 +5602,7 @@
     var form = document.getElementById('new-payment-order-form');
     if (!form) return;
     NEW_PAYMENT_ORDER_STATE.savedOrderId = '';
+    NEW_PAYMENT_ORDER_STATE.mode = 'create';
     NEW_PAYMENT_ORDER_STATE.status = 'PENDING_SEND';
     NEW_PAYMENT_ORDER_STATE.dirty = false;
     NEW_PAYMENT_ORDER_STATE.attachments = [];
@@ -5629,6 +5620,37 @@
     populateNewOrderSelects_();
     populateNewOrderDatalists_();
     addNewOrderActivity_('Kreiran dokument', 'Nalog je pripremljen za unos.');
+    updateNewOrderNoteCounter_();
+    renderNewOrderAttachments_();
+    renderNewOrderSummary_();
+    renderNewOrderTimeline_();
+    renderNewOrderActivities_();
+    updateNewOrderStatusBadge_();
+  }
+
+  function populateExistingPaymentOrderForm_(order) {
+    var form = document.getElementById('new-payment-order-form');
+    if (!form || !order) return;
+    NEW_PAYMENT_ORDER_STATE.savedOrderId = order.id || '';
+    NEW_PAYMENT_ORDER_STATE.mode = 'edit';
+    NEW_PAYMENT_ORDER_STATE.status = order.status || 'DRAFT';
+    NEW_PAYMENT_ORDER_STATE.dirty = false;
+    NEW_PAYMENT_ORDER_STATE.attachments = [];
+    NEW_PAYMENT_ORDER_STATE.activities = [];
+    clearAllNewOrderErrors_();
+    populateNewOrderSelects_();
+    populateNewOrderDatalists_();
+    setNewOrderValue_('new-order-number', order.id || '');
+    setNewOrderValue_('new-order-date', toDateTimeLocal_(parseDateSafe_(order.createdAt || order.date) || new Date()));
+    setNewOrderValue_('new-order-issuer', shortUserLabel_(order.issuer || (order.raw && order.raw.created_by) || '') || newOrderCurrentUserName_());
+    setNewOrderValue_('new-order-cashbox', order.cashbox || SESSION.cashboxId || '');
+    setNewOrderValue_('new-order-recipient', order.recipient || '');
+    setNewOrderValue_('new-order-amount', order.amountOrdered ? formatAmount_(order.amountOrdered) : '');
+    setNewOrderValue_('new-order-currency', order.currency || SESSION.currency || 'RSD');
+    setNewOrderValue_('new-order-purpose', order.basis || '');
+    setNewOrderValue_('new-order-due-date', toInputDate_(parseDateSafe_(order.dueDate) || ''));
+    setNewOrderValue_('new-order-note', (order.raw && order.raw.description) || order.note || '');
+    addNewOrderActivity_('Otvoren nacrt', 'Nalog ' + (order.id || '') + ' je otvoren za izmenu.');
     updateNewOrderNoteCounter_();
     renderNewOrderAttachments_();
     renderNewOrderSummary_();
@@ -5713,11 +5735,16 @@
   function saveNewPaymentOrderDraft_(afterSave) {
     if (!validateNewPaymentOrder_()) return;
     if (NEW_PAYMENT_ORDER_STATE.savedOrderId) {
-      addNewOrderActivity_('Sačuvan nacrt', 'Nalog ' + NEW_PAYMENT_ORDER_STATE.savedOrderId + ' je već sačuvan.');
-      NEW_PAYMENT_ORDER_STATE.dirty = false;
-      renderNewOrderActivities_();
-      showDesktopMessage_('Nacrt je već sačuvan. Izmene postojećeg nacrta će biti dostupne u narednoj fazi.', 'info');
-      if (afterSave) afterSave(NEW_PAYMENT_ORDER_STATE.savedOrderId);
+      callApi('apiUpdateDraftPaymentOrder', [NEW_PAYMENT_ORDER_STATE.savedOrderId, collectNewPaymentOrderData_()], function(result) {
+        NEW_PAYMENT_ORDER_STATE.status = result && result.status || 'DRAFT';
+        NEW_PAYMENT_ORDER_STATE.dirty = false;
+        addNewOrderActivity_('Sačuvan nacrt', 'Izmene na nacrtu naloga su sačuvane.');
+        updateNewOrderStatusBadge_();
+        renderNewOrderSummary_();
+        renderNewOrderTimeline_();
+        renderNewOrderActivities_();
+        if (afterSave) afterSave(NEW_PAYMENT_ORDER_STATE.savedOrderId);
+      }, { successMessage: 'Nacrt naloga je ažuriran.' });
       return;
     }
     callApi('apiCreateDirectPaymentOrder', [collectNewPaymentOrderData_()], function(result) {
@@ -5756,7 +5783,8 @@
         }, { successMessage: 'Nalog je izdat.' });
       };
       if (NEW_PAYMENT_ORDER_STATE.savedOrderId) {
-        issueSaved(NEW_PAYMENT_ORDER_STATE.savedOrderId);
+        if (NEW_PAYMENT_ORDER_STATE.dirty) saveNewPaymentOrderDraft_(issueSaved);
+        else issueSaved(NEW_PAYMENT_ORDER_STATE.savedOrderId);
       } else {
         saveNewPaymentOrderDraft_(issueSaved);
       }
@@ -5850,7 +5878,7 @@
     var steps = [
       ['Kreiran', true, valueOf_('new-order-date')],
       ['U pripremi', status === 'PENDING_SEND' || status === 'DRAFT', status === 'DRAFT' ? 'Nacrt sačuvan' : 'Nije sačuvan'],
-      ['Poslat blagajni', status === 'WAITING_PAYMENT', status === 'WAITING_PAYMENT' ? 'Čeka isplatu' : '—'],
+      ['Poslat blagajni', status === 'WAITING_PAYMENT', status === 'WAITING_PAYMENT' ? 'Čeka na isplati' : '—'],
       ['Isplaćen', false, '—']
     ];
     target.innerHTML = '<div class="new-order-timeline">' + steps.map(function(step) {
@@ -5886,8 +5914,8 @@
   function updateNewOrderStatusBadge_() {
     var badge = document.getElementById('new-order-status-badge');
     if (!badge) return;
-    var label = NEW_PAYMENT_ORDER_STATE.status === 'DRAFT' ? 'NACRT' :
-      NEW_PAYMENT_ORDER_STATE.status === 'WAITING_PAYMENT' ? 'ČEKA ISPLATU' : 'ČEKA SLANJE';
+    var label = NEW_PAYMENT_ORDER_STATE.status === 'DRAFT' ? 'Nacrt' :
+      NEW_PAYMENT_ORDER_STATE.status === 'WAITING_PAYMENT' ? 'Čeka na isplati' : 'Čeka slanje';
     badge.textContent = label;
   }
 
@@ -6205,17 +6233,17 @@
     var map = {
       DRAFT: 'Nacrt',
       SUBMITTED: 'Poslat',
-      CASHIER_REVIEW: 'U obradi',
-      IN_REVIEW: 'U obradi',
+      CASHIER_REVIEW: 'Pregled blagajne',
+      IN_REVIEW: 'Na proveri',
       APPROVED: 'Odobren',
       APPROVED_FOR_DIRECT_PAYMENT: 'Deprecated direktno',
-      ESCALATED_TO_ORDER: 'Potreban nalog',
-      ORDER_CREATED: 'Kreiran nalog',
-      CONVERTED_TO_ORDER: 'Kreiran nalog',
+      ESCALATED_TO_ORDER: 'Prosleđen na odobrenje',
+      ORDER_CREATED: 'Nalog kreiran',
+      CONVERTED_TO_ORDER: 'Nalog kreiran',
       PAID: 'Isplaćen',
       REJECTED: 'Odbijen',
-      RETURNED_FOR_CORRECTION: 'Vraćen',
-      CANCELLED: 'Poništen'
+      RETURNED_FOR_CORRECTION: 'Vraćen na ispravku',
+      CANCELLED: 'Otkazan'
     };
     return map[status] || status || '—';
   }
@@ -6448,7 +6476,7 @@
     if (req.status === 'PAID') items.push(['Isplaćen', req.date, 'Blagajna']);
     if (req.status === 'REJECTED') items.push(['Odbijen', req.date, 'Obrada']);
     if (req.status === 'RETURNED_FOR_CORRECTION') items.push(['Vraćen na dopunu', req.date, 'Obrada']);
-    if (req.status === 'CANCELLED') items.push(['Poništen', req.date, req.requester]);
+    if (req.status === 'CANCELLED') items.push(['Otkazan', req.date, req.requester]);
     return '<div class="po-timeline">' + items.map(function(item, index) {
       return '<div class="po-timeline-item ' + (index === items.length - 1 ? 'current' : '') + '">' +
         '<span></span><strong>' + escapeHtml(item[0]) + '</strong><small>' + escapeHtml(item[2] || '—') + ' · ' + escapeHtml(formatDateTimeShort_(item[1]) || item[1] || '—') + '</small>' +
@@ -7107,7 +7135,7 @@
   function updateNewRequestStatusBadge_() {
     var badge = document.getElementById('new-request-status-badge');
     if (!badge) return;
-    var map = { PENDING_SEND: 'ČEKA SLANJE', DRAFT: 'NACRT', SUBMITTED: 'POSLAT' };
+    var map = { PENDING_SEND: 'Čeka slanje', DRAFT: 'Nacrt', SUBMITTED: 'Poslat' };
     badge.textContent = map[NEW_PAYMENT_REQUEST_STATE.status] || NEW_PAYMENT_REQUEST_STATE.status;
   }
 

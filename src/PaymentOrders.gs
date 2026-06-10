@@ -277,6 +277,52 @@ function createDirectPaymentOrder(orderData) {
   return order;
 }
 
+function updateDraftPaymentOrder(orderId, orderData) {
+  const currentUser = requireActiveUserWithRole_(DIRECT_PAYMENT_ORDER_CREATOR_ROLES_);
+  assertNonEmptyString(orderId, 'orderId');
+  const data = orderData || {};
+  const match = getPaymentOrderMatchOrThrow_(orderId);
+  assertEntityStatus(match.record, [ORDER_STATUSES.DRAFT], 'Payment Order');
+
+  assertRequiredFields(data, [
+    'cashbox_id',
+    'pay_to_name',
+    'amount_ordered',
+    'currency',
+    'purpose'
+  ]);
+  assertNonEmptyString(data.pay_to_name, 'pay_to_name');
+  assertNonEmptyString(data.purpose, 'purpose');
+  assertPositiveAmount(data.amount_ordered);
+  assertActiveCurrency(data.currency);
+  assertActiveCashbox(data.cashbox_id);
+  assertCashboxAccess(data.cashbox_id);
+
+  const documentStatus = data.document_status || match.record.document_status || DOCUMENT_STATUSES.NONE;
+  assertAllowedValue(documentStatus, [
+    DOCUMENT_STATUSES.NONE,
+    DOCUMENT_STATUSES.MISSING,
+    DOCUMENT_STATUSES.ATTACHED
+  ], 'document_status');
+
+  return updatePaymentOrderWithAudit_(
+    orderId,
+    {
+      cashbox_id: data.cashbox_id,
+      pay_to_name: String(data.pay_to_name).trim(),
+      amount_ordered: Number(data.amount_ordered),
+      currency: data.currency,
+      purpose: String(data.purpose).trim(),
+      description: data.description || '',
+      due_date: data.due_date || '',
+      document_status: documentStatus,
+      updated_at: getCurrentTimestamp_()
+    },
+    AUDIT_ACTIONS.UPDATE,
+    'Draft payment order updated by ' + currentUser.email + '.'
+  );
+}
+
 function issuePaymentOrder(orderId) {
   const currentUser = requireActiveUserWithRole_(PAYMENT_ORDER_ISSUER_ROLES_);
   assertNonEmptyString(orderId, 'orderId');

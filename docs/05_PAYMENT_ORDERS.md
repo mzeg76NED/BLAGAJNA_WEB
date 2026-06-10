@@ -14,6 +14,14 @@ Payment Order je autorizovana instrukcija za placanje. On daje osnov za kasnije 
 
 Cash Payment Event je stvarna isplata. Tek knjizen Cash Event menja izracunato stanje blagajne.
 
+## Workflow napomena za UI
+
+Supervizor moze da odobri ili izda nalog, ali supervizorska akcija nad nalogom ne sme direktno da menja stanje blagajne.
+
+Akcija tipa "Izvrsi nalog" u pregledu naloga ne sme pozivati direktno knjizenje `CASH_OUTFLOW`. Dok ne postoji poseban pending ISPLATA model, UI treba da prikaze da nalog ceka blagajnika i da blokira direktno izvrsenje iz pregleda naloga.
+
+Sledeci mali patch treba da uvede eksplicitan pending ISPLATA zapis koji nastaje iz odobrenog naloga i ceka blagajnika. Tek blagajnikovo izvrsenje tog zapisa sme da kreira knjizen `CASH_OUTFLOW`.
+
 ## Tipovi naloga
 
 | Tip | Znacenje |

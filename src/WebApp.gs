@@ -159,6 +159,12 @@ function apiCreateDirectPaymentOrder(orderData) {
   });
 }
 
+function apiUpdateDraftPaymentOrder(orderId, orderData) {
+  return apiWrap_(function() {
+    return updateDraftPaymentOrder(orderId, withDefaultCashbox_(orderData || {}));
+  });
+}
+
 function apiIssuePaymentOrder(orderId) {
   return apiWrap_(function() {
     return issuePaymentOrder(orderId);
