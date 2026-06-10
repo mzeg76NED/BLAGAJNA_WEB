@@ -59,7 +59,7 @@ function smokeTestPaymentRequestFlow() {
     ]);
 
     const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
-    const request = createSmokeApprovedRequest_();
+    const request = createSmokeSubmittedInLimitRequest_();
     const afterCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
 
     if (beforeCashEvents !== afterCashEvents) {
@@ -67,7 +67,7 @@ function smokeTestPaymentRequestFlow() {
     }
 
     return {
-      message: 'Payment Request approved without affecting cash balance.',
+      message: 'Payment Request submitted without creating cash event or changing balance directly.',
       details: {
         request_id: request.request_id,
         final_status: request.status,
@@ -90,9 +90,8 @@ function smokeTestPaymentOrderFlow() {
 
     createMinimalTestSetup();
     const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
-    const request = createSmokeApprovedRequest_();
-    const order = createPaymentOrderFromRequest(request.request_id, { cashbox_id: 'TEST_CB_MAIN' });
-    const issued = issuePaymentOrder(order.order_id);
+    const request = createSmokeSubmittedInLimitRequest_();
+    const issued = getPaymentOrderById(request.linked_order_id);
     const afterCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
 
     if (beforeCashEvents !== afterCashEvents) {
@@ -100,7 +99,7 @@ function smokeTestPaymentOrderFlow() {
     }
 
     return {
-      message: 'Payment Order issued without affecting cash balance.',
+      message: 'Payment Request under limit created waiting Payment Order without affecting cash balance.',
       details: {
         request_id: request.request_id,
         order_id: issued.order_id,
@@ -127,12 +126,8 @@ function smokeTestCashPaymentFlow() {
       amount: 10000,
       description: 'Smoke test priliv'
     });
-    const request = createSmokeApprovedRequest_();
-    const order = createPaymentOrderFromRequest(request.request_id, {
-      cashbox_id: 'TEST_CB_MAIN',
-      amount_ordered: 1000
-    });
-    const issued = issuePaymentOrder(order.order_id);
+    const request = createSmokeSubmittedInLimitRequest_(1000);
+    const issued = getPaymentOrderById(request.linked_order_id);
     const payment = executePaymentOrder(issued.order_id, { amount: 1000 });
     const balanceAfter = calculateCashboxBalance('TEST_CB_MAIN', 'RSD');
 
@@ -159,7 +154,7 @@ function smokeTestCashPaymentFlow() {
 function smokeTestDocumentWorkflow() {
   return runSmokeTest_('Document workflow', function() {
     ensureSmokeTestRole_(DOCUMENT_ATTACH_ROLES_);
-    const request = createSmokeApprovedRequest_();
+    const request = createSmokeSubmittedInLimitRequest_();
     const document = attachDocumentToEntity(ENTITY_TYPES.PAYMENT_REQUEST, request.request_id, {
       fileName: 'TEST-smoke-document.txt',
       mimeType: 'text/plain',
@@ -275,10 +270,12 @@ function smokeTestDraftOrderCannotBeExecuted() {
       USER_ROLES.CASHIER_SUPERVISOR
     ]);
     createMinimalTestSetup();
-    const request = createSmokeApprovedRequest_();
-    const order = createPaymentOrderFromRequest(request.request_id, {
+    const order = createDirectPaymentOrder({
       cashbox_id: 'TEST_CB_MAIN',
-      amount_ordered: 100
+      pay_to_name: 'Smoke Test Primalac',
+      amount_ordered: 100,
+      currency: 'RSD',
+      purpose: 'Smoke test draft nalog'
     });
     const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
     let failed = false;
@@ -314,11 +311,8 @@ function smokeTestOverpaymentRejected() {
       amount: 10000,
       description: 'SMOKE TEST overpayment funding'
     });
-    const request = createSmokeApprovedRequest_();
-    const order = issuePaymentOrder(createPaymentOrderFromRequest(request.request_id, {
-      cashbox_id: 'TEST_CB_MAIN',
-      amount_ordered: 1000
-    }).order_id);
+    const request = createSmokeSubmittedInLimitRequest_(1000);
+    const order = getPaymentOrderById(request.linked_order_id);
     const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
     let failed = false;
     try {
@@ -350,8 +344,8 @@ function smokeTestDuplicateOrderPrevention() {
       USER_ROLES.APPROVER
     ]);
     createMinimalTestSetup();
-    const request = createSmokeApprovedRequest_();
-    const order = createPaymentOrderFromRequest(request.request_id, { cashbox_id: 'TEST_CB_MAIN' });
+    const request = createSmokeSubmittedInLimitRequest_();
+    const order = getPaymentOrderById(request.linked_order_id);
     let failed = false;
     try {
       createPaymentOrderFromRequest(request.request_id, { cashbox_id: 'TEST_CB_MAIN' });
@@ -367,6 +361,68 @@ function smokeTestDuplicateOrderPrevention() {
         request_id: request.request_id,
         order_id: order.order_id
       }
+    };
+  });
+}
+
+function smokeTestRequestUnderLimitAutoCreatesOrder() {
+  return runSmokeTest_('Request under limit auto creates payment order', function() {
+    ensureSmokeTestRole_([
+      USER_ROLES.ADMIN,
+      USER_ROLES.DIRECTOR,
+      USER_ROLES.FINANCE,
+      USER_ROLES.CASHIER_SUPERVISOR,
+      USER_ROLES.APPROVER,
+      USER_ROLES.REQUESTER
+    ]);
+    createMinimalTestSetup();
+    const beforeCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
+    const balanceBefore = calculateCashboxBalance('TEST_CB_MAIN', 'RSD');
+    const request = createSmokeSubmittedInLimitRequest_(1000);
+    const order = getPaymentOrderById(request.linked_order_id);
+    const afterCashEvents = listRecords(SHEET_NAMES.CASH_EVENTS).length;
+    const balanceAfter = calculateCashboxBalance('TEST_CB_MAIN', 'RSD');
+
+    if (!order || order.status !== ORDER_STATUSES.WAITING_PAYMENT) {
+      throw new Error('Under-limit request did not create WAITING_PAYMENT order.');
+    }
+    if (order.source_request_id !== request.request_id || order.linked_request_id !== request.request_id) {
+      throw new Error('Order is not linked to source request.');
+    }
+    if (beforeCashEvents !== afterCashEvents || balanceBefore !== balanceAfter) {
+      throw new Error('Request/order creation changed cash events or balance.');
+    }
+    return {
+      message: 'Under-limit request auto-created a waiting order without cash movement.',
+      details: { request_id: request.request_id, order_id: order.order_id }
+    };
+  });
+}
+
+function smokeTestRequestOverLimitRequiresApproval() {
+  return runSmokeTest_('Request over limit waits for higher approval', function() {
+    ensureSmokeTestRole_([
+      USER_ROLES.ADMIN,
+      USER_ROLES.DIRECTOR,
+      USER_ROLES.FINANCE,
+      USER_ROLES.CASHIER_SUPERVISOR,
+      USER_ROLES.APPROVER
+    ]);
+    const request = createSmokeSubmittedOverLimitRequest_();
+    if (request.linked_order_id) {
+      throw new Error('Over-limit request created order before higher approval.');
+    }
+    if (request.status !== REQUEST_STATUSES.ESCALATED_TO_ORDER) {
+      throw new Error('Over-limit request did not wait in ESCALATED_TO_ORDER.');
+    }
+    const approved = approvePaymentRequest(request.request_id, { cashbox_id: 'TEST_CB_MAIN' });
+    const order = getPaymentOrderById(approved.linked_order_id);
+    if (!order || order.status !== ORDER_STATUSES.WAITING_PAYMENT) {
+      throw new Error('Higher approval did not create waiting order.');
+    }
+    return {
+      message: 'Over-limit request waited for approval and then created waiting order.',
+      details: { request_id: request.request_id, order_id: order.order_id }
     };
   });
 }
@@ -406,6 +462,8 @@ function runAllSmokeTests() {
     smokeTestDraftOrderCannotBeExecuted(),
     smokeTestOverpaymentRejected(),
     smokeTestDuplicateOrderPrevention(),
+    smokeTestRequestUnderLimitAutoCreatesOrder(),
+    smokeTestRequestOverLimitRequiresApproval(),
     smokeTestCashMovementsReportLimit()
   ];
   return {
@@ -414,18 +472,37 @@ function runAllSmokeTests() {
   };
 }
 
-function createSmokeApprovedRequest_() {
+function createSmokeSubmittedInLimitRequest_(amount) {
   createMinimalTestSetup();
   const request = createPaymentRequest({
     requested_for_name: 'Smoke Test Primalac',
-    amount: 1000,
+    amount: amount || 1000,
     currency: 'RSD',
     purpose: 'Smoke test zahtev',
+    description: 'Smoke test zahtev za isplatu kroz nalog.',
     preferred_cashbox_id: 'TEST_CB_MAIN',
     priority: REQUEST_PRIORITIES.NORMAL
   });
-  submitPaymentRequest(request.request_id);
-  return approvePaymentRequest(request.request_id, {});
+  return submitPaymentRequest(request.request_id);
+}
+
+function createSmokeSubmittedOverLimitRequest_() {
+  createMinimalTestSetup();
+  const request = createPaymentRequest({
+    requested_for_name: 'Smoke Test Primalac',
+    amount: getPaymentRequestDirectLimit_('RSD') + 1000,
+    currency: 'RSD',
+    purpose: 'Smoke test zahtev preko limita',
+    description: 'Smoke test zahtev preko limita za odobrenje više instance.',
+    preferred_cashbox_id: 'TEST_CB_MAIN',
+    priority: REQUEST_PRIORITIES.URGENT
+  });
+  return submitPaymentRequest(request.request_id);
+}
+
+function createSmokeApprovedRequest_() {
+  const request = createSmokeSubmittedOverLimitRequest_();
+  return approvePaymentRequest(request.request_id, { cashbox_id: 'TEST_CB_MAIN' });
 }
 
 function createSmokeCashbox_() {

@@ -90,7 +90,7 @@ function executePaymentOrder(orderId, paymentData) {
       currency: paymentCurrency,
       direction: 'OUT',
       amount: paymentAmount,
-      linked_request_id: orderBefore.source_request_id || '',
+      linked_request_id: orderBefore.linked_request_id || orderBefore.source_request_id || '',
       linked_order_id: orderBefore.order_id,
       partner_name: orderBefore.pay_to_name,
       description: buildCashPaymentDescription_(orderBefore.purpose, data.note),

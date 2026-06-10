@@ -60,17 +60,13 @@ function createPaymentOrderFromRequest(requestId, orderData) {
   lock.waitLock(30000);
 
   try {
-    const currentUser = requireActiveUserWithRole_(PAYMENT_ORDER_CREATOR_ROLES_);
     assertNonEmptyString(requestId, 'requestId');
     const data = orderData || {};
 
     const requestMatch = getPaymentRequestMatchOrThrow_(requestId);
     const request = requestMatch.record;
-    assertEntityStatus(request, [
-      REQUEST_STATUSES.APPROVED,
-      REQUEST_STATUSES.ESCALATED_TO_ORDER,
-      REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT
-    ], 'Payment Request');
+    assertRequestCanCreatePaymentOrder_(request);
+    const currentUser = requirePaymentOrderCreatorForRequest_(request);
 
     if (request.linked_order_id) {
       throw new Error('Payment Request already has linked payment order: ' + request.linked_order_id);
@@ -101,6 +97,7 @@ function createPaymentOrderFromRequest(requestId, orderData) {
       created_at: now,
       created_by: currentUser.email,
       source_request_id: request.request_id,
+      linked_request_id: request.request_id,
       order_type: ORDER_TYPES.FROM_REQUEST,
       cashbox_id: data.cashbox_id,
       pay_to_name: data.pay_to_name || request.requested_for_name,
@@ -111,9 +108,9 @@ function createPaymentOrderFromRequest(requestId, orderData) {
       description: buildOrderDescriptionFromRequest_(request.description, data.description),
       due_date: data.due_date || request.needed_by_date || '',
       priority: priority,
-      status: ORDER_STATUSES.DRAFT,
-      issued_by: '',
-      issued_at: '',
+      status: ORDER_STATUSES.WAITING_PAYMENT,
+      issued_by: currentUser.email,
+      issued_at: now,
       executed_by: '',
       executed_at: '',
       linked_cash_event_id: '',
@@ -146,7 +143,7 @@ function createPaymentOrderFromRequest(requestId, orderData) {
       order.order_id,
       null,
       order,
-      'Payment order created from approved request. Order does not affect cashbox balance.'
+      'Payment order created and issued from payment request. Order does not affect cashbox balance.'
     );
     writeAuditLog(
       AUDIT_ACTIONS.UPDATE,
@@ -161,6 +158,55 @@ function createPaymentOrderFromRequest(requestId, orderData) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function assertRequestCanCreatePaymentOrder_(request) {
+  if (!request) {
+    throw new Error('Payment Request record is required.');
+  }
+  if ([
+    REQUEST_STATUSES.CANCELLED,
+    REQUEST_STATUSES.REJECTED,
+    REQUEST_STATUSES.RETURNED_FOR_CORRECTION,
+    REQUEST_STATUSES.ORDER_CREATED,
+    REQUEST_STATUSES.CONVERTED_TO_ORDER,
+    REQUEST_STATUSES.PAID
+  ].indexOf(request.status) !== -1) {
+    throw new Error('Payment Request status cannot create payment order: ' + request.status);
+  }
+
+  assertPositiveAmount(request.amount);
+  assertActiveCurrency(request.currency);
+
+  const withinLimit = isPaymentRequestWithinDirectLimit_(request);
+  if (withinLimit) {
+    assertEntityStatus(request, [
+      REQUEST_STATUSES.SUBMITTED,
+      REQUEST_STATUSES.CASHIER_REVIEW,
+      REQUEST_STATUSES.IN_REVIEW,
+      REQUEST_STATUSES.APPROVED,
+      REQUEST_STATUSES.ESCALATED_TO_ORDER,
+      REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT
+    ], 'Payment Request');
+    return;
+  }
+
+  assertEntityStatus(request, [
+    REQUEST_STATUSES.APPROVED
+  ], 'Payment Request');
+}
+
+function requirePaymentOrderCreatorForRequest_(request) {
+  const withinLimit = isPaymentRequestWithinDirectLimit_(request);
+  if (withinLimit) {
+    try {
+      return requireActiveUserWithRole_(PAYMENT_ORDER_CREATOR_ROLES_);
+    } catch (error) {
+      assertCurrentUserCanOwnRequest_(request);
+      return getCurrentUser();
+    }
+  }
+  return requireActiveUserWithRole_(PAYMENT_ORDER_CREATOR_ROLES_);
 }
 
 function createDirectPaymentOrder(orderData) {
@@ -195,6 +241,7 @@ function createDirectPaymentOrder(orderData) {
     created_at: getCurrentTimestamp_(),
     created_by: currentUser.email,
     source_request_id: '',
+    linked_request_id: '',
     order_type: ORDER_TYPES.DIRECT_ORDER,
     cashbox_id: data.cashbox_id,
     pay_to_name: String(data.pay_to_name).trim(),

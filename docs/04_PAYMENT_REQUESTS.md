@@ -46,9 +46,9 @@ Dozvoljeni statusi su:
 | SUBMITTED | Zahtev je podnet na pregled |
 | IN_REVIEW | Zahtev je u obradi kod odobravaoca |
 | CASHIER_REVIEW | Zahtev je u obradi blagajne / odobravaoca |
-| APPROVED | Legacy status za odobren zahtev |
-| APPROVED_FOR_DIRECT_PAYMENT | Zahtev je odobren za direktnu isplatu kroz poseban Cash Payment Event |
-| ESCALATED_TO_ORDER | Zahtev mora u visi nivo i iz njega nastaje nalog |
+| APPROVED | Interni prelaz nakon odobrenja vise instance, neposredno pre kreiranja naloga |
+| APPROVED_FOR_DIRECT_PAYMENT | Deprecated / emergency-only legacy status; ne koristi se u redovnom toku |
+| ESCALATED_TO_ORDER | Zahtev preko limita ceka odobrenje vise instance |
 | ORDER_CREATED | Iz zahteva je kreiran nalog za isplatu |
 | PAID | Zahtev je isplacen kroz Cash Payment Event |
 | REJECTED | Zahtev je odbijen |
@@ -79,8 +79,8 @@ Payment Request koristi polja definisana u `PAYMENT_REQUESTS` sheetu:
 | reviewed_at | no | Vreme pregleda |
 | rejection_reason | no | Obavezno ako je zahtev odbijen |
 | linked_order_id | no | Popunjava se kada je iz zahteva kreiran nalog |
-| approval_path | no | DIRECT_PAYMENT, PAYMENT_ORDER ili UNDECIDED |
-| direct_cash_event_id | no | Popunjava se kasnije kada stvarna direktna isplata napravi Cash Event |
+| approval_path | no | AUTO_ORDER, PAYMENT_ORDER ili UNDECIDED; legacy DIRECT_PAYMENT se tretira kao AUTO_ORDER |
+| direct_cash_event_id | no | Legacy polje; redovan tok ne povezuje Cash Event direktno sa zahtevom |
 | returned_for_correction_reason | no | Obavezna napomena kada je zahtev vracen na dopunu |
 | cancellation_reason | no | Razlog ponistenja kada je potreban |
 | document_status | yes | NONE, MISSING ili ATTACHED |
@@ -99,8 +99,11 @@ Payment Request koristi polja definisana u `PAYMENT_REQUESTS` sheetu:
 9. Vracanje na dopunu mora imati napomenu.
 10. Otkazan zahtev ostaje u sheetu i dobija status `CANCELLED`.
 11. Zahtev u statusu `ORDER_CREATED`, `CONVERTED_TO_ORDER` ili `PAID` ne moze da se otkaze kroz ovaj workflow.
-12. Odobravanje zahteva za direktnu isplatu ne pravi Cash Event i ne menja stanje blagajne.
-13. Kreiranje naloga iz zahteva ne menja stanje blagajne i ne sme se ponoviti ako zahtev vec ima povezan aktivan nalog.
+12. Zahtev se ne isplacuje direktno i ne sme direktno kreirati `CASH_OUTFLOW`.
+13. Ako je zahtev u okviru limita, sistem automatski kreira nalog za isplatu i postavlja zahtev na `ORDER_CREATED`.
+14. Ako je zahtev preko limita, zahtev ostaje u `ESCALATED_TO_ORDER` dok ga visa instanca ne odobri.
+15. Nakon odobrenja vise instance sistem kreira nalog za isplatu i postavlja zahtev na `ORDER_CREATED`.
+16. Kreiranje naloga iz zahteva ne menja stanje blagajne i ne sme se ponoviti ako zahtev vec ima povezan aktivan nalog.
 
 ## UI tok i limiti
 
@@ -113,13 +116,15 @@ Ekrani prikazuju ocekivani put obrade zahteva:
 
 | Put | Znacenje |
 |---|---|
-| DIRECT_PAYMENT | Iznos je u okviru limita blagajnika i zahtev moze biti odobren za direktnu isplatu. Stanje blagajne se i dalje menja tek kroz Cash Payment Event. |
-| PAYMENT_ORDER | Iznos je preko limita ili je potrebna visa instanca, pa se iz zahteva kreira nalog za isplatu. |
+| AUTO_ORDER | Iznos je u okviru limita i sistem automatski kreira nalog za isplatu. |
+| PAYMENT_ORDER | Iznos je preko limita; zahtev ide na odobrenje vise instance, pa se nakon odobrenja kreira nalog za isplatu. |
 | UNDECIDED | Zahtev jos nema dovoljno podataka ili nije obradjen. |
+
+Legacy `DIRECT_PAYMENT` se vise ne koristi u redovnom toku i prikazuje se kao automatski nalog zbog kompatibilnosti sa starim redovima.
 
 Trenutna konfiguracija limita je deljena iz backend konfiguracije i koristi se u UI za prikaz ocekivanog puta:
 
-| Valuta | Limit za direktno odobrenje |
+| Valuta | Limit za automatsko kreiranje naloga |
 |---|---:|
 | RSD | 30.000 |
 | EUR | 100 |
@@ -135,20 +140,20 @@ Standardni tok u ovom tasku:
 DRAFT
 -> SUBMITTED
 -> CASHIER_REVIEW / IN_REVIEW
--> APPROVED_FOR_DIRECT_PAYMENT ili ESCALATED_TO_ORDER ili REJECTED ili RETURNED_FOR_CORRECTION
+-> ORDER_CREATED ili ESCALATED_TO_ORDER ili REJECTED ili RETURNED_FOR_CORRECTION
 ```
 
 Alternativni tok:
 
 ```text
-DRAFT ili SUBMITTED ili IN_REVIEW ili CASHIER_REVIEW ili APPROVED_FOR_DIRECT_PAYMENT ili ESCALATED_TO_ORDER
+DRAFT ili SUBMITTED ili IN_REVIEW ili CASHIER_REVIEW ili ESCALATED_TO_ORDER
 -> CANCELLED
 ```
 
 Tok za nalog:
 
 ```text
-ESCALATED_TO_ORDER
+SUBMITTED u okviru limita ili APPROVED preko limita
 -> ORDER_CREATED
 -> PAYMENT_ORDER
 -> CASH_PAYMENT_EVENT
@@ -214,17 +219,17 @@ Podnosenje zahteva:
 submitPaymentRequest(request.request_id);
 ```
 
-Odobravanje zahteva za direktnu isplatu:
+Zahtev u okviru limita:
 
 ```javascript
-approvePaymentRequestForDirectPayment(request.request_id);
+const submitted = submitPaymentRequest(request.request_id);
+// submitted.linked_order_id pokazuje na automatski kreiran nalog.
 ```
 
 Odobravanje zahteva preko limita i kreiranje naloga:
 
 ```javascript
 approvePaymentRequest(request.request_id);
-createPaymentOrderFromRequest(request.request_id, { cashbox_id: 'CB-001' });
 ```
 
 Odbijanje zahteva:

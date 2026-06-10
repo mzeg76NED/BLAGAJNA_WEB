@@ -5065,13 +5065,6 @@
 
   /* ─── Nalozi helpers ─────────────────────────────────────────── */
 
-  function loadDesktopNalozi_() {
-    callApi('apiListOrdersWaitingForPayment', [], function(result) {
-      renderActionRecords('d-nalozi-list', result, ['order_id','pay_to_name','amount_ordered','amount_paid','currency','status'], waitingOrderActions_);
-      loadDesktopNavBadges_();
-    }, { quiet: true });
-  }
-
   function loadMobileNalozi_() {
     callApi('apiListOrdersWaitingForPayment', [], function(result) {
       var list = document.getElementById('m-nalozi-list');
@@ -5163,6 +5156,8 @@
     });
   }
 
+  // Učitava desktop pregled naloga za isplatu.
+  // Ova funkcija je konsolidovana nakon uklanjanja duplirane definicije.
   function loadDesktopNalozi_() {
     callApi('apiListPaymentOrders', [{}], function(result) {
       PAYMENT_ORDERS_STATE.records = Array.isArray(result) ? result.map(normalizePaymentOrder_) : [];
@@ -5903,10 +5898,10 @@
       createdBy: 'ana@firma.rs', requesterName: 'Ana Jovanović', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
       currency: 'RSD', amount: 12500, recipientName: 'Ana Jovanović', requestBasis: 'Refundacija troška',
       requestedPaymentDate: '2026-06-03', priority: 'NORMAL', explanation: 'Refundacija gotovinskog plaćanja za kancelarijski materijal.',
-      status: 'CASHIER_REVIEW', approvalPath: 'DIRECT_PAYMENT', attachments: [{ type: 'PDF', no: 'RAC-114/26', date: '2026-06-02', status: 'Dostavljen' }],
+      status: 'CASHIER_REVIEW', approvalPath: 'AUTO_ORDER', attachments: [{ type: 'PDF', no: 'RAC-114/26', date: '2026-06-02', status: 'Dostavljen' }],
       activities: [
         { at: '2026-06-02T08:30:00', title: 'Zahtev kreiran', user: 'Ana J.', detail: 'Podnet zahtev za refundaciju.' },
-        { at: '2026-06-02T09:05:00', title: 'Blagajnik preuzeo obradu', user: 'Milan Ž.', detail: 'Iznos je u limitu za direktnu isplatu.' }
+        { at: '2026-06-02T09:05:00', title: 'Blagajnik preuzeo obradu', user: 'Milan Ž.', detail: 'Iznos je u limitu za automatsko kreiranje naloga.' }
       ]
     },
     {
@@ -5924,10 +5919,10 @@
       createdBy: 'jelena@firma.rs', requesterName: 'Jelena Marković', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
       currency: 'EUR', amount: 80, recipientName: 'Jelena Marković', requestBasis: 'Dnevnica',
       requestedPaymentDate: '2026-06-02', priority: 'NORMAL', explanation: 'Dnevnica za jednodnevni službeni put.',
-      status: 'PAID', approvalPath: 'DIRECT_PAYMENT', directCashEventId: 'CEV-2026-000081',
+      status: 'PAID', approvalPath: 'AUTO_ORDER', linkedPaymentOrderId: 'ORD-2026-000081', linkedPaymentOrderNo: 'NI-2026-000081', directCashEventId: 'CEV-2026-000081',
       attachments: [], activities: [
         { at: '2026-06-01T14:20:00', title: 'Zahtev kreiran', user: 'Jelena M.', detail: 'Zahtev je u limitu.' },
-        { at: '2026-06-01T15:10:00', title: 'Direktno isplaćeno', user: 'Milan Ž.', detail: 'Kreiran cash event CEV-2026-000081.' }
+        { at: '2026-06-01T15:10:00', title: 'Nalog izvršen', user: 'Milan Ž.', detail: 'Nalog NI-2026-000081 izvršen kroz cash event CEV-2026-000081.' }
       ]
     },
     {
@@ -5947,7 +5942,7 @@
       createdBy: 'ana@firma.rs', requesterName: 'Ana Jovanović', cashboxId: 'CB_SIDE', cashboxName: 'Pomoćna blagajna',
       currency: 'RSD', amount: 9200, recipientName: 'Ana Jovanović', requestBasis: 'Nabavka materijala',
       requestedPaymentDate: '2026-05-31', priority: 'NORMAL', explanation: 'Zahtev za nabavku sitnog kancelarijskog materijala.',
-      status: 'REJECTED', approvalPath: 'DIRECT_PAYMENT', rejectionReason: 'Nedostaje validan račun.',
+      status: 'REJECTED', approvalPath: 'AUTO_ORDER', rejectionReason: 'Nedostaje validan račun.',
       attachments: [], activities: [{ at: '2026-05-30T10:10:00', title: 'Odbijeno', user: 'Milan Ž.', detail: 'Nedostaje validan račun.' }]
     },
     {
@@ -5955,7 +5950,7 @@
       createdBy: 'petar@firma.rs', requesterName: 'Petar Petrović', cashboxId: 'CB_MAIN', cashboxName: 'Glavna blagajna',
       currency: 'RSD', amount: 18000, recipientName: 'Petar Petrović', requestBasis: 'Akontacija',
       requestedPaymentDate: '2026-06-02', priority: 'VERY_URGENT', explanation: 'Potrebna akontacija za hitan izlazak na teren sa putnim troškovima.',
-      status: 'RETURNED_FOR_CORRECTION', approvalPath: 'DIRECT_PAYMENT', returnedForCorrectionReason: 'Dopuniti obrazloženje i dodati dokument.',
+      status: 'RETURNED_FOR_CORRECTION', approvalPath: 'AUTO_ORDER', returnedForCorrectionReason: 'Dopuniti obrazloženje i dodati dokument.',
       attachments: [], activities: [{ at: '2026-05-29T14:00:00', title: 'Vraćeno na dopunu', user: 'Finansije', detail: 'Dopuniti obrazloženje i dodati dokument.' }]
     },
     {
@@ -6121,7 +6116,7 @@
   function decidePaymentRequestPath_(amount, currency) {
     amount = Number(amount || 0);
     if (!amount) return 'UNDECIDED';
-    return amount <= getPaymentRequestLimit_(currency) ? 'DIRECT_PAYMENT' : 'PAYMENT_ORDER';
+    return amount <= getPaymentRequestLimit_(currency) ? 'AUTO_ORDER' : 'PAYMENT_ORDER';
   }
 
   function getPaymentRequestLimit_(currency) {
@@ -6136,7 +6131,7 @@
       SUBMITTED: 'Poslat',
       CASHIER_REVIEW: 'U obradi',
       IN_REVIEW: 'U obradi',
-      APPROVED_FOR_DIRECT_PAYMENT: 'Odobren za isplatu',
+      APPROVED_FOR_DIRECT_PAYMENT: 'Deprecated direktno',
       ESCALATED_TO_ORDER: 'Potreban nalog',
       ORDER_CREATED: 'Kreiran nalog',
       CONVERTED_TO_ORDER: 'Kreiran nalog',
@@ -6149,7 +6144,7 @@
   }
 
   function paymentRequestStatusClass_(status) {
-    if (status === 'PAID' || status === 'APPROVED_FOR_DIRECT_PAYMENT') return 'po-status-paid';
+    if (status === 'PAID' || status === 'ORDER_CREATED' || status === 'CONVERTED_TO_ORDER') return 'po-status-paid';
     if (status === 'REJECTED') return 'po-status-rejected';
     if (status === 'CANCELLED') return 'po-status-cancelled';
     if (status === 'CASHIER_REVIEW' || status === 'IN_REVIEW' || status === 'RETURNED_FOR_CORRECTION' || status === 'ESCALATED_TO_ORDER') return 'po-status-processing';
@@ -6157,13 +6152,13 @@
   }
 
   function paymentRequestPathLabel_(path) {
-    if (path === 'DIRECT_PAYMENT') return 'Direktno';
+    if (path === 'AUTO_ORDER' || path === 'DIRECT_PAYMENT') return 'Automatski nalog';
     if (path === 'PAYMENT_ORDER') return 'Nalog';
     return 'Neodlučeno';
   }
 
   function paymentRequestPathClass_(path) {
-    if (path === 'DIRECT_PAYMENT') return 'request-path-direct';
+    if (path === 'AUTO_ORDER' || path === 'DIRECT_PAYMENT') return 'request-path-direct';
     if (path === 'PAYMENT_ORDER') return 'request-path-order';
     return 'request-path-undecided';
   }
@@ -6212,7 +6207,7 @@
     if (tab === 'ALL') return true;
     if (tab === 'CREATED') return req.status === 'DRAFT' || req.status === 'SUBMITTED';
     if (tab === 'IN_PROGRESS') return req.status === 'CASHIER_REVIEW' || req.status === 'IN_REVIEW';
-    if (tab === 'DIRECT') return req.approvalPath === 'DIRECT_PAYMENT';
+    if (tab === 'DIRECT') return req.approvalPath === 'AUTO_ORDER' || req.approvalPath === 'DIRECT_PAYMENT';
     if (tab === 'ORDER') return req.approvalPath === 'PAYMENT_ORDER' || req.status === 'ORDER_CREATED' || req.status === 'ESCALATED_TO_ORDER' || req.status === 'CONVERTED_TO_ORDER';
     if (tab === 'PAID') return req.status === 'PAID';
     if (tab === 'REJECTED') return req.status === 'REJECTED';
@@ -6234,8 +6229,8 @@
     var rows = PAYMENT_REQUESTS_STATE.filtered;
     var counts = { waiting: 0, direct: 0, order: 0, rejected: 0, returned: 0 };
     rows.forEach(function(req) {
-      if (['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','APPROVED_FOR_DIRECT_PAYMENT','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1) counts.waiting++;
-      if (req.status === 'PAID' && req.approvalPath === 'DIRECT_PAYMENT') counts.direct++;
+      if (['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1) counts.waiting++;
+      if (req.approvalPath === 'AUTO_ORDER' || req.approvalPath === 'DIRECT_PAYMENT') counts.direct++;
       if (req.approvalPath === 'PAYMENT_ORDER' || req.status === 'ORDER_CREATED' || req.status === 'CONVERTED_TO_ORDER') counts.order++;
       if (req.status === 'REJECTED') counts.rejected++;
       if (req.status === 'RETURNED_FOR_CORRECTION') counts.returned++;
@@ -6320,11 +6315,11 @@
     target.className = '';
     var limit = getPaymentRequestLimit_(req.currency);
     var inLimit = req.amount <= limit;
-    var canDirect = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','APPROVED_FOR_DIRECT_PAYMENT'].indexOf(req.status) !== -1 && inLimit && req.status !== 'PAID';
     var canCreateOrder = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1 && !req.linkedPaymentOrderId && req.status !== 'PAID';
-    var canReject = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','APPROVED_FOR_DIRECT_PAYMENT','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1;
+    var canReject = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1;
     var canReturn = canReject;
     var isPaid = req.status === 'PAID';
+    var createOrderLabel = inLimit ? 'Kreiraj nalog' : 'Odobri i kreiraj nalog';
     target.innerHTML =
       '<div class="po-detail-head"><h3>Detalji zahteva</h3><span class="po-status ' + paymentRequestStatusClass_(req.status) + '">' + escapeHtml(paymentRequestStatusLabel_(req.status)) + '</span></div>' +
       '<div class="po-detail-amount">' + escapeHtml(formatAmount_(req.amount)) + ' ' + escapeHtml(req.currency || '') + '</div>' +
@@ -6354,8 +6349,7 @@
       '<div class="request-detail-tabs-panel" data-request-panel="activity" hidden>' + renderPaymentRequestActivities_(req) + '</div>' +
       '<div class="po-panel-actions">' +
         '<button type="button" id="d-request-open-detail"><i class="ti ti-external-link" aria-hidden="true"></i> Otvori detalje</button>' +
-        '<button type="button" id="d-request-direct-pay" ' + (canDirect ? '' : 'disabled title="' + escapeHtml(isPaid ? 'Zahtev je već isplaćen.' : (!inLimit ? 'Iznos je preko limita; potreban je nalog.' : 'Akcija nije dostupna za status.')) + '"') + '><i class="ti ti-cash" aria-hidden="true"></i> Odobri direktnu isplatu</button>' +
-        '<button type="button" id="d-request-create-order" ' + (canCreateOrder ? '' : 'disabled title="' + escapeHtml(req.linkedPaymentOrderId ? 'Nalog je već kreiran.' : 'Kreiranje naloga nije dostupno za ovaj zahtev.') + '"') + '><i class="ti ti-file-invoice" aria-hidden="true"></i> Kreiraj nalog</button>' +
+        '<button type="button" id="d-request-create-order" ' + (canCreateOrder ? '' : 'disabled title="' + escapeHtml(req.linkedPaymentOrderId ? 'Nalog je već kreiran.' : 'Kreiranje naloga nije dostupno za ovaj zahtev.') + '"') + '><i class="ti ti-file-invoice" aria-hidden="true"></i> ' + escapeHtml(createOrderLabel) + '</button>' +
         '<button type="button" id="d-request-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
         '<button type="button" id="d-request-return" ' + (canReturn ? '' : 'disabled') + '><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Vrati na dopunu</button>' +
       '</div>';
@@ -6368,7 +6362,7 @@
       ['Poslat', req.date, req.requester],
       ['U obradi', req.date, 'Blagajna']
     ];
-    if (req.approvalPath === 'DIRECT_PAYMENT') items.push(['Direktna isplata', req.status === 'PAID' ? req.date : '', 'Blagajnik']);
+    if (req.approvalPath === 'AUTO_ORDER' || req.approvalPath === 'DIRECT_PAYMENT') items.push(['Automatski nalog', req.linkedPaymentOrderNo || req.linkedPaymentOrderId || 'čeka kreiranje', 'Sistem']);
     if (req.approvalPath === 'PAYMENT_ORDER') items.push(['Nalog za isplatu', req.linkedPaymentOrderNo || req.linkedPaymentOrderId || 'čeka kreiranje', 'Viša instanca']);
     if (req.status === 'PAID') items.push(['Isplaćen', req.date, 'Blagajna']);
     if (req.status === 'REJECTED') items.push(['Odbijen', req.date, 'Obrada']);
@@ -6430,25 +6424,6 @@
     var open = document.getElementById('d-request-open-detail');
     if (open) open.addEventListener('click', function() {
       appHtmlDialog_({ title: 'Detalji zahteva ' + req.no, html: '<div class="request-detail-note">' + escapeHtml(req.explanation || 'Nema obrazloženja.') + '</div>' });
-    });
-    var direct = document.getElementById('d-request-direct-pay');
-    if (direct) direct.addEventListener('click', function() {
-      if (req.status === 'PAID') {
-        showDesktopMessage_('Isplaćen zahtev ne može ponovo da se isplati.', 'error');
-        return;
-      }
-      if (!shouldUseMockRequestAction_(req)) {
-        callApi('apiApprovePaymentRequestForDirectPayment', [req.id], function(updated) {
-          showDesktopMessage_('Zahtev je odobren za direktnu isplatu. Stanje blagajne se ne menja dok se ne kreira stvarni događaj isplate.', 'success');
-          replacePaymentRequestRecord_(req, updated);
-        }, { successMessage: 'Zahtev je odobren za direktnu isplatu.' });
-        return;
-      }
-      req.status = 'APPROVED_FOR_DIRECT_PAYMENT';
-      req.approvalPath = 'DIRECT_PAYMENT';
-      req.activities.push({ at: new Date().toISOString(), title: 'Odobreno za direktnu isplatu', user: newOrderCurrentUserName_(), detail: 'Mock odobrenje; stanje blagajne nije promenjeno.' });
-      showDesktopMessage_('Zahtev je odobren za direktnu isplatu. Stanje blagajne se ne menja dok se ne kreira cash payment event.', 'success');
-      renderPaymentRequestsOverview_();
     });
     var createOrder = document.getElementById('d-request-create-order');
     if (createOrder) createOrder.addEventListener('click', function() {
@@ -6734,7 +6709,7 @@
     var data = collectNewPaymentRequestData_();
     appConfirm_({
       title: 'Pošalji zahtev za isplatu?',
-      message: 'Zahtev će biti poslat blagajni na obradu. Na osnovu iznosa i pravila odobravanja, zahtev može biti isplaćen direktno ili prosleđen na višu instancu radi kreiranja naloga za isplatu.',
+      message: 'Zahtev će biti poslat na obradu. U okviru limita sistem kreira nalog za isplatu; preko limita zahtev ide višoj instanci, pa se nakon odobrenja kreira nalog.',
       confirmText: 'Pošalji zahtev'
     }, function() {
       if (!NEW_PAYMENT_REQUEST_STATE.savedRequestId) {
@@ -6745,7 +6720,7 @@
             callApi('apiSubmitPaymentRequest', [created.request_id], function() {
               NEW_PAYMENT_REQUEST_STATE.status = 'SUBMITTED';
               NEW_PAYMENT_REQUEST_STATE.dirty = false;
-              addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'DIRECT_PAYMENT' ? 'Očekivani put: direktna isplata.' : 'Očekivani put: nalog za isplatu.');
+              addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'AUTO_ORDER' ? 'U okviru limita: sistem kreira nalog za isplatu.' : 'Preko limita: čeka odobrenje više instance.');
               showDesktopMessage_('Zahtev je poslat na obradu. Stanje blagajne nije promenjeno.', 'success');
               openPaymentRequestsOverview_();
             }, { successMessage: 'Zahtev je poslat.' });
@@ -6758,7 +6733,7 @@
         callApi('apiSubmitPaymentRequest', [NEW_PAYMENT_REQUEST_STATE.savedRequestId], function() {
           NEW_PAYMENT_REQUEST_STATE.status = 'SUBMITTED';
           NEW_PAYMENT_REQUEST_STATE.dirty = false;
-          addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'DIRECT_PAYMENT' ? 'Očekivani put: direktna isplata.' : 'Očekivani put: nalog za isplatu.');
+          addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'AUTO_ORDER' ? 'U okviru limita: sistem kreira nalog za isplatu.' : 'Preko limita: čeka odobrenje više instance.');
           showDesktopMessage_('Zahtev je poslat na obradu. Stanje blagajne nije promenjeno.', 'success');
           openPaymentRequestsOverview_();
         }, { successMessage: 'Zahtev je poslat.' });
@@ -6766,7 +6741,7 @@
       }
       NEW_PAYMENT_REQUEST_STATE.status = 'SUBMITTED';
       NEW_PAYMENT_REQUEST_STATE.dirty = false;
-      addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'DIRECT_PAYMENT' ? 'Očekivani put: direktna isplata.' : 'Očekivani put: nalog za isplatu.');
+      addNewRequestActivity_('Zahtev poslat', data.approvalPath === 'AUTO_ORDER' ? 'U okviru limita: sistem kreira nalog za isplatu.' : 'Preko limita: čeka odobrenje više instance.');
       var record = normalizePaymentRequest_({
         id: NEW_PAYMENT_REQUEST_STATE.savedRequestId,
         requestNo: valueOf_('new-request-number'),
@@ -6871,6 +6846,11 @@
     var target = document.getElementById('new-request-summary');
     if (!target) return;
     var data = collectNewPaymentRequestData_();
+    var ruleText = data.approvalPath === 'AUTO_ORDER'
+      ? 'U okviru limita: sistem će automatski kreirati nalog za isplatu.'
+      : data.approvalPath === 'PAYMENT_ORDER'
+        ? 'Preko limita: zahtev ide na odobrenje višoj instanci; nakon odobrenja kreira se nalog za isplatu.'
+        : 'Unesite iznos da bi sistem odredio tok.';
     target.innerHTML =
       newOrderSummaryRow_('Primalac', data.requested_for_name || '—') +
       newOrderSummaryRow_('Iznos', data.amount ? formatAmount_(data.amount) : '—') +
@@ -6879,6 +6859,7 @@
       newOrderSummaryRow_('Podnosilac', valueOf_('new-request-requester') || '—') +
       newOrderSummaryRow_('Osnov', data.purpose || '—') +
       newOrderSummaryRow_('Put', paymentRequestPathLabel_(data.approvalPath)) +
+      newOrderSummaryRow_('Pravilo', ruleText) +
       newOrderSummaryRow_('Prilozi', String(NEW_PAYMENT_REQUEST_STATE.attachments.length));
   }
 
@@ -6891,7 +6872,7 @@
       ['Kreiran', true, valueOf_('new-request-date')],
       ['U pripremi', status === 'PENDING_SEND' || status === 'DRAFT', status === 'DRAFT' ? 'Nacrt sačuvan' : 'Nije sačuvan'],
       ['Poslat blagajni', status === 'SUBMITTED', status === 'SUBMITTED' ? 'Čeka obradu' : '—'],
-      [data.approvalPath === 'PAYMENT_ORDER' ? 'Nalog za isplatu' : 'Direktna isplata', Boolean(data.amount), paymentRequestPathLabel_(data.approvalPath)],
+      [data.approvalPath === 'PAYMENT_ORDER' ? 'Odobrenje više instance' : 'Automatski nalog', Boolean(data.amount), paymentRequestPathLabel_(data.approvalPath)],
       ['Isplaćen / Odbijen', false, '—']
     ];
     target.innerHTML = '<div class="new-order-timeline">' + steps.map(function(step) {

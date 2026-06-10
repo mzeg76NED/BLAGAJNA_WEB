@@ -5,7 +5,7 @@
  * intentionally configures this project copy for one known environment.
  */
 const APP_NAME = 'BLAGAJNA WEB';
-const APP_VERSION = '2.0.21-pilot';
+const APP_VERSION = '2.0.22-pilot';
 const ENVIRONMENT = 'PILOT'; // DEV, PILOT, PROD
 const DEBUG_MODE = false;
 const DATABASE_SPREADSHEET_ID = '';
@@ -153,6 +153,7 @@ const REQUEST_PRIORITIES = Object.freeze({
 
 const PAYMENT_REQUEST_APPROVAL_PATHS = Object.freeze({
   DIRECT_PAYMENT: 'DIRECT_PAYMENT',
+  AUTO_ORDER: 'AUTO_ORDER',
   PAYMENT_ORDER: 'PAYMENT_ORDER',
   UNDECIDED: 'UNDECIDED'
 });
@@ -275,6 +276,7 @@ const TABLE_HEADERS = Object.freeze({
     'created_at',
     'created_by',
     'source_request_id',
+    'linked_request_id',
     'order_type',
     'cashbox_id',
     'pay_to_name',

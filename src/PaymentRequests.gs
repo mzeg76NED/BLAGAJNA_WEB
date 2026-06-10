@@ -120,7 +120,7 @@ function submitPaymentRequest(requestId) {
   assertCurrentUserCanOwnRequest_(match.record);
   assertPaymentRequestReadyForSubmit_(match.record);
 
-  return updatePaymentRequestWithAudit_(
+  const submitted = updatePaymentRequestWithAudit_(
     requestId,
     {
       status: REQUEST_STATUSES.SUBMITTED,
@@ -129,6 +129,25 @@ function submitPaymentRequest(requestId) {
     },
     AUDIT_ACTIONS.SUBMIT,
     'Payment request submitted for review.'
+  );
+
+  if (isPaymentRequestWithinDirectLimit_(submitted)) {
+    createPaymentOrderFromRequest(requestId, {
+      cashbox_id: submitted.preferred_cashbox_id || getDefaultCashboxIdForCurrentUser_(),
+      auto_from_request: true
+    });
+    return getPaymentRequestById(requestId);
+  }
+
+  return updatePaymentRequestWithAudit_(
+    requestId,
+    {
+      status: REQUEST_STATUSES.ESCALATED_TO_ORDER,
+      approval_path: PAYMENT_REQUEST_APPROVAL_PATHS.PAYMENT_ORDER,
+      updated_at: getCurrentTimestamp_()
+    },
+    AUDIT_ACTIONS.UPDATE,
+    'Payment request exceeds limit and waits for higher approval before payment order creation.'
   );
 }
 
@@ -159,12 +178,10 @@ function approvePaymentRequest(requestId, approvalData) {
   const now = getCurrentTimestamp_();
   const approvalPath = getPaymentRequestApprovalPath_(match.record.amount, match.record.currency);
 
-  return updatePaymentRequestWithAudit_(
+  const approved = updatePaymentRequestWithAudit_(
     requestId,
     {
-      status: approvalPath === PAYMENT_REQUEST_APPROVAL_PATHS.PAYMENT_ORDER
-        ? REQUEST_STATUSES.ESCALATED_TO_ORDER
-        : REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT,
+      status: REQUEST_STATUSES.APPROVED,
       approval_path: approvalPath,
       reviewed_by: data.reviewed_by || currentUser.email,
       reviewed_at: now,
@@ -174,34 +191,17 @@ function approvePaymentRequest(requestId, approvalData) {
     AUDIT_ACTIONS.APPROVE,
     'Payment request approved. Approval does not create payment order and does not affect balance.'
   );
+
+  createPaymentOrderFromRequest(requestId, {
+    cashbox_id: data.cashbox_id || approved.preferred_cashbox_id || getDefaultCashboxIdForCurrentUser_(),
+    auto_from_request: true
+  });
+  return getPaymentRequestById(requestId);
 }
 
 function approvePaymentRequestForDirectPayment(requestId) {
-  assertNonEmptyString(requestId, 'requestId');
-  const match = getPaymentRequestMatchOrThrow_(requestId);
-  assertRequestStatus_(match.record, PAYMENT_REQUEST_OPEN_REVIEW_STATUSES_);
-
-  const approvalPath = getPaymentRequestApprovalPath_(match.record.amount, match.record.currency);
-  if (approvalPath !== PAYMENT_REQUEST_APPROVAL_PATHS.DIRECT_PAYMENT) {
-    throw new Error('Payment Request exceeds cashier direct payment limit and must become Payment Order.');
-  }
-
-  const currentUser = requireActiveUserWithRole_(PAYMENT_REQUEST_REVIEWER_ROLES_);
-  const now = getCurrentTimestamp_();
-  return updatePaymentRequestWithAudit_(
-    requestId,
-    {
-      status: REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT,
-      approval_path: approvalPath,
-      reviewed_by: currentUser.email,
-      reviewed_at: now,
-      rejection_reason: '',
-      returned_for_correction_reason: '',
-      updated_at: now
-    },
-    AUDIT_ACTIONS.APPROVE,
-    'Payment request approved for direct payment. Request approval does not affect cashbox balance.'
-  );
+  // Deprecated / emergency-only compatibility stub. Regular Payment Request flow must create Payment Order.
+  throw new Error('Deprecated: Payment Request cannot be approved for direct payment. Create Payment Order from request instead.');
 }
 
 function rejectPaymentRequest(requestId, reason) {
@@ -264,7 +264,6 @@ function cancelPaymentRequest(requestId, reason) {
   }
   if ([
     REQUEST_STATUSES.APPROVED,
-    REQUEST_STATUSES.APPROVED_FOR_DIRECT_PAYMENT,
     REQUEST_STATUSES.ESCALATED_TO_ORDER
   ].indexOf(match.record.status) !== -1) {
     assertNonEmptyString(reason, 'reason');
@@ -358,6 +357,8 @@ function convertApprovedRequestToOrderPlaceholder(requestId, orderData) {
   const match = getPaymentRequestMatchOrThrow_(requestId);
   assertRequestStatus_(match.record, [
     REQUEST_STATUSES.APPROVED,
+    REQUEST_STATUSES.SUBMITTED,
+    REQUEST_STATUSES.CASHIER_REVIEW,
     REQUEST_STATUSES.ESCALATED_TO_ORDER
   ]);
 
@@ -414,8 +415,13 @@ function getPaymentRequestApprovalPath_(amount, currency) {
     return PAYMENT_REQUEST_APPROVAL_PATHS.UNDECIDED;
   }
   return numericAmount <= getPaymentRequestDirectLimit_(currency)
-    ? PAYMENT_REQUEST_APPROVAL_PATHS.DIRECT_PAYMENT
+    ? PAYMENT_REQUEST_APPROVAL_PATHS.AUTO_ORDER
     : PAYMENT_REQUEST_APPROVAL_PATHS.PAYMENT_ORDER;
+}
+
+function isPaymentRequestWithinDirectLimit_(request) {
+  return Number(request.amount || 0) > 0 &&
+    Number(request.amount || 0) <= getPaymentRequestDirectLimit_(request.currency);
 }
 
 function getPaymentRequestDirectLimit_(currency) {

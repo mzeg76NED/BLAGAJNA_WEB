@@ -84,6 +84,7 @@ Payment Order koristi polja definisana u `PAYMENT_ORDERS` sheetu:
 | created_at | yes | Vreme kreiranja |
 | created_by | yes | Korisnik koji je kreirao nalog |
 | source_request_id | no | Obavezno za FROM_REQUEST |
+| linked_request_id | no | Alias veze na zahtev; popunjava se za FROM_REQUEST |
 | order_type | yes | FROM_REQUEST ili DIRECT_ORDER |
 | cashbox_id | yes | Blagajna iz koje treba platiti |
 | pay_to_name | yes | Primalac |
@@ -110,10 +111,9 @@ Payment Order koristi polja definisana u `PAYMENT_ORDERS` sheetu:
 Nalog iz zahteva:
 
 ```text
-APPROVED PAYMENT_REQUEST
--> DRAFT PAYMENT_ORDER
--> request status CONVERTED_TO_ORDER
+SUBMITTED PAYMENT_REQUEST u okviru limita ili APPROVED PAYMENT_REQUEST preko limita
 -> WAITING_PAYMENT
+-> request status ORDER_CREATED
 ```
 
 Direktan nalog:
@@ -145,9 +145,9 @@ Izvrsenje naloga i prelaz u `PAID` ili `PARTIALLY_PAID` nisu deo Task 04.
 2. Kreiranje naloga ne pravi Cash Event.
 3. Izdavanje naloga ne pravi Cash Event.
 4. Nalog ne menja stanje blagajne.
-5. Nalog iz zahteva mora imati `source_request_id`.
+5. Nalog iz zahteva mora imati `source_request_id` i `linked_request_id`.
 6. Odobren zahtev ne sme da kreira vise aktivnih naloga.
-7. Kreiran nalog iz zahteva azurira zahtev na `CONVERTED_TO_ORDER`.
+7. Kreiran nalog iz zahteva azurira zahtev na `ORDER_CREATED`.
 8. Direktan nalog mora imati `order_type = DIRECT_ORDER`.
 9. Otkazan nalog ostaje u sheetu.
 10. Placeni ili zatvoreni nalog ne moze se direktno otkazati.
@@ -161,7 +161,9 @@ Kreiranje naloga iz zahteva proverava:
 - aktivnog korisnika,
 - dozvoljenu rolu,
 - da zahtev postoji,
-- da je zahtev `APPROVED`,
+- da je zahtev u dozvoljenom statusu za kreiranje naloga,
+- da zahtev u okviru limita moze kreirati nalog posle `SUBMITTED`,
+- da zahtev preko limita moze kreirati nalog tek posle odobrenja vise instance,
 - da zahtev nema `linked_order_id`,
 - da nema drugog aktivnog naloga za isti zahtev,
 - obaveznu blagajnu,

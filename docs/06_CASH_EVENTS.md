@@ -27,6 +27,8 @@ Payment Order je ovlascena instrukcija za isplatu. Autorizuje blagajnika, ali i 
 
 Cash Event je stvarno kretanje novca. Samo knjizeni dogadjaji ulaze u obracun stanja.
 
+Zahtev za isplatu nikada ne kreira `CASH_OUTFLOW` direktno. I kada je zahtev u okviru limita, prvo nastaje `PAYMENT_ORDER`, a `CASH_OUTFLOW` nastaje tek kada blagajnik izvrsi taj nalog.
+
 ## Tipovi dogadjaja
 
 | Tip | Direction | Uticaj |

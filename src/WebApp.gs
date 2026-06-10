@@ -161,16 +161,14 @@ function apiIssuePaymentOrder(orderId) {
 
 function apiCreateAndIssuePaymentOrderFromRequest(requestId, orderData) {
   return apiWrap_(function() {
-    const order = createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
-    return issuePaymentOrder(order.order_id);
+    return createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
   });
 }
 
 function apiApproveAndIssuePaymentOrder(requestId, orderData) {
   return apiWrap_(function() {
-    approvePaymentRequest(requestId);
-    const order = createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
-    return issuePaymentOrder(order.order_id);
+    const approved = approvePaymentRequest(requestId, withDefaultCashbox_(orderData || {}));
+    return approved.linked_order_id ? getPaymentOrderById(approved.linked_order_id) : approved;
   });
 }
 
