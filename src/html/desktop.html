@@ -198,7 +198,7 @@
                         <strong><i class="ti ti-alert-triangle" aria-hidden="true"></i> Nema aktivne smene – otvorite smenu za direktan rad</strong>
                         <span>Uplata, isplata i trezor su zaključani dok smena nije otvorena.</span>
                       </div>
-                      <button class="btn-primary" id="d-open-shift-from-book" type="button">Otvori smenu</button>
+                      <button class="cash-count-action draft" id="d-open-shift-from-book" type="button"><i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu</button>
                     </div>
                     <div class="quick-action-grid">
                       <button class="quick-action-button quick-action-button--uplata" id="d-side-btn-uplata" type="button">
@@ -340,10 +340,10 @@
                   <p>Lista svih naloga za isplatu sa statusom i osnovnim informacijama.</p>
                 </div>
                 <div class="po-head-actions">
-                  <button id="d-order-new-btn" class="po-primary-btn" type="button">
+                  <button id="d-order-new-btn" class="po-primary-btn cash-count-action save" type="button">
                     <i class="ti ti-plus" aria-hidden="true"></i> Novi nalog za isplatu
                   </button>
-                  <button id="d-order-export-btn" class="po-secondary-btn" type="button">
+                  <button id="d-order-export-btn" class="po-secondary-btn cash-count-action draft" type="button">
                     <i class="ti ti-download" aria-hidden="true"></i> Izvezi
                   </button>
                 </div>
@@ -494,9 +494,9 @@
                   <section class="new-order-side-card">
                     <h3><i class="ti ti-bolt" aria-hidden="true"></i> D) Akcije</h3>
                     <div class="new-order-actions">
-                      <button id="new-order-save-draft" type="button"><i class="ti ti-file" aria-hidden="true"></i> Sačuvaj nacrt</button>
-                      <button id="new-order-issue" type="button"><i class="ti ti-send" aria-hidden="true"></i> Izdaj nalog</button>
-                      <button id="new-order-cancel" type="button"><i class="ti ti-x" aria-hidden="true"></i> Poništi</button>
+                      <button id="new-order-save-draft" class="cash-count-action draft" type="button"><i class="ti ti-file" aria-hidden="true"></i> Sačuvaj nacrt</button>
+                      <button id="new-order-issue" class="cash-count-action save" type="button"><i class="ti ti-send" aria-hidden="true"></i> Izdaj nalog</button>
+                      <button id="new-order-cancel" class="cash-count-action cancel" type="button"><i class="ti ti-x" aria-hidden="true"></i> Poništi</button>
                     </div>
                   </section>
                 </aside>
@@ -513,10 +513,10 @@
                   <p>Lista zahteva za isplatu sa statusom, pravilima obrade i povezanim nalogom za isplatu.</p>
                 </div>
                 <div class="po-head-actions">
-                  <button id="d-request-new-btn" class="po-primary-btn" type="button">
+                  <button id="d-request-new-btn" class="po-primary-btn cash-count-action save" type="button">
                     <i class="ti ti-plus" aria-hidden="true"></i> Novi zahtev za isplatu
                   </button>
-                  <button id="d-request-export-btn" class="po-secondary-btn" type="button">
+                  <button id="d-request-export-btn" class="po-secondary-btn cash-count-action draft" type="button">
                     <i class="ti ti-download" aria-hidden="true"></i> Izvezi
                   </button>
                 </div>
@@ -684,9 +684,9 @@
                   <section class="new-order-side-card">
                     <h3><i class="ti ti-bolt" aria-hidden="true"></i> D) Akcije</h3>
                     <div class="new-order-actions">
-                      <button id="new-request-save-draft" type="button"><i class="ti ti-file" aria-hidden="true"></i> Sačuvaj nacrt</button>
-                      <button id="new-request-submit" type="button"><i class="ti ti-send" aria-hidden="true"></i> Pošalji zahtev</button>
-                      <button id="new-request-cancel" type="button"><i class="ti ti-x" aria-hidden="true"></i> Poništi</button>
+                      <button id="new-request-save-draft" class="cash-count-action draft" type="button"><i class="ti ti-file" aria-hidden="true"></i> Sačuvaj nacrt</button>
+                      <button id="new-request-submit" class="cash-count-action save" type="button"><i class="ti ti-send" aria-hidden="true"></i> Pošalji zahtev</button>
+                      <button id="new-request-cancel" class="cash-count-action cancel" type="button"><i class="ti ti-x" aria-hidden="true"></i> Poništi</button>
                     </div>
                   </section>
                 </aside>
@@ -702,7 +702,7 @@
                   <h2>Smene</h2>
                   <i class="ti ti-info-circle" aria-hidden="true"></i>
                 </div>
-                <button class="btn-primary shift-open-action-card" id="d-shift-action-open" type="button">
+                <button class="cash-count-action draft shift-open-action-card" id="d-shift-action-open" type="button">
                   <i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu
                 </button>
               </div>

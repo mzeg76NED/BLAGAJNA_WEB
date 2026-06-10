@@ -2117,7 +2117,7 @@
       '<section class="shift-detail-section"><h4>Pregled po unosima</h4><div id="d-shift-detail-entries"><div class="shift-muted">Učitavam stavke smene...</div></div></section>' +
       '<div class="shift-actions-grid">' +
         '<button type="button" data-shift-detail-presek-view><i class="ti ti-list-details" aria-hidden="true"></i> Pregled preseka</button>' +
-        '<button type="button" data-shift-detail-open' + (uiState.activeShift && uiState.activeShift.shift_id ? ' disabled' : '') + '><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>' +
+        (uiState.activeShift && uiState.activeShift.shift_id ? '' : '<button type="button" data-shift-detail-open><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>') +
         '<button class="btn-primary" type="button" data-shift-detail-count' + (!isActive ? ' disabled' : '') + '><i class="ti ti-calculator" aria-hidden="true"></i> Novi presek</button>' +
         '<button class="btn-out" type="button" data-shift-detail-close' + (!owner ? ' disabled' : '') + '><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
         '<button type="button" data-shift-detail-book><i class="ti ti-book" aria-hidden="true"></i> Knjiga</button>' +
@@ -2365,6 +2365,8 @@
     if (openShift) {
       openShift.hidden = hasShift;
       openShift.disabled = hasShift;
+      openShift.setAttribute('aria-hidden', hasShift ? 'true' : 'false');
+      openShift.style.display = hasShift ? 'none' : '';
     }
     ['d-side-btn-uplata','d-side-btn-isplata','d-side-btn-trezor'].forEach(function(id) {
       var btn = document.getElementById(id);
@@ -2417,6 +2419,13 @@
     });
     var newBtn = document.getElementById('d-count-new-btn');
     if (newBtn) newBtn.disabled = !hasShift;
+    var shiftOpenBtn = document.getElementById('d-shift-action-open');
+    if (shiftOpenBtn) {
+      shiftOpenBtn.hidden = hasShift;
+      shiftOpenBtn.disabled = hasShift;
+      shiftOpenBtn.setAttribute('aria-hidden', hasShift ? 'true' : 'false');
+      shiftOpenBtn.style.display = hasShift ? 'none' : '';
+    }
   }
 
   function enforceShiftStartup_(isDesktop, isMobile) {
@@ -4371,7 +4380,6 @@
     if (sideT) sideT.addEventListener('click', openQuickTreasury_);
     if (openShift) openShift.addEventListener('click', function() {
       if (uiState.activeShift && uiState.activeShift.shift_id) {
-        showDesktopMessage_('Smena je već otvorena. Osvežavam stanje aktivne smene.', 'info');
         refreshActiveShiftState_({ enforce: false });
         return;
       }
@@ -5212,12 +5220,28 @@
   // Ova funkcija je konsolidovana nakon uklanjanja duplirane definicije.
   function loadDesktopNalozi_() {
     callApi('apiListPaymentOrders', [{}], function(result) {
-      PAYMENT_ORDERS_STATE.records = Array.isArray(result) ? result.map(normalizePaymentOrder_) : [];
+      PAYMENT_ORDERS_STATE.records = (Array.isArray(result) ? result.map(normalizePaymentOrder_) : [])
+        .sort(comparePaymentOrdersNewestFirst_);
       PAYMENT_ORDERS_STATE.page = 1;
       populatePaymentOrderFilters_();
       renderPaymentOrdersOverview_();
       loadDesktopNavBadges_();
     }, { quiet: true });
+  }
+
+  function comparePaymentOrdersNewestFirst_(a, b) {
+    var aTime = paymentOrderSortTime_(a);
+    var bTime = paymentOrderSortTime_(b);
+    if (aTime !== bTime) return bTime - aTime;
+    return String(b.id || '').localeCompare(String(a.id || ''), 'sr');
+  }
+
+  function paymentOrderSortTime_(order) {
+    var raw = order && order.raw || {};
+    var value = order && (order.createdAt || order.date || order.issuedAt) ||
+      raw.created_at || raw.issued_at || raw.updated_at || '';
+    var parsed = value ? new Date(value).getTime() : 0;
+    return isNaN(parsed) ? 0 : parsed;
   }
 
   function normalizePaymentOrder_(order) {
@@ -5419,7 +5443,7 @@
     target.className = '';
     var isPaid = order.status === 'PAID' || order.status === 'CLOSED';
     var canPay = order.status === 'WAITING_PAYMENT' || order.status === 'PARTIALLY_PAID';
-    var canReject = !isPaid && order.status !== 'CANCELLED' && order.status !== 'REJECTED' && order.status !== 'REJECTED_BY_CASHIER';
+    var canReject = order.status === 'WAITING_PAYMENT';
     var canApprove = order.status === 'DRAFT';
     var amount = order.remaining || order.amountOrdered;
     target.innerHTML =
@@ -5441,10 +5465,9 @@
         '<div><h4>Povezani dokumenti</h4>' + renderPaymentOrderDocuments_(order) + '</div>' +
       '</div>' +
       '<div class="po-panel-actions">' +
-        '<button type="button" id="d-order-open-detail"><i class="ti ti-external-link" aria-hidden="true"></i> Otvori detalje</button>' +
-        '<button type="button" id="d-order-approve" ' + (canApprove ? '' : 'disabled') + '><i class="ti ti-check" aria-hidden="true"></i> Odobri</button>' +
-        '<button type="button" id="d-order-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
-        '<button type="button" id="d-order-pay" ' + (canPay && !isPaid ? '' : 'disabled') + '><i class="ti ti-credit-card" aria-hidden="true"></i> Označi kao isplaćen</button>' +
+        '<button type="button" class="cash-count-action save" id="d-order-approve" ' + (canApprove ? '' : 'disabled') + '><i class="ti ti-check" aria-hidden="true"></i> Odobri nalog</button>' +
+        '<button type="button" class="cash-count-action cancel" id="d-order-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
+        '<button type="button" class="cash-count-action save" id="d-order-pay" ' + (canPay && !isPaid ? '' : 'disabled') + '><i class="ti ti-credit-card" aria-hidden="true"></i> Izvrši nalog</button>' +
       '</div>';
     bindPaymentOrderDetailActions_(order);
   }
@@ -5513,12 +5536,12 @@
     var pay = document.getElementById('d-order-pay');
     if (pay) pay.addEventListener('click', function() {
       appConfirm_({
-        title: 'Označi kao isplaćen',
-        message: 'Potvrđujete izvršenje isplate za nalog ' + order.id + '?',
-        confirmText: 'Potvrdi isplatu'
+        title: 'Izvršenje naloga',
+        message: 'Potvrđujete izvršenje naloga ' + order.id + ' kroz standardni tok isplate?',
+        confirmText: 'Izvrši nalog'
       }, function() {
         callApi('apiExecutePaymentOrder', [order.id, {}], function() {
-          showDesktopMessage_('Nalog je isplaćen.', 'success');
+          showDesktopMessage_('Nalog je izvršen kroz standardni tok isplate.', 'success');
           loadDesktopNalozi_();
           loadKnjiga_(true);
           refreshBalance_();
