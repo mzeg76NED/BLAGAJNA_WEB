@@ -1924,6 +1924,8 @@
   .cashbook-page {
     display: grid;
     gap: 16px;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    height: calc(100dvh - 116px);
     min-width: 0;
   }
 
@@ -2086,6 +2088,7 @@
     display: grid;
     gap: 16px;
     grid-template-columns: minmax(0, 1fr) minmax(360px, 38%);
+    min-height: 0;
   }
 
   .cashbook-table-panel,
@@ -2125,8 +2128,8 @@
   }
 
   .cashbook-table-wrap {
-    max-height: calc(100vh - 315px);
-    min-height: 520px;
+    max-height: calc(100dvh - 350px);
+    min-height: 0;
     overflow: auto;
   }
 
@@ -2276,6 +2279,8 @@
     box-shadow: none;
     display: grid;
     gap: 14px;
+    max-height: calc(100dvh - 140px);
+    overflow: auto;
     position: sticky;
     top: 0;
   }
@@ -4295,6 +4300,8 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    height: calc(100dvh - 116px);
+    min-height: 0;
   }
 
   .request-status-tabs {
@@ -4327,6 +4334,21 @@
 
   .request-layout {
     grid-template-columns: minmax(0, 1.4fr) minmax(430px, .6fr);
+    min-height: 0;
+  }
+
+  .payment-requests-page .po-table-panel,
+  .payment-requests-page .po-detail-panel {
+    min-height: 0;
+  }
+
+  .payment-requests-page .po-table-wrap {
+    max-height: calc(100dvh - 405px);
+  }
+
+  .payment-requests-page .po-detail-panel {
+    max-height: calc(100dvh - 260px);
+    overflow: auto;
   }
 
   .request-filters {
@@ -4810,29 +4832,34 @@
     min-height: 44px;
   }
 
-  .new-order-actions #new-order-save-draft {
+  .new-order-actions #new-order-save-draft,
+  .new-order-actions #new-request-save-draft {
     background: #fff;
     border-color: #2563eb;
     color: #174ea6;
   }
 
-  .new-order-actions #new-order-issue {
+  .new-order-actions #new-order-issue,
+  .new-order-actions #new-request-submit {
     background: linear-gradient(135deg, #1d63d4, #1554d1);
     border-color: #1d63d4;
     color: #fff;
   }
 
-  .new-order-actions #new-order-cancel {
+  .new-order-actions #new-order-cancel,
+  .new-order-actions #new-request-cancel {
     background: #fff;
     color: #111827;
   }
 
-  :root[data-theme="dark"] .new-order-actions #new-order-save-draft {
+  :root[data-theme="dark"] .new-order-actions #new-order-save-draft,
+  :root[data-theme="dark"] .new-order-actions #new-request-save-draft {
     background: rgba(15, 36, 64, .84);
     color: #b9d3ff;
   }
 
-  :root[data-theme="dark"] .new-order-actions #new-order-cancel {
+  :root[data-theme="dark"] .new-order-actions #new-order-cancel,
+  :root[data-theme="dark"] .new-order-actions #new-request-cancel {
     background: rgba(7, 18, 30, .7);
     color: #f7fbff;
   }

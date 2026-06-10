@@ -99,6 +99,12 @@ function apiSubmitPaymentRequest(requestId) {
   });
 }
 
+function apiUpdatePaymentRequest(requestId, data) {
+  return apiWrap_(function() {
+    return updatePaymentRequest(requestId, data || {});
+  });
+}
+
 function apiListMyPaymentRequests() {
   return apiWrap_(function() {
     return listMyPaymentRequests();

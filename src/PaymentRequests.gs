@@ -151,6 +151,72 @@ function submitPaymentRequest(requestId) {
   );
 }
 
+function updatePaymentRequest(requestId, data) {
+  assertNonEmptyString(requestId, 'requestId');
+  const match = getPaymentRequestMatchOrThrow_(requestId);
+  assertRequestStatus_(match.record, [REQUEST_STATUSES.DRAFT]);
+  assertCurrentUserCanOwnRequest_(match.record);
+
+  const requestData = data || {};
+  const updates = {};
+
+  if (requestData.requested_for_name !== undefined) {
+    assertNonEmptyString(requestData.requested_for_name, 'requested_for_name');
+    updates.requested_for_name = String(requestData.requested_for_name).trim();
+  }
+  if (requestData.amount !== undefined) {
+    assertPositiveAmount(requestData.amount);
+    updates.amount = Number(requestData.amount);
+  }
+  if (requestData.currency !== undefined) {
+    assertActiveCurrency(requestData.currency);
+    updates.currency = requestData.currency;
+  }
+  if (requestData.purpose !== undefined) {
+    assertNonEmptyString(requestData.purpose, 'purpose');
+    updates.purpose = String(requestData.purpose).trim();
+  }
+  if (requestData.description !== undefined) {
+    updates.description = requestData.description || '';
+  }
+  if (requestData.preferred_cashbox_id !== undefined || requestData.cashbox_id !== undefined) {
+    const cashboxId = requestData.preferred_cashbox_id || requestData.cashbox_id || '';
+    if (cashboxId) {
+      assertActiveCashbox(cashboxId);
+      assertCashboxAccess(cashboxId);
+    }
+    updates.preferred_cashbox_id = cashboxId;
+  }
+  if (requestData.needed_by_date !== undefined) {
+    updates.needed_by_date = requestData.needed_by_date || '';
+  }
+  if (requestData.priority !== undefined) {
+    const priority = requestData.priority || REQUEST_PRIORITIES.NORMAL;
+    assertAllowedValue(priority, objectValues_(REQUEST_PRIORITIES), 'priority');
+    updates.priority = priority;
+  }
+  if (requestData.document_status !== undefined) {
+    assertAllowedValue(requestData.document_status, [
+      DOCUMENT_STATUSES.NONE,
+      DOCUMENT_STATUSES.MISSING,
+      DOCUMENT_STATUSES.ATTACHED
+    ], 'document_status');
+    updates.document_status = requestData.document_status;
+  }
+
+  const nextAmount = updates.amount !== undefined ? updates.amount : match.record.amount;
+  const nextCurrency = updates.currency !== undefined ? updates.currency : match.record.currency;
+  updates.approval_path = getPaymentRequestApprovalPath_(nextAmount, nextCurrency);
+  updates.updated_at = getCurrentTimestamp_();
+
+  return updatePaymentRequestWithAudit_(
+    requestId,
+    updates,
+    AUDIT_ACTIONS.UPDATE,
+    'Payment request draft updated. Request does not affect cashbox balance.'
+  );
+}
+
 function markPaymentRequestInReview(requestId) {
   assertNonEmptyString(requestId, 'requestId');
   const match = getPaymentRequestMatchOrThrow_(requestId);
