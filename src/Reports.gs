@@ -737,8 +737,8 @@ function getAuditExceptionsReport(filters) {
 
 function getDateRangeFilter_(filters) {
   return {
-    dateFrom: filters && filters.date_from ? normalizeReportDateKey_(filters.date_from) : '',
-    dateTo: filters && filters.date_to ? normalizeReportDateKey_(filters.date_to) : ''
+    dateFrom: filters && filters.date_from ? normalizeReportDateFilter_(filters.date_from) : '',
+    dateTo: filters && filters.date_to ? normalizeReportDateFilter_(filters.date_to) : ''
   };
 }
 
@@ -786,7 +786,7 @@ function getCashboxName_(cashboxId) {
 
 function normalizeReportFilters_(filters) {
   const currentUser = assertUserHasRole(REPORT_VIEW_ROLES_);
-  const scopedFilters = Object.assign({}, filters || {});
+  const scopedFilters = coerceReportFilters_(filters);
   if (currentUser.role === USER_ROLES.CASHIER && currentUser.default_cashbox_id) {
     if (scopedFilters.cashbox_id && scopedFilters.cashbox_id !== currentUser.default_cashbox_id) {
       throw new Error('Cashier can view only own default cashbox reports.');
@@ -794,6 +794,30 @@ function normalizeReportFilters_(filters) {
     scopedFilters.cashbox_id = currentUser.default_cashbox_id;
   }
   return scopedFilters;
+}
+
+function coerceReportFilters_(filters) {
+  const scopedFilters = filters && typeof filters === 'object' && !Array.isArray(filters)
+    ? Object.assign({}, filters)
+    : {};
+  ['date', 'closing_date', 'date_from', 'date_to'].forEach(function(field) {
+    if (isAccidentalSessionDateFilter_(scopedFilters[field])) {
+      delete scopedFilters[field];
+    }
+  });
+  return scopedFilters;
+}
+
+function normalizeReportDateFilter_(dateValue) {
+  if (isAccidentalSessionDateFilter_(dateValue)) {
+    return '';
+  }
+  return normalizeReportDateKey_(dateValue);
+}
+
+function isAccidentalSessionDateFilter_(value) {
+  const text = String(value || '').trim();
+  return Boolean(text && (text.indexOf('@') !== -1 || /^SES[-_]/i.test(text)));
 }
 
 function normalizeReportDateKey_(dateValue) {

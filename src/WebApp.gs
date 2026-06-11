@@ -511,17 +511,20 @@ function apiCloseActiveShift(cashboxId, physicalBalanceByCurrency, note, session
   });
 }
 
-function apiGetCashCountsReport(filters) {
+function apiGetCashCountsReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getCashCountsReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getCashCountsReport(scopedFilters);
+    });
   });
 }
 
-function apiGetCashSheetReport(filters) {
+function apiGetCashSheetReport(filters, sessionId) {
   return apiWrap_(function() {
-    filters = filters || {};
-    filters.cashbox_id = filters.cashbox_id || getDefaultCashboxIdForCurrentUser_();
-    return getCashSheetReport(filters);
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      scopedFilters.cashbox_id = scopedFilters.cashbox_id || getDefaultCashboxIdForCurrentUser_();
+      return getCashSheetReport(scopedFilters);
+    });
   });
 }
 
@@ -545,9 +548,11 @@ function apiListDailyClosings(filters) {
   });
 }
 
-function apiGetManagementDashboardSummary(filters) {
+function apiGetManagementDashboardSummary(filters, sessionId) {
   return apiWrap_(function() {
-    return getManagementDashboardSummary(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getManagementDashboardSummary(scopedFilters);
+    });
   });
 }
 
@@ -756,69 +761,91 @@ function apiGetAuditLog(filters, sessionId) {
   });
 }
 
-function apiGetCashboxBalanceReport(filters) {
+function apiGetCashboxBalanceReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getCashboxBalanceReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getCashboxBalanceReport(scopedFilters);
+    });
   });
 }
 
-function apiGetOpenPaymentRequestsReport(filters) {
+function apiGetOpenPaymentRequestsReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getOpenPaymentRequestsReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getOpenPaymentRequestsReport(scopedFilters);
+    });
   });
 }
 
-function apiGetRequestsForApprovalReport(filters) {
+function apiGetRequestsForApprovalReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getRequestsForApprovalReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getRequestsForApprovalReport(scopedFilters);
+    });
   });
 }
 
-function apiGetOrdersWaitingPaymentReport(filters) {
+function apiGetOrdersWaitingPaymentReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getOrdersWaitingPaymentReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getOrdersWaitingPaymentReport(scopedFilters);
+    });
   });
 }
 
-function apiGetExecutedPaymentsReport(filters) {
+function apiGetExecutedPaymentsReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getExecutedPaymentsReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getExecutedPaymentsReport(scopedFilters);
+    });
   });
 }
 
-function apiGetCashMovementsReport(filters) {
+function apiGetCashMovementsReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getCashMovementsReport(withDefaultCashbox_(filters || {}));
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getCashMovementsReport(withDefaultCashbox_(scopedFilters));
+    });
   });
 }
 
-function apiGetMissingDocumentsReport(filters) {
+function apiGetMissingDocumentsReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getMissingDocumentsReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getMissingDocumentsReport(scopedFilters);
+    });
   });
 }
 
-function apiGetDailyClosingReport(filters) {
+function apiGetDailyClosingReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getDailyClosingReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getDailyClosingReport(scopedFilters);
+    });
   });
 }
 
-function apiGetDifferencesReport(filters) {
+function apiGetDifferencesReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getDifferencesReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getDifferencesReport(scopedFilters);
+    });
   });
 }
 
-function apiGetCorrectionsAndReversalsReport(filters) {
+function apiGetCorrectionsAndReversalsReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getCorrectionsAndReversalsReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getCorrectionsAndReversalsReport(scopedFilters);
+    });
   });
 }
 
-function apiGetAuditExceptionsReport(filters) {
+function apiGetAuditExceptionsReport(filters, sessionId) {
   return apiWrap_(function() {
-    return getAuditExceptionsReport(filters || {});
+    return runReportApi_(filters, sessionId, function(scopedFilters) {
+      return getAuditExceptionsReport(scopedFilters);
+    });
   });
 }
 
@@ -941,4 +968,14 @@ function withDefaultCashbox_(data) {
     result.cashbox_id = getDefaultCashboxIdForCurrentUser_();
   }
   return result;
+}
+
+function runReportApi_(filters, sessionId, callback) {
+  const scopedFilters = filters && typeof filters === 'object' && !Array.isArray(filters)
+    ? Object.assign({}, filters)
+    : {};
+  const run = function() {
+    return callback(Object.assign({}, scopedFilters));
+  };
+  return sessionId ? runWithApiSession_(sessionId, null, run) : run();
 }
