@@ -87,4 +87,13 @@ Patch 02 uvodi server-side privilegije u `Users.gs`. Ova tabela opisuje nameru m
 
 Server-side provere su autoritativne. UI je samo pomocni sloj i ne sme da odlucuje o autorizaciji.
 
-Korisnicka administracija u ovom patch-u postoji kao backend/API osnova: `apiListUsers`, `apiCreateUser`, `apiUpdateUserPermissions` i `apiGetPermissionsMatrix`.
+Korisnicka administracija postoji kao backend/API osnova i desktop UI ekran `Korisnici i prava`.
+
+UI koristi:
+
+- `apiListUsers`,
+- `apiCreateUser`,
+- `apiUpdateUserPermissions`,
+- `apiGetPermissionsMatrix`.
+
+Ekran se prikazuje samo za korisnika sa rolom `ADMIN` ili privilegijom `users:create`, `users:update` ili `users:assign_roles`. Korisnik bez tih prava vidi poruku zabrane i ne dobija listu korisnika.

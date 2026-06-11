@@ -4666,6 +4666,211 @@
     .request-filters { grid-template-columns: 1fr; }
   }
 
+  /* Users and permissions admin */
+  .users-admin-page {
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    height: calc(100dvh - 116px);
+    min-height: 0;
+  }
+
+  .users-admin-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(400px, .65fr);
+    min-height: 0;
+  }
+
+  .users-admin-filters {
+    grid-template-columns: minmax(260px, 1.5fr) 170px 140px 170px 42px;
+  }
+
+  .users-admin-page .po-table-panel,
+  .users-admin-page .po-detail-panel {
+    min-height: 0;
+  }
+
+  .users-admin-page .po-table-wrap {
+    max-height: calc(100dvh - 330px);
+  }
+
+  .users-admin-detail-panel {
+    max-height: calc(100dvh - 226px);
+    overflow: auto;
+  }
+
+  .users-admin-table td:first-child {
+    display: grid;
+    gap: 3px;
+  }
+
+  .users-admin-table td:first-child small,
+  .users-admin-detail-head small {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .users-admin-row-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .users-admin-row-actions .small {
+    min-height: 28px;
+    padding: 4px 8px;
+    white-space: nowrap;
+  }
+
+  .user-role-badge,
+  .user-status-badge,
+  .users-admin-privileges span {
+    align-items: center;
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 6px 9px;
+  }
+
+  .user-role-badge {
+    background: rgba(37, 99, 235, .18);
+    color: #93c5fd;
+  }
+
+  .user-status-badge {
+    margin-left: 6px;
+  }
+
+  .user-status-badge.is-active {
+    background: rgba(22, 163, 74, .20);
+    color: #4ade80;
+  }
+
+  .user-status-badge.is-inactive {
+    background: rgba(127, 29, 29, .28);
+    color: #fca5a5;
+  }
+
+  .users-admin-detail-head {
+    align-items: flex-start;
+  }
+
+  .users-admin-privilege-section {
+    border-top: 1px solid rgba(120, 170, 220, .16);
+    margin-top: 16px;
+    padding-top: 14px;
+  }
+
+  .users-admin-privilege-section h4 {
+    margin: 0 0 10px;
+  }
+
+  .users-admin-privileges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .users-admin-privileges span {
+    background: rgba(15, 118, 110, .20);
+    color: #5eead4;
+  }
+
+  .users-admin-denied {
+    min-height: 240px;
+  }
+
+  .users-admin-dialog {
+    width: min(620px, calc(100vw - 24px));
+  }
+
+  .users-admin-modal-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .users-admin-modal-form label:last-child {
+    grid-column: 1 / -1;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-page,
+  :root:not([data-theme="dark"]) .users-admin-page .po-page-head,
+  :root:not([data-theme="dark"]) .users-admin-page .po-filters,
+  :root:not([data-theme="dark"]) .users-admin-page .po-kpi-card,
+  :root:not([data-theme="dark"]) .users-admin-page .po-table-panel,
+  :root:not([data-theme="dark"]) .users-admin-page .po-detail-panel {
+    color: #111827;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-page .po-page-head,
+  :root:not([data-theme="dark"]) .users-admin-page .po-filters,
+  :root:not([data-theme="dark"]) .users-admin-page .po-kpi-card,
+  :root:not([data-theme="dark"]) .users-admin-page .po-table-panel,
+  :root:not([data-theme="dark"]) .users-admin-page .po-detail-panel {
+    background: rgba(255, 255, 255, .96);
+    border-color: #d8e0ea;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .08);
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-page .po-page-head p,
+  :root:not([data-theme="dark"]) .users-admin-page .po-kpi-card span,
+  :root:not([data-theme="dark"]) .users-admin-page .po-detail-field span,
+  :root:not([data-theme="dark"]) .users-admin-table td:first-child small,
+  :root:not([data-theme="dark"]) .users-admin-detail-head small {
+    color: #64748b;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-page .po-filters input,
+  :root:not([data-theme="dark"]) .users-admin-page .po-filters select {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #111827;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-page .po-table th {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-page .po-table td {
+    border-color: #e2e8f0;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-page .po-row:hover,
+  :root:not([data-theme="dark"]) .users-admin-page .po-row-selected {
+    background: #eff6ff;
+  }
+
+  :root:not([data-theme="dark"]) .user-role-badge {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+
+  :root:not([data-theme="dark"]) .user-status-badge.is-active {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  :root:not([data-theme="dark"]) .user-status-badge.is-inactive {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-privileges span {
+    background: #ccfbf1;
+    color: #0f766e;
+  }
+
+  @media (max-width: 1280px) {
+    .users-admin-layout { grid-template-columns: 1fr; }
+    .users-admin-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 760px) {
+    .users-admin-filters,
+    .users-admin-modal-form { grid-template-columns: 1fr; }
+  }
+
   /* ─── Novi nalog za isplatu ─────────────────────────────────── */
 
   .new-order-page {

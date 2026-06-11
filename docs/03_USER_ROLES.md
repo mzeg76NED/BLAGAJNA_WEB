@@ -102,6 +102,38 @@ Sistem ne dozvoljava deaktivaciju ili skidanje role poslednjem aktivnom `ADMIN` 
 
 ## UI
 
-Patch 02 ne dodaje admin UI. Razlog: trenutno ne postoji mali, bezbedan administrativni ekran u koji bi se ove funkcije ugradile bez veceg UI zahvata.
+Patch 03 dodaje desktop ekran `Korisnici i prava`.
 
-Predlog za sledeci patch je mali admin ekran za korisnike koji koristi gore navedene API wrapper-e.
+Ekran je dostupan kroz aktivni desktop meni u sekciji `Upravljanje`.
+
+Ekran vidi samo korisnik koji ima rolu `ADMIN` ili bar jedno od prava:
+
+```text
+users:create
+users:update
+users:assign_roles
+```
+
+Ako korisnik nema pravo, ekran prikazuje:
+
+```text
+Nemate ovlašćenje za administraciju korisnika i prava.
+```
+
+## Administracija korisnika kroz UI
+
+Ekran podrzava:
+
+- pregled korisnika iz `apiListUsers`,
+- pregled matrice prava iz `apiGetPermissionsMatrix`,
+- KPI kartice za ukupan broj korisnika, aktivne, neaktivne, admine, blagajnike i role,
+- filtere po pretrazi, roli, statusu i podrazumevanoj blagajni,
+- tabelu korisnika sa selekcijom reda,
+- desni panel sa osnovnim podacima i privilegijama,
+- modal `Dodaj korisnika`,
+- modal `Izmeni korisnika`,
+- aktivaciju i deaktivaciju korisnika kroz `apiUpdateUserPermissions`.
+
+UI ne upisuje direktno u Sheet. Sve izmene idu kroz backend API, a audit log ostaje na backend funkcijama.
+
+UI validira email, ime i rolu pre slanja, ali backend i dalje ostaje autoritativan za poslednju proveru prava i pravilo poslednjeg aktivnog `ADMIN` korisnika.

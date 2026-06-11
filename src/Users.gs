@@ -206,6 +206,7 @@ function getUserByEmail(email) {
 
 function listUsers(filters) {
   assertCurrentUserHasAnyPrivilege_([
+    USER_PRIVILEGES.USERS_CREATE,
     USER_PRIVILEGES.USERS_UPDATE,
     USER_PRIVILEGES.USERS_ASSIGN_ROLES
   ]);
@@ -335,6 +336,7 @@ function updateUserPermissions(userId, permissionsData) {
 
 function getPermissionsMatrix() {
   assertCurrentUserHasAnyPrivilege_([
+    USER_PRIVILEGES.USERS_CREATE,
     USER_PRIVILEGES.USERS_UPDATE,
     USER_PRIVILEGES.USERS_ASSIGN_ROLES,
     USER_PRIVILEGES.AUDIT_VIEW

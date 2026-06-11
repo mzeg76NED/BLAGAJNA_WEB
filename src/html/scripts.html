@@ -4794,6 +4794,7 @@
         if (target === 'knjiga')  { loadKnjiga_(true); }
         if (target === 'nalozi')  { loadDesktopNalozi_(); }
         if (target === 'zahtevi') { loadDesktopPaymentRequests_(); }
+        if (target === 'users-admin') { loadDesktopUsersAdmin_(); }
         if (target === 'smena')    { loadMyShiftsTo_('d-shifts-list'); }
         if (target === 'presek')  { loadCashCounts_(); }
         if (target === 'blagajnicki-list') { loadCashSheet_(); }
@@ -4882,6 +4883,7 @@
     bindPaymentOrdersOverview_();
 
     bindPaymentRequestsOverview_();
+    bindUsersAdminOverview_();
 
     var loadShiftsBtn = document.getElementById('d-load-shifts-btn');
     if (loadShiftsBtn) loadShiftsBtn.addEventListener('click', function() { loadMyShiftsTo_('d-shifts-list'); });
@@ -5225,6 +5227,466 @@
     attachments: [],
     activities: []
   };
+
+  var USERS_ADMIN_STATE = {
+    users: [],
+    filtered: [],
+    permissionsMatrix: [],
+    selectedUserId: '',
+    loading: false
+  };
+
+  function bindUsersAdminOverview_() {
+    if (window.__usersAdminOverviewBound) return;
+    window.__usersAdminOverviewBound = true;
+    ['d-users-role-filter','d-users-status-filter','d-users-cashbox-filter'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', renderUsersAdminOverview_);
+    });
+    var search = document.getElementById('d-users-search');
+    if (search) search.addEventListener('input', renderUsersAdminOverview_);
+    var reset = document.getElementById('d-users-reset-filters');
+    if (reset) reset.addEventListener('click', function() {
+      ['d-users-role-filter','d-users-status-filter','d-users-cashbox-filter'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      if (search) search.value = '';
+      renderUsersAdminOverview_();
+    });
+    var refresh = document.getElementById('d-users-refresh-btn');
+    if (refresh) refresh.addEventListener('click', loadDesktopUsersAdmin_);
+    var add = document.getElementById('d-users-add-btn');
+    if (add) add.addEventListener('click', openCreateUserModal_);
+  }
+
+  function loadDesktopUsersAdmin_() {
+    bindUsersAdminOverview_();
+    if (!canOpenUsersAdmin_()) {
+      renderUsersAdminDenied_();
+      return;
+    }
+    renderUsersAdminAllowed_();
+    callApi('apiGetPermissionsMatrix', [], function(matrix) {
+      USERS_ADMIN_STATE.permissionsMatrix = Array.isArray(matrix) ? matrix : [];
+      populateUsersAdminFilters_();
+      callApi('apiListUsers', [{}], function(users) {
+        USERS_ADMIN_STATE.users = Array.isArray(users) ? users.map(normalizeUsersAdminUser_) : [];
+        if (!USERS_ADMIN_STATE.selectedUserId && USERS_ADMIN_STATE.users.length) {
+          USERS_ADMIN_STATE.selectedUserId = USERS_ADMIN_STATE.users[0].user_id || '';
+        }
+        populateUsersAdminFilters_();
+        renderUsersAdminOverview_();
+      }, { quiet: true });
+    }, { quiet: true });
+  }
+
+  function canOpenUsersAdmin_() {
+    return currentUserHasPrivilege_('users:create') ||
+      currentUserHasPrivilege_('users:update') ||
+      currentUserHasPrivilege_('users:assign_roles') ||
+      (uiState.currentUser && uiState.currentUser.role === 'ADMIN');
+  }
+
+  function currentUserHasPrivilege_(privilege) {
+    var user = uiState.currentUser || {};
+    var privileges = Array.isArray(user.privileges) ? user.privileges : [];
+    return privileges.indexOf(privilege) !== -1 || user.role === 'ADMIN';
+  }
+
+  function renderUsersAdminDenied_() {
+    var denied = document.getElementById('d-users-admin-denied');
+    var content = document.getElementById('d-users-admin-content');
+    if (denied) denied.hidden = false;
+    if (content) content.hidden = true;
+    var add = document.getElementById('d-users-add-btn');
+    if (add) add.hidden = true;
+  }
+
+  function renderUsersAdminAllowed_() {
+    var denied = document.getElementById('d-users-admin-denied');
+    var content = document.getElementById('d-users-admin-content');
+    if (denied) denied.hidden = true;
+    if (content) content.hidden = false;
+    var add = document.getElementById('d-users-add-btn');
+    if (add) add.hidden = !currentUserHasPrivilege_('users:create');
+  }
+
+  function normalizeUsersAdminUser_(user) {
+    user = user || {};
+    return {
+      raw: user,
+      user_id: user.user_id || '',
+      email: user.email || '',
+      full_name: user.full_name || '',
+      role: user.role || 'VIEWER',
+      active: user.active === true || user.active === 'TRUE' || user.active === 'true' || user.active === 1 || user.active === '1',
+      default_cashbox_id: user.default_cashbox_id || '',
+      privileges: Array.isArray(user.privileges) ? user.privileges.slice() : getUsersAdminRolePrivileges_(user.role || 'VIEWER'),
+      created_at: user.created_at || '',
+      updated_at: user.updated_at || ''
+    };
+  }
+
+  function getUsersAdminRolePrivileges_(role) {
+    var item = (USERS_ADMIN_STATE.permissionsMatrix || []).filter(function(row) { return row.role === role; })[0];
+    return item && Array.isArray(item.privileges) ? item.privileges.slice() : [];
+  }
+
+  function populateUsersAdminFilters_() {
+    populateUsersAdminRoleSelect_('d-users-role-filter', 'Sve role', '');
+    populateUsersAdminCashboxSelect_('d-users-cashbox-filter', 'Sve blagajne', '');
+  }
+
+  function populateUsersAdminRoleSelect_(id, placeholder, selectedRole) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var current = selectedRole !== undefined ? selectedRole : el.value;
+    var roles = (USERS_ADMIN_STATE.permissionsMatrix || []).map(function(row) { return row.role; }).filter(Boolean);
+    if (!roles.length) {
+      roles = ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','CASHIER','APPROVER','REQUESTER','VIEWER'];
+    }
+    el.innerHTML = '<option value="">' + escapeHtml(placeholder || 'Rola') + '</option>' + roles.map(function(role) {
+      return '<option value="' + escapeHtml(role) + '">' + escapeHtml(role) + '</option>';
+    }).join('');
+    el.value = roles.indexOf(current) !== -1 ? current : '';
+  }
+
+  function populateUsersAdminCashboxSelect_(id, placeholder, selectedCashboxId) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var current = selectedCashboxId !== undefined ? selectedCashboxId : el.value;
+    var cashboxes = uiState.config && Array.isArray(uiState.config.cashboxes) ? uiState.config.cashboxes : [];
+    var values = [];
+    USERS_ADMIN_STATE.users.forEach(function(user) {
+      if (user.default_cashbox_id && !cashboxes.some(function(cb) { return cb.cashbox_id === user.default_cashbox_id; })) {
+        values.push({ cashbox_id: user.default_cashbox_id, name: user.default_cashbox_id });
+      }
+    });
+    cashboxes.concat(values).forEach(function(cashbox) {
+      if (!cashbox || !cashbox.cashbox_id) return;
+      if (!values.some(function(item) { return item.cashbox_id === cashbox.cashbox_id; })) values.push(cashbox);
+    });
+    el.innerHTML = '<option value="">' + escapeHtml(placeholder || 'Blagajna') + '</option>' + values.map(function(cashbox) {
+      return '<option value="' + escapeHtml(cashbox.cashbox_id) + '">' + escapeHtml(cashbox.name || cashbox.cashbox_id) + '</option>';
+    }).join('');
+    el.value = values.some(function(cashbox) { return cashbox.cashbox_id === current; }) ? current : '';
+  }
+
+  function filterUsersAdmin_() {
+    var search = ((document.getElementById('d-users-search') || {}).value || '').toLowerCase().trim();
+    var role = (document.getElementById('d-users-role-filter') || {}).value || '';
+    var status = (document.getElementById('d-users-status-filter') || {}).value || '';
+    var cashbox = (document.getElementById('d-users-cashbox-filter') || {}).value || '';
+    return USERS_ADMIN_STATE.users.filter(function(user) {
+      if (role && user.role !== role) return false;
+      if (status === 'active' && !user.active) return false;
+      if (status === 'inactive' && user.active) return false;
+      if (cashbox && user.default_cashbox_id !== cashbox) return false;
+      if (search) {
+        var haystack = [user.user_id, user.email, user.full_name, user.role, user.default_cashbox_id].join(' ').toLowerCase();
+        if (haystack.indexOf(search) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderUsersAdminOverview_() {
+    USERS_ADMIN_STATE.filtered = filterUsersAdmin_();
+    renderUsersAdminKpis_();
+    renderUsersAdminTable_();
+    var selected = USERS_ADMIN_STATE.filtered.filter(function(user) { return user.user_id === USERS_ADMIN_STATE.selectedUserId; })[0] || USERS_ADMIN_STATE.filtered[0] || null;
+    USERS_ADMIN_STATE.selectedUserId = selected ? selected.user_id : '';
+    renderUsersAdminDetails_(selected);
+  }
+
+  function renderUsersAdminKpis_() {
+    var rows = USERS_ADMIN_STATE.users;
+    setText_('d-users-kpi-total', rows.length);
+    setText_('d-users-kpi-active', rows.filter(function(user) { return user.active; }).length);
+    setText_('d-users-kpi-inactive', rows.filter(function(user) { return !user.active; }).length);
+    setText_('d-users-kpi-admins', rows.filter(function(user) { return user.role === 'ADMIN'; }).length);
+    setText_('d-users-kpi-cashiers', rows.filter(function(user) { return user.role === 'CASHIER'; }).length);
+    setText_('d-users-kpi-roles', (USERS_ADMIN_STATE.permissionsMatrix || []).length);
+  }
+
+  function renderUsersAdminTable_() {
+    var target = document.getElementById('d-users-list');
+    if (!target) return;
+    var rows = USERS_ADMIN_STATE.filtered;
+    if (!rows.length) {
+      target.innerHTML = '<div class="empty-state"><i class="ti ti-users-off" aria-hidden="true"></i><p>Nema korisnika za izabrane filtere.</p></div>';
+      return;
+    }
+    target.innerHTML =
+      '<table class="po-table users-admin-table"><thead><tr>' +
+        '<th>Korisnik</th><th>Rola</th><th>Status</th><th>Default blagajna</th><th>Privilegije</th><th>Ažurirano</th><th>Akcije</th>' +
+      '</tr></thead><tbody>' +
+      rows.map(function(user) {
+        var selected = user.user_id === USERS_ADMIN_STATE.selectedUserId ? ' po-row-selected' : '';
+        return '<tr class="po-row' + selected + '" data-user-id="' + escapeHtml(user.user_id) + '">' +
+          '<td><strong>' + escapeHtml(user.full_name || '—') + '</strong><small>' + escapeHtml(user.email || user.user_id || '—') + '</small></td>' +
+          '<td><span class="user-role-badge">' + escapeHtml(user.role || '—') + '</span></td>' +
+          '<td>' + renderUsersAdminStatusBadge_(user.active) + '</td>' +
+          '<td>' + escapeHtml(getUsersAdminCashboxLabel_(user.default_cashbox_id)) + '</td>' +
+          '<td>' + escapeHtml(String((user.privileges || []).length)) + '</td>' +
+          '<td>' + escapeHtml(formatDateTimeShort_(user.updated_at || user.created_at)) + '</td>' +
+          '<td class="users-admin-row-actions">' + renderUsersAdminRowActions_(user) + '</td>' +
+        '</tr>';
+      }).join('') + '</tbody></table>';
+    target.querySelectorAll('[data-user-id]').forEach(function(row) {
+      row.addEventListener('click', function(e) {
+        if (e.target && e.target.closest('[data-user-action]')) return;
+        USERS_ADMIN_STATE.selectedUserId = row.getAttribute('data-user-id') || '';
+        renderUsersAdminTable_();
+        renderUsersAdminDetails_(USERS_ADMIN_STATE.filtered.filter(function(user) { return user.user_id === USERS_ADMIN_STATE.selectedUserId; })[0] || null);
+      });
+    });
+    target.querySelectorAll('[data-user-action]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var userId = btn.getAttribute('data-user-id') || '';
+        var action = btn.getAttribute('data-user-action') || '';
+        if (action === 'edit') openEditUserModal_(userId);
+        if (action === 'toggle') confirmToggleUserActive_(userId);
+      });
+    });
+  }
+
+  function renderUsersAdminRowActions_(user) {
+    var edit = currentUserHasPrivilege_('users:update') || currentUserHasPrivilege_('users:assign_roles');
+    var toggle = currentUserHasPrivilege_('users:disable') || currentUserHasPrivilege_('users:update');
+    return '<button type="button" class="btn-ghost small" data-user-action="edit" data-user-id="' + escapeHtml(user.user_id) + '"' + (edit ? '' : ' disabled') + '>Izmeni</button>' +
+      '<button type="button" class="' + (user.active ? 'btn-out' : 'btn-primary') + ' small" data-user-action="toggle" data-user-id="' + escapeHtml(user.user_id) + '"' + (toggle ? '' : ' disabled') + '>' + (user.active ? 'Deaktiviraj' : 'Aktiviraj') + '</button>';
+  }
+
+  function renderUsersAdminStatusBadge_(active) {
+    return '<span class="user-status-badge ' + (active ? 'is-active' : 'is-inactive') + '">' + (active ? 'Aktivan' : 'Neaktivan') + '</span>';
+  }
+
+  function renderUsersAdminDetails_(user) {
+    var target = document.getElementById('d-users-detail-body');
+    if (!target) return;
+    if (!user) {
+      target.className = 'po-empty-detail';
+      target.innerHTML = 'Izaberite korisnika iz tabele za prikaz detalja.';
+      return;
+    }
+    target.className = '';
+    target.innerHTML =
+      '<div class="po-detail-head users-admin-detail-head"><div><h3>' + escapeHtml(user.full_name || 'Korisnik') + '</h3><small>' + escapeHtml(user.email || '—') + '</small></div>' +
+        '<div><span class="user-role-badge">' + escapeHtml(user.role || '—') + '</span>' + renderUsersAdminStatusBadge_(user.active) + '</div></div>' +
+      '<div class="po-tabs"><span class="active">Pregled</span><span>Privilegije</span></div>' +
+      '<div class="po-detail-grid">' +
+        renderPaymentOrderField_('User ID', user.user_id) +
+        renderPaymentOrderField_('Email', user.email) +
+        renderPaymentOrderField_('Ime i prezime', user.full_name) +
+        renderPaymentOrderField_('Rola', user.role) +
+        renderPaymentOrderField_('Status', user.active ? 'Aktivan' : 'Neaktivan') +
+        renderPaymentOrderField_('Default blagajna', getUsersAdminCashboxLabel_(user.default_cashbox_id)) +
+        renderPaymentOrderField_('Kreiran', formatDateTimeShort_(user.created_at)) +
+        renderPaymentOrderField_('Ažuriran', formatDateTimeShort_(user.updated_at)) +
+      '</div>' +
+      '<div class="users-admin-privilege-section"><h4>Privilegije korisnika</h4>' + renderUsersAdminPrivileges_(user.privileges || []) + '</div>' +
+      '<div class="users-admin-privilege-section"><h4>Matrica prava za rolu</h4>' + renderUsersAdminRoleMatrix_(user.role) + '</div>' +
+      '<div class="po-panel-actions">' +
+        '<button type="button" class="cash-count-action draft" id="d-users-detail-edit" ' + ((currentUserHasPrivilege_('users:update') || currentUserHasPrivilege_('users:assign_roles')) ? '' : 'disabled') + '><i class="ti ti-pencil" aria-hidden="true"></i> Izmeni</button>' +
+        '<button type="button" class="' + (user.active ? 'cash-count-action cancel' : 'cash-count-action save') + '" id="d-users-detail-toggle" ' + ((currentUserHasPrivilege_('users:disable') || currentUserHasPrivilege_('users:update')) ? '' : 'disabled') + '><i class="ti ' + (user.active ? 'ti-user-off' : 'ti-user-check') + '" aria-hidden="true"></i> ' + (user.active ? 'Deaktiviraj' : 'Aktiviraj') + '</button>' +
+      '</div>';
+    var edit = document.getElementById('d-users-detail-edit');
+    if (edit) edit.addEventListener('click', function() { openEditUserModal_(user.user_id); });
+    var toggle = document.getElementById('d-users-detail-toggle');
+    if (toggle) toggle.addEventListener('click', function() { confirmToggleUserActive_(user.user_id); });
+  }
+
+  function renderUsersAdminPrivileges_(privileges) {
+    if (!privileges.length) return '<div class="po-empty-docs">Rola nema definisane privilegije.</div>';
+    return '<div class="users-admin-privileges">' + privileges.map(function(privilege) {
+      return '<span>' + escapeHtml(privilege) + '</span>';
+    }).join('') + '</div>';
+  }
+
+  function renderUsersAdminRoleMatrix_(role) {
+    var privileges = getUsersAdminRolePrivileges_(role);
+    return renderUsersAdminPrivileges_(privileges);
+  }
+
+  function getUsersAdminCashboxLabel_(cashboxId) {
+    if (!cashboxId) return '—';
+    var cashboxes = uiState.config && Array.isArray(uiState.config.cashboxes) ? uiState.config.cashboxes : [];
+    var match = cashboxes.filter(function(cashbox) { return cashbox.cashbox_id === cashboxId; })[0];
+    return match ? (match.name || match.cashbox_id) : cashboxId;
+  }
+
+  function openCreateUserModal_() {
+    if (!currentUserHasPrivilege_('users:create')) {
+      showDesktopMessage_('Nemate ovlašćenje za dodavanje korisnika.', 'error');
+      return;
+    }
+    openUserAdminModal_({ mode: 'create' });
+  }
+
+  function openEditUserModal_(userId) {
+    var user = USERS_ADMIN_STATE.users.filter(function(item) { return item.user_id === userId; })[0];
+    if (!user) return;
+    if (!currentUserHasPrivilege_('users:update') && !currentUserHasPrivilege_('users:assign_roles')) {
+      showDesktopMessage_('Nemate ovlašćenje za izmenu korisnika.', 'error');
+      return;
+    }
+    openUserAdminModal_({ mode: 'edit', user: user });
+  }
+
+  function openUserAdminModal_(options) {
+    options = options || {};
+    var isEdit = options.mode === 'edit';
+    var user = options.user || {};
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog users-admin-dialog" role="dialog" aria-modal="true">' +
+        '<h3>' + (isEdit ? 'Izmeni korisnika' : 'Dodaj korisnika') + '</h3>' +
+        '<form id="users-admin-modal-form" class="form-grid users-admin-modal-form" novalidate>' +
+          (isEdit ? '<input type="hidden" name="user_id" value="' + escapeHtml(user.user_id || '') + '">' : '') +
+          '<label>Email<input name="email" type="email" value="' + escapeHtml(user.email || '') + '"' + (isEdit ? ' readonly' : '') + ' required></label>' +
+          '<label>Ime i prezime<input name="full_name" type="text" value="' + escapeHtml(user.full_name || '') + '" required></label>' +
+          '<label>Rola<select name="role" required></select></label>' +
+          '<label>Status<select name="active"><option value="true">Aktivan</option><option value="false">Neaktivan</option></select></label>' +
+          '<label>Default blagajna<select name="default_cashbox_id"></select></label>' +
+          '<label>Napomena<textarea name="note" rows="3" placeholder="Interna napomena za ovu izmenu"></textarea></label>' +
+        '</form>' +
+        '<div class="app-dialog-actions">' +
+          '<button type="button" class="btn-ghost" data-dialog-cancel>Odustani</button>' +
+          '<button type="button" class="btn-primary" data-dialog-ok>' + (isEdit ? 'Sačuvaj izmene' : 'Kreiraj korisnika') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var form = overlay.querySelector('#users-admin-modal-form');
+    populateUsersAdminModalSelects_(form, user);
+    if (isEdit) {
+      form.elements.active.value = user.active ? 'true' : 'false';
+      form.elements.default_cashbox_id.value = user.default_cashbox_id || '';
+    }
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-dialog-ok]').addEventListener('click', function() {
+      if (isEdit) submitUpdateUser_(form, close);
+      else submitCreateUser_(form, close);
+    });
+    window.setTimeout(function() {
+      var first = form.querySelector(isEdit ? '[name="full_name"]' : '[name="email"]');
+      if (first) first.focus();
+    }, 50);
+  }
+
+  function populateUsersAdminModalSelects_(form, user) {
+    var roleSelect = form.elements.role;
+    if (roleSelect) {
+      var roles = (USERS_ADMIN_STATE.permissionsMatrix || []).map(function(row) { return row.role; }).filter(Boolean);
+      if (!roles.length) roles = ['ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','CASHIER','APPROVER','REQUESTER','VIEWER'];
+      roleSelect.innerHTML = roles.map(function(role) {
+        return '<option value="' + escapeHtml(role) + '">' + escapeHtml(role) + '</option>';
+      }).join('');
+      roleSelect.value = user && user.role ? user.role : roles[0];
+      roleSelect.disabled = !currentUserHasPrivilege_('users:assign_roles');
+    }
+    var activeSelect = form.elements.active;
+    if (activeSelect && user && user.active && !currentUserHasPrivilege_('users:disable')) {
+      activeSelect.disabled = true;
+      activeSelect.title = 'Deaktivacija zahteva pravo users:disable.';
+    }
+    var cashboxSelect = form.elements.default_cashbox_id;
+    if (cashboxSelect) {
+      var cashboxes = uiState.config && Array.isArray(uiState.config.cashboxes) ? uiState.config.cashboxes : [];
+      cashboxSelect.innerHTML = '<option value="">Bez podrazumevane blagajne</option>' + cashboxes.map(function(cashbox) {
+        return '<option value="' + escapeHtml(cashbox.cashbox_id) + '">' + escapeHtml(cashbox.name || cashbox.cashbox_id) + '</option>';
+      }).join('');
+    }
+  }
+
+  function validateUsersAdminForm_(form, isEdit) {
+    var email = (form.elements.email.value || '').trim();
+    var fullName = (form.elements.full_name.value || '').trim();
+    var role = form.elements.role.value || '';
+    if (!isEdit && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      showDesktopMessage_('Unesite validan email korisnika.', 'error');
+      form.elements.email.focus();
+      return false;
+    }
+    if (!fullName) {
+      showDesktopMessage_('Ime i prezime su obavezni.', 'error');
+      form.elements.full_name.focus();
+      return false;
+    }
+    if (!role) {
+      showDesktopMessage_('Rola je obavezna.', 'error');
+      form.elements.role.focus();
+      return false;
+    }
+    return true;
+  }
+
+  function submitCreateUser_(form, close) {
+    if (!validateUsersAdminForm_(form, false)) return;
+    var payload = {
+      email: form.elements.email.value.trim(),
+      full_name: form.elements.full_name.value.trim(),
+      role: form.elements.role.value,
+      active: form.elements.active.value === 'true',
+      default_cashbox_id: form.elements.default_cashbox_id.value || ''
+    };
+    callApi('apiCreateUser', [payload], function(created) {
+      if (close) close();
+      showDesktopMessage_('Korisnik je kreiran.', 'success');
+      USERS_ADMIN_STATE.selectedUserId = created && created.user_id || '';
+      loadDesktopUsersAdmin_();
+    }, { successMessage: 'Korisnik je kreiran.' });
+  }
+
+  function submitUpdateUser_(form, close) {
+    if (!validateUsersAdminForm_(form, true)) return;
+    var userId = form.elements.user_id.value || '';
+    var payload = {
+      full_name: form.elements.full_name.value.trim(),
+      default_cashbox_id: form.elements.default_cashbox_id.value || ''
+    };
+    if (currentUserHasPrivilege_('users:assign_roles')) {
+      payload.role = form.elements.role.value;
+    }
+    if (!form.elements.active.disabled) {
+      payload.active = form.elements.active.value === 'true';
+    }
+    callApi('apiUpdateUserPermissions', [userId, payload], function(updated) {
+      if (close) close();
+      showDesktopMessage_('Korisnik je ažuriran.', 'success');
+      USERS_ADMIN_STATE.selectedUserId = updated && updated.user_id || userId;
+      loadDesktopUsersAdmin_();
+    }, { successMessage: 'Korisnik je ažuriran.' });
+  }
+
+  function confirmToggleUserActive_(userId) {
+    var user = USERS_ADMIN_STATE.users.filter(function(item) { return item.user_id === userId; })[0];
+    if (!user) return;
+    if (!currentUserHasPrivilege_('users:disable') && !currentUserHasPrivilege_('users:update')) {
+      showDesktopMessage_('Nemate ovlašćenje za promenu statusa korisnika.', 'error');
+      return;
+    }
+    var nextActive = !user.active;
+    appConfirm_({
+      title: nextActive ? 'Aktivacija korisnika' : 'Deaktivacija korisnika',
+      message: nextActive
+        ? 'Da li želite da aktivirate ovog korisnika?'
+        : 'Da li želite da deaktivirate ovog korisnika? Deaktiviran korisnik neće moći da koristi akcije u sistemu.',
+      confirmText: nextActive ? 'Aktiviraj korisnika' : 'Deaktiviraj korisnika',
+      danger: !nextActive
+    }, function() {
+      callApi('apiUpdateUserPermissions', [user.user_id, { active: nextActive }], function(updated) {
+        showDesktopMessage_(nextActive ? 'Korisnik je aktiviran.' : 'Korisnik je deaktiviran.', 'success');
+        USERS_ADMIN_STATE.selectedUserId = updated && updated.user_id || user.user_id;
+        loadDesktopUsersAdmin_();
+      });
+    });
+  }
 
   function bindPaymentOrdersOverview_() {
     if (window.__paymentOrdersOverviewBound) return;
