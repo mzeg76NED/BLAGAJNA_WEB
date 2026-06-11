@@ -447,3 +447,32 @@ PIN se bezbedno postavlja preko Script Properties bootstrap toka:
 PIN ne sme biti u kodu, promptu, dokumentaciji, audit payload-u ili izveštaju.
 
 `ok_for_deploy = true` znači da su struktura baze, app session sheet, audit kolone, duplikati i primarni aktivni ADMIN sa PIN-om spremni za Fazu 5 deploy/runtime QA.
+
+## Faza 4.7: privremeni web bootstrap
+
+Pošto `clasp run` u trenutnom okruženju ne može da izvrši helper funkcije, dodat je privremeni web bootstrap ekran:
+
+```text
+?view=app-login-bootstrap
+```
+
+Ekran omogućava:
+
+- readiness proveru,
+- dopunu `USERS` app login kolona,
+- kreiranje/dopunu `APP_SESSIONS`,
+- dopunu `AUDIT_LOG` app audit kolona,
+- kontrolisano rešavanje poznatog dupliranog `USR_ADMIN_MILANKO` reda sa emailom `mzeg76@google.com`,
+- unos PIN-a za primarnog app ADMIN korisnika `MILANKO`,
+- ponovni readiness report.
+
+PIN se unosi kroz HTML formu i ne ide kroz URL. Backend ga koristi samo za generisanje `pin_hash` i `pin_salt`. PIN, `pin_hash` i `pin_salt` se ne vraćaju u response.
+
+Ako je podešen Script Property `APP_LOGIN_BOOTSTRAP_TOKEN`, forma mora poslati isti token. Ako token nije podešen, bootstrap je dozvoljen samo poznatim tehničkim/admin Google sesijama u helperu.
+
+Ovaj endpoint je privremen. Posle uspešnog bootstrap-a i potvrde `ok_for_deploy = true`, obavezan je cleanup patch koji uklanja ili trajno zaključava:
+
+- `?view=app-login-bootstrap`,
+- `apiGetAppLoginBootstrapReadiness`,
+- `apiRunAppLoginBootstrap`,
+- web bootstrap HTML stranicu.

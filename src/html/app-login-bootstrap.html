@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BLAGAJNA - App login bootstrap</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #64748b;
+      --line: #d8e0ec;
+      --primary: #1f6feb;
+      --danger: #b42318;
+      --success: #0f7b46;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101722;
+        --panel: #172033;
+        --text: #e7edf7;
+        --muted: #9fb0c8;
+        --line: #2b3a50;
+        --primary: #7db1ff;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    main {
+      width: min(920px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.16);
+    }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    p { color: var(--muted); line-height: 1.5; }
+    form {
+      display: grid;
+      gap: 14px;
+      margin: 20px 0;
+    }
+    label {
+      display: grid;
+      gap: 6px;
+      font-weight: 700;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    button {
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 11px 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.primary { background: var(--primary); color: #fff; }
+    button.secondary { background: transparent; border-color: var(--line); color: var(--text); }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .message {
+      min-height: 24px;
+      font-weight: 700;
+    }
+    .message.error { color: var(--danger); }
+    .message.ok { color: var(--success); }
+    pre {
+      max-height: 420px;
+      overflow: auto;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(100, 116, 139, 0.09);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .note {
+      border-left: 4px solid var(--primary);
+      padding-left: 12px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>BLAGAJNA - privremeni app login bootstrap</h1>
+    <p class="note">Ovaj ekran je privremen. PIN se salje samo kroz formu i ne prikazuje se u rezultatu. Posle uspesnog bootstrap-a obavezan je cleanup patch.</p>
+
+    <form id="bootstrap-form">
+      <label>
+        Bootstrap token
+        <input id="bootstrap-token" type="password" autocomplete="off" placeholder="Ako je APP_LOGIN_BOOTSTRAP_TOKEN podesen">
+      </label>
+      <label>
+        ADMIN PIN za korisnika MILANKO
+        <input id="admin-pin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4">
+      </label>
+      <label>
+        Potvrda ADMIN PIN-a
+        <input id="admin-pin-confirm" type="password" inputmode="numeric" autocomplete="new-password" minlength="4">
+      </label>
+      <div class="actions">
+        <button class="secondary" type="button" id="readiness-btn">Proveri readiness</button>
+        <button class="primary" type="submit" id="bootstrap-btn">Izvrsi bootstrap</button>
+      </div>
+    </form>
+
+    <div id="message" class="message"></div>
+    <pre id="result">Nema rezultata.</pre>
+  </main>
+
+  <script>
+    (function() {
+      var form = document.getElementById('bootstrap-form');
+      var token = document.getElementById('bootstrap-token');
+      var pin = document.getElementById('admin-pin');
+      var confirmPin = document.getElementById('admin-pin-confirm');
+      var readinessBtn = document.getElementById('readiness-btn');
+      var bootstrapBtn = document.getElementById('bootstrap-btn');
+      var message = document.getElementById('message');
+      var result = document.getElementById('result');
+
+      function setBusy(busy) {
+        readinessBtn.disabled = busy;
+        bootstrapBtn.disabled = busy;
+      }
+
+      function showMessage(text, ok) {
+        message.textContent = text || '';
+        message.className = 'message ' + (ok ? 'ok' : 'error');
+      }
+
+      function render(response) {
+        result.textContent = JSON.stringify(response, null, 2);
+      }
+
+      function handleFailure(error) {
+        setBusy(false);
+        showMessage(error && error.message ? error.message : 'Doslo je do greske.', false);
+      }
+
+      readinessBtn.addEventListener('click', function() {
+        setBusy(true);
+        showMessage('Proveravam readiness...', true);
+        google.script.run
+          .withSuccessHandler(function(response) {
+            setBusy(false);
+            render(response);
+            showMessage(response && response.ok ? 'Readiness provera je zavrsena.' : 'Readiness provera je vratila gresku.', Boolean(response && response.ok));
+          })
+          .withFailureHandler(handleFailure)
+          .apiGetAppLoginBootstrapReadiness({ token: token.value });
+      });
+
+      form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        if (!pin.value || pin.value.length < 4 || !/^\d+$/.test(pin.value)) {
+          showMessage('PIN mora imati najmanje 4 cifre.', false);
+          pin.focus();
+          return;
+        }
+        if (pin.value !== confirmPin.value) {
+          showMessage('PIN i potvrda PIN-a se ne poklapaju.', false);
+          confirmPin.focus();
+          return;
+        }
+        setBusy(true);
+        showMessage('Izvrsavam bootstrap...', true);
+        google.script.run
+          .withSuccessHandler(function(response) {
+            setBusy(false);
+            pin.value = '';
+            confirmPin.value = '';
+            render(response);
+            showMessage(response && response.ok && response.data && response.data.ok_for_deploy ? 'Bootstrap je zavrsen. ok_for_deploy = true.' : 'Bootstrap je zavrsen, ali readiness nije spreman.', Boolean(response && response.ok));
+          })
+          .withFailureHandler(handleFailure)
+          .apiRunAppLoginBootstrap({
+            token: token.value,
+            admin_pin: pin.value
+          });
+      });
+    }());
+  </script>
+</body>
+</html>

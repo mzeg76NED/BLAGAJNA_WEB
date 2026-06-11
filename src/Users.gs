@@ -781,6 +781,104 @@ function initializeFirstAppAdminFromScriptProperty() {
   });
 }
 
+function runAppLoginBootstrapFromWeb(data) {
+  const payload = data || {};
+  assertAppLoginBootstrapAllowed_(payload.token || '');
+  assertValidUserPin_(payload.admin_pin || payload.pin || '');
+
+  const before = reportAppLoginDatabaseReadiness();
+  const duplicateFix = fixKnownMilankoGoogleDuplicateIfNeeded_();
+  const admin = initializeFirstAppAdmin({
+    user_id: 'USR_ADMIN_MILANKO',
+    user_code: 'MILANKO',
+    email: 'Milanko.Zegarac@nedeljkovic.co.rs',
+    full_name: 'Milanko Zegarac',
+    default_cashbox_id: 'CB_MAIN',
+    pin: payload.admin_pin || payload.pin
+  });
+  const after = reportAppLoginDatabaseReadiness();
+
+  return {
+    ok_for_deploy: after.ok_for_deploy,
+    duplicate_fix: duplicateFix,
+    admin: admin,
+    before: sanitizeBootstrapReadinessForApi_(before),
+    after: sanitizeBootstrapReadinessForApi_(after)
+  };
+}
+
+function assertAppLoginBootstrapAllowed_(token) {
+  const props = PropertiesService.getScriptProperties();
+  const expectedToken = props.getProperty('APP_LOGIN_BOOTSTRAP_TOKEN');
+  const providedToken = String(token || '').trim();
+  if (expectedToken) {
+    if (!providedToken || !secureCompare_(providedToken, String(expectedToken))) {
+      throw new Error('Bootstrap token is invalid.');
+    }
+    return true;
+  }
+
+  const email = normalizeEmail_(getCurrentUserEmail());
+  const allowedEmails = [
+    'milanko.zegarac@nedeljkovic.co.rs',
+    'mzeg76@google.com',
+    'blagajna@nedeljkovic.co.rs'
+  ];
+  if (allowedEmails.indexOf(email) === -1) {
+    throw new Error('Bootstrap token is not configured and Google session is not allowed for bootstrap.');
+  }
+  return true;
+}
+
+function fixKnownMilankoGoogleDuplicateIfNeeded_() {
+  ensureUsersAppLoginColumns();
+  const records = readSheetRecordsReadOnly_(SHEET_NAMES.USERS).filter(function(user) {
+    return String(user.user_id || '') === 'USR_ADMIN_MILANKO' &&
+      normalizeEmail_(user.email || '') === 'mzeg76@google.com';
+  });
+  if (findRecordById(SHEET_NAMES.USERS, 'user_id', 'USR_ADMIN_MILANKO_GOOGLE')) {
+    return {
+      changed: false,
+      reason: 'USR_ADMIN_MILANKO_GOOGLE already exists.'
+    };
+  }
+  if (records.length === 0) {
+    return {
+      changed: false,
+      reason: 'Known duplicate row was not found.'
+    };
+  }
+  if (records.length > 1) {
+    throw new Error('More than one row matches USR_ADMIN_MILANKO + mzeg76@google.com.');
+  }
+  return Object.assign(
+    { changed: true },
+    fixDuplicateUserId('USR_ADMIN_MILANKO', { email: 'mzeg76@google.com' }, 'USR_ADMIN_MILANKO_GOOGLE')
+  );
+}
+
+function sanitizeBootstrapReadinessForApi_(report) {
+  const source = report || {};
+  return {
+    ok_for_deploy: Boolean(source.ok_for_deploy),
+    blockers: source.blockers || [],
+    warnings: source.warnings || [],
+    users: source.users ? {
+      missing_columns: source.users.missing_columns || [],
+      duplicate_user_ids: source.users.duplicate_user_ids || [],
+      duplicate_user_codes: source.users.duplicate_user_codes || [],
+      active_admin_count: source.users.active_admin_count || 0,
+      active_admin_with_user_code_count: source.users.active_admin_with_user_code_count || 0,
+      active_admin_with_pin_count: source.users.active_admin_with_pin_count || 0,
+      users_without_user_code: source.users.users_without_user_code || [],
+      users_without_pin: source.users.users_without_pin || []
+    } : {},
+    app_sessions: source.app_sessions || {},
+    audit_log: source.audit_log || {},
+    structure_changes: source.structure_changes || {}
+  };
+}
+
 function reportDuplicateUsers() {
   const users = readSheetRecordsReadOnly_(SHEET_NAMES.USERS);
   return {

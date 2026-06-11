@@ -49,3 +49,4 @@ Ovaj dokument navodi poznata ograničenja trenutne pilot verzije sistema.
 10. App login deploy ne treba raditi dok `reportAppLoginDatabaseReadiness()` ne vrati `ok_for_deploy: true`.
 11. Duplirani `user_id` u `USERS` tabeli blokira spremnost za app login deploy jer sesije i audit moraju jednoznačno vezati akciju za aplikativnog korisnika.
 12. Faza 5 runtime QA ne sme početi ako Faza 4.6 nije izvršena nad realnom bazom ili ako readiness report i dalje ima blockers.
+13. Privremeni web bootstrap iz Faze 4.7 mora biti uklonjen ili trajno zaključan odmah posle uspešnog bootstrap-a.

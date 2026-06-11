@@ -19,6 +19,7 @@ function doGet(e) {
     'mobile',
     'desktop',
     'desktop-v2',
+    'app-login-bootstrap',
     'print-payment-request',
     'print-payment-order',
     'print-cash-event',
@@ -667,6 +668,22 @@ function apiPrepareUsersForAppLogin(sessionId) {
     ], function() {
       return prepareUsersForAppLogin();
     });
+  });
+}
+
+function apiGetAppLoginBootstrapReadiness(tokenOrData) {
+  return apiWrap_(function() {
+    const token = typeof tokenOrData === 'object' && tokenOrData
+      ? tokenOrData.token
+      : tokenOrData;
+    assertAppLoginBootstrapAllowed_(token);
+    return reportAppLoginDatabaseReadiness();
+  });
+}
+
+function apiRunAppLoginBootstrap(data) {
+  return apiWrap_(function() {
+    return runAppLoginBootstrapFromWeb(data || {});
   });
 }
 
