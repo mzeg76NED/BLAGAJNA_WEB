@@ -4777,6 +4777,51 @@
     color: #5eead4;
   }
 
+  .users-admin-tab-panel[hidden] {
+    display: none;
+  }
+
+  .users-admin-tabs span {
+    cursor: pointer;
+  }
+
+  .users-admin-role-summary {
+    background: rgba(3, 18, 33, .35);
+    border: 1px solid rgba(120, 170, 220, .16);
+    border-radius: 12px;
+    display: grid;
+    gap: 7px;
+    padding: 13px;
+  }
+
+  .users-admin-role-summary span,
+  .users-admin-role-summary small {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .users-admin-role-summary strong {
+    font-size: 20px;
+  }
+
+  .users-admin-role-summary p {
+    margin: 0;
+  }
+
+  .users-admin-matrix {
+    display: grid;
+    gap: 10px;
+  }
+
+  .users-admin-matrix-row {
+    background: rgba(3, 18, 33, .28);
+    border: 1px solid rgba(120, 170, 220, .12);
+    border-radius: 12px;
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+  }
+
   .users-admin-denied {
     min-height: 240px;
   }
@@ -4791,6 +4836,22 @@
 
   .users-admin-modal-form label:last-child {
     grid-column: 1 / -1;
+  }
+
+  .users-admin-modal-privileges {
+    background: rgba(3, 18, 33, .28);
+    border: 1px solid rgba(120, 170, 220, .14);
+    border-radius: 12px;
+    display: grid;
+    gap: 8px;
+    grid-column: 1 / -1;
+    padding: 12px;
+  }
+
+  .users-admin-modal-privileges p {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 0;
   }
 
   :root:not([data-theme="dark"]) .users-admin-page,
@@ -4859,6 +4920,18 @@
   :root:not([data-theme="dark"]) .users-admin-privileges span {
     background: #ccfbf1;
     color: #0f766e;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-role-summary,
+  :root:not([data-theme="dark"]) .users-admin-matrix-row,
+  :root:not([data-theme="dark"]) .users-admin-modal-privileges {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  :root:not([data-theme="dark"]) .users-admin-role-summary span,
+  :root:not([data-theme="dark"]) .users-admin-role-summary small {
+    color: #64748b;
   }
 
   @media (max-width: 1280px) {

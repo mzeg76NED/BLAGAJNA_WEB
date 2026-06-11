@@ -5476,19 +5476,23 @@
     target.innerHTML =
       '<div class="po-detail-head users-admin-detail-head"><div><h3>' + escapeHtml(user.full_name || 'Korisnik') + '</h3><small>' + escapeHtml(user.email || '—') + '</small></div>' +
         '<div><span class="user-role-badge">' + escapeHtml(user.role || '—') + '</span>' + renderUsersAdminStatusBadge_(user.active) + '</div></div>' +
-      '<div class="po-tabs"><span class="active">Pregled</span><span>Privilegije</span></div>' +
-      '<div class="po-detail-grid">' +
-        renderPaymentOrderField_('User ID', user.user_id) +
-        renderPaymentOrderField_('Email', user.email) +
-        renderPaymentOrderField_('Ime i prezime', user.full_name) +
-        renderPaymentOrderField_('Rola', user.role) +
-        renderPaymentOrderField_('Status', user.active ? 'Aktivan' : 'Neaktivan') +
-        renderPaymentOrderField_('Default blagajna', getUsersAdminCashboxLabel_(user.default_cashbox_id)) +
-        renderPaymentOrderField_('Kreiran', formatDateTimeShort_(user.created_at)) +
-        renderPaymentOrderField_('Ažuriran', formatDateTimeShort_(user.updated_at)) +
+      '<div class="po-tabs users-admin-tabs" data-users-detail-tabs><span class="active" data-users-tab="overview">Pregled</span><span data-users-tab="privileges">Privilegije</span></div>' +
+      '<div class="users-admin-tab-panel" data-users-tab-panel="overview">' +
+        '<div class="po-detail-grid">' +
+          renderPaymentOrderField_('User ID', user.user_id) +
+          renderPaymentOrderField_('Email', user.email) +
+          renderPaymentOrderField_('Ime i prezime', user.full_name) +
+          renderPaymentOrderField_('Rola', user.role) +
+          renderPaymentOrderField_('Status', user.active ? 'Aktivan' : 'Neaktivan') +
+          renderPaymentOrderField_('Default blagajna', getUsersAdminCashboxLabel_(user.default_cashbox_id)) +
+          renderPaymentOrderField_('Kreiran', formatDateTimeShort_(user.created_at)) +
+          renderPaymentOrderField_('Ažuriran', formatDateTimeShort_(user.updated_at)) +
+        '</div>' +
+        '<div class="users-admin-privilege-section"><h4>Privilegije korisnika</h4>' + renderUsersAdminPrivileges_(user.privileges || []) + '</div>' +
       '</div>' +
-      '<div class="users-admin-privilege-section"><h4>Privilegije korisnika</h4>' + renderUsersAdminPrivileges_(user.privileges || []) + '</div>' +
-      '<div class="users-admin-privilege-section"><h4>Matrica prava za rolu</h4>' + renderUsersAdminRoleMatrix_(user.role) + '</div>' +
+      '<div class="users-admin-tab-panel" data-users-tab-panel="privileges" hidden>' +
+        renderUsersAdminPrivilegesTab_(user) +
+      '</div>' +
       '<div class="po-panel-actions">' +
         '<button type="button" class="cash-count-action draft" id="d-users-detail-edit" ' + ((currentUserHasPrivilege_('users:update') || currentUserHasPrivilege_('users:assign_roles')) ? '' : 'disabled') + '><i class="ti ti-pencil" aria-hidden="true"></i> Izmeni</button>' +
         '<button type="button" class="' + (user.active ? 'cash-count-action cancel' : 'cash-count-action save') + '" id="d-users-detail-toggle" ' + ((currentUserHasPrivilege_('users:disable') || currentUserHasPrivilege_('users:update')) ? '' : 'disabled') + '><i class="ti ' + (user.active ? 'ti-user-off' : 'ti-user-check') + '" aria-hidden="true"></i> ' + (user.active ? 'Deaktiviraj' : 'Aktiviraj') + '</button>' +
@@ -5497,6 +5501,23 @@
     if (edit) edit.addEventListener('click', function() { openEditUserModal_(user.user_id); });
     var toggle = document.getElementById('d-users-detail-toggle');
     if (toggle) toggle.addEventListener('click', function() { confirmToggleUserActive_(user.user_id); });
+    bindUsersAdminDetailTabs_();
+  }
+
+  function bindUsersAdminDetailTabs_() {
+    var tabs = document.querySelectorAll('[data-users-detail-tabs] [data-users-tab]');
+    if (!tabs.length) return;
+    tabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        var target = tab.getAttribute('data-users-tab') || 'overview';
+        tabs.forEach(function(item) {
+          item.classList.toggle('active', item === tab);
+        });
+        document.querySelectorAll('[data-users-tab-panel]').forEach(function(panel) {
+          panel.hidden = panel.getAttribute('data-users-tab-panel') !== target;
+        });
+      });
+    });
   }
 
   function renderUsersAdminPrivileges_(privileges) {
@@ -5509,6 +5530,32 @@
   function renderUsersAdminRoleMatrix_(role) {
     var privileges = getUsersAdminRolePrivileges_(role);
     return renderUsersAdminPrivileges_(privileges);
+  }
+
+  function renderUsersAdminPrivilegesTab_(user) {
+    var privileges = getUsersAdminRolePrivileges_(user.role || '');
+    var canAssignRoles = currentUserHasPrivilege_('users:assign_roles');
+    return '<div class="users-admin-role-summary">' +
+        '<span>Rola korisnika</span>' +
+        '<strong>' + escapeHtml(user.role || '—') + '</strong>' +
+        '<p>Privilegije su izvedene iz role. Za promenu privilegija korisnika promenite rolu korisnika.</p>' +
+        (!canAssignRoles ? '<small>Nemate pravo users:assign_roles, prikaz je samo za čitanje.</small>' : '<small>Promena role u modalu menja skup privilegija korisnika.</small>') +
+      '</div>' +
+      '<div class="users-admin-privilege-section"><h4>Privilegije role ' + escapeHtml(user.role || '—') + '</h4>' + renderUsersAdminPrivileges_(privileges) + '</div>' +
+      '<div class="users-admin-privilege-section"><h4>Matrica prava po rolama</h4>' + renderUsersAdminPermissionsMatrix_() + '</div>';
+  }
+
+  function renderUsersAdminPermissionsMatrix_() {
+    var matrix = USERS_ADMIN_STATE.permissionsMatrix || [];
+    if (!matrix.length) {
+      return '<div class="po-empty-docs">Matrica prava nije učitana.</div>';
+    }
+    return '<div class="users-admin-matrix">' + matrix.map(function(row) {
+      return '<div class="users-admin-matrix-row">' +
+        '<strong>' + escapeHtml(row.role || '—') + '</strong>' +
+        renderUsersAdminPrivileges_(Array.isArray(row.privileges) ? row.privileges : []) +
+      '</div>';
+    }).join('') + '</div>';
   }
 
   function getUsersAdminCashboxLabel_(cashboxId) {
@@ -5553,6 +5600,7 @@
           '<label>Status<select name="active"><option value="true">Aktivan</option><option value="false">Neaktivan</option></select></label>' +
           '<label>Default blagajna<select name="default_cashbox_id"></select></label>' +
           '<label>Napomena<textarea name="note" rows="3" placeholder="Interna napomena za ovu izmenu"></textarea></label>' +
+          '<div class="users-admin-modal-privileges"><strong>Privilegije izabrane role</strong><p>Privilegije su izvedene iz role i nije ih moguće menjati pojedinačno.</p><div data-modal-role-privileges></div></div>' +
         '</form>' +
         '<div class="app-dialog-actions">' +
           '<button type="button" class="btn-ghost" data-dialog-cancel>Odustani</button>' +
@@ -5573,6 +5621,7 @@
       if (isEdit) submitUpdateUser_(form, close);
       else submitCreateUser_(form, close);
     });
+    bindUsersAdminModalPrivilegePreview_(form);
     window.setTimeout(function() {
       var first = form.querySelector(isEdit ? '[name="full_name"]' : '[name="email"]');
       if (first) first.focus();
@@ -5602,6 +5651,17 @@
         return '<option value="' + escapeHtml(cashbox.cashbox_id) + '">' + escapeHtml(cashbox.name || cashbox.cashbox_id) + '</option>';
       }).join('');
     }
+  }
+
+  function bindUsersAdminModalPrivilegePreview_(form) {
+    var roleSelect = form && form.elements.role;
+    var target = form ? form.querySelector('[data-modal-role-privileges]') : null;
+    if (!roleSelect || !target) return;
+    var render = function() {
+      target.innerHTML = renderUsersAdminPrivileges_(getUsersAdminRolePrivileges_(roleSelect.value || ''));
+    };
+    roleSelect.addEventListener('change', render);
+    render();
   }
 
   function validateUsersAdminForm_(form, isEdit) {
