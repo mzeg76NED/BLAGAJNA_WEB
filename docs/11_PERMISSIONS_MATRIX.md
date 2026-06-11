@@ -19,7 +19,7 @@ Prava pristupa se ne oslanjaju na frontend. Frontend može da sakrije dugme, ali
 
 ## Matrica prava
 
-Patch 02 uvodi server-side privilegije u `Users.gs`. Ova tabela opisuje nameru matrice; backend funkcije i dalje rade dodatne provere statusa, vlasnistva i poslovnog toka.
+Patch 02 uvodi server-side privilegije u `Users.gs`. Od Faze 4.8 matrica prava se čuva u Google Sheets tabelama `ROLES`, `PERMISSIONS` i `ROLE_PERMISSIONS`, uz hardcoded fallback ako tabele nisu spremne. Backend funkcije i dalje rade dodatne provere statusa, vlasnistva i poslovnog toka.
 
 | Action | ADMIN | DIRECTOR | FINANCE | CASHIER_SUPERVISOR | CASHIER | APPROVER | REQUESTER | VIEWER |
 |---|---|---|---|---|---|---|---|---|
@@ -76,7 +76,7 @@ Patch 02 uvodi server-side privilegije u `Users.gs`. Ova tabela opisuje nameru m
 
 ## Mapiranje korisnika i prava
 
-`ADMIN` ima sve privilegije.
+`ADMIN` ima sve privilegije. U backend helperima se tretira kao wildcard rola i ne sme ostati bez operativnih prava.
 
 `DIRECTOR`, `FINANCE`, `CASHIER_SUPERVISOR` i `APPROVER` imaju prava za pregled i obradu zahteva, kao i kreiranje/izdavanje naloga u skladu sa postojecim tokom.
 
@@ -123,7 +123,9 @@ Prava za administraciju:
 
 Privilegije se ne uredjuju pojedinacno po korisniku. Korisnik dobija privilegije iskljucivo kroz rolu.
 
-Tab `Privilegije` u UI-ju prikazuje trenutnu rolu, privilegije te role, matricu prava po rolama i napomenu da se prava menjaju promenom role.
+Tab `Privilegije` u UI-ju prikazuje trenutnu rolu, privilegije te role i matricu prava po rolama. Korisnik sa `users:assign_roles` može da menja prava po rolama kroz checkbox matricu i dugme `Sačuvaj prava po rolama`.
+
+Permission cache koristi script cache sa TTL oko 300 sekundi. Promena prava po roli briše cache.
 
 ## Server-side app session gating
 

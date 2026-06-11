@@ -4,7 +4,9 @@
 
 Ovaj dokument opisuje minimalni korisnicki model za BLAGAJNA WEB.
 
-Patch 02 ne uvodi paralelni sistem korisnika. Koristi se postojeca tabela `USERS`, postojece role i server-side matrica privilegija u `Users.gs`.
+Patch 02 ne uvodi paralelni sistem korisnika. Koristi se postojeca tabela `USERS`.
+
+Od Faze 4.8 role i prava se vode u bazi kroz tabele `ROLES`, `PERMISSIONS` i `ROLE_PERMISSIONS`. Hardcoded `ROLE_PRIVILEGES` u kodu ostaje samo fallback ako permission tabele nisu spremne.
 
 ## Korisnicki model
 
@@ -29,7 +31,9 @@ Tabela `USERS` ostaje osnovni izvor korisnika:
 | created_at | Vreme kreiranja |
 | updated_at | Vreme poslednje izmene |
 
-U ovom patch-u se ne dodaje posebna tabela privilegija. Privilegije se izvode iz role.
+Privilegije se izvode iz role. Prava se menjaju na nivou role, ne pojedinačno po korisniku.
+
+`ADMIN` ima sva poznata prava u aplikaciji bez obzira na stanje matrice.
 
 `user_code` je glavni identifikator za aplikativni login. `email` ostaje kompatibilno i informativno polje zbog postojecih ekrana i backend funkcija koje jos koriste Google email.
 

@@ -25,6 +25,10 @@ function initializeDatabase() {
       sheet = spreadsheet.insertSheet(sheetName);
     }
 
+    if (!headers || !headers.length) {
+      return;
+    }
+
     if (sheet.getLastRow() === 0) {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     } else {
@@ -32,7 +36,9 @@ function initializeDatabase() {
     }
 
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    if (headers.length) {
+      sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    }
   });
 
   seedInitialCurrencies_();
@@ -66,9 +72,12 @@ function getActualHeaders_(sheet) {
 }
 
 function appendRecord(sheetName, record) {
-  const sheet = getSheetByNameOrThrow(sheetName);
   ensureConfiguredSheetColumns_(sheetName);
+  const sheet = getSheetByNameOrThrow(sheetName);
   const headers = getHeaders_(sheet);
+  if (!headers.length) {
+    throw new Error('No headers configured for sheet: ' + sheetName);
+  }
   const row = headers.map(function(header) {
     return Object.prototype.hasOwnProperty.call(record, header) ? record[header] : '';
   });
@@ -78,8 +87,10 @@ function appendRecord(sheetName, record) {
 }
 
 function findRecordById(sheetName, idField, idValue) {
-  ensureConfiguredSheetColumns_(sheetName);
-  const sheet = getSheetByNameOrThrow(sheetName);
+  const sheet = getDatabaseSpreadsheet_().getSheetByName(sheetName);
+  if (!sheet) {
+    return null;
+  }
   const headers = getHeaders_(sheet);
   const idIndex = headers.indexOf(idField);
 
@@ -88,7 +99,7 @@ function findRecordById(sheetName, idField, idValue) {
   }
 
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
+  if (lastRow < 2 || headers.length < 1) {
     return null;
   }
 
@@ -134,13 +145,15 @@ function updateRecordById(sheetName, idField, idValue, updates) {
 }
 
 function listRecords(sheetName, filters) {
-  ensureConfiguredSheetColumns_(sheetName);
-  const sheet = getSheetByNameOrThrow(sheetName);
+  const sheet = getDatabaseSpreadsheet_().getSheetByName(sheetName);
+  if (!sheet) {
+    return [];
+  }
   const headers = getHeaders_(sheet);
   const lastRow = sheet.getLastRow();
   const activeFilters = filters || {};
 
-  if (lastRow < 2) {
+  if (lastRow < 2 || headers.length < 1) {
     return [];
   }
 
@@ -157,15 +170,17 @@ function listRecords(sheetName, filters) {
 }
 
 function listLatestRecords(sheetName, limit, filters) {
-  ensureConfiguredSheetColumns_(sheetName);
-  const sheet = getSheetByNameOrThrow(sheetName);
+  const sheet = getDatabaseSpreadsheet_().getSheetByName(sheetName);
+  if (!sheet) {
+    return [];
+  }
   const headers = getHeaders_(sheet);
   const lastRow = sheet.getLastRow();
   const maxRows = Number(limit || 100);
   const rowCount = isFinite(maxRows) && maxRows > 0 ? Math.min(maxRows, Math.max(lastRow - 1, 0)) : Math.max(lastRow - 1, 0);
   const activeFilters = filters || {};
 
-  if (rowCount < 1) {
+  if (rowCount < 1 || headers.length < 1) {
     return [];
   }
 
@@ -244,7 +259,9 @@ function syncConfiguredHeaders_(sheet, configuredHeaders) {
   }
 
   const startColumn = existingHeaders.length + 1;
-  sheet.getRange(1, startColumn, 1, headersToAdd.length).setValues([headersToAdd]);
+  if (headersToAdd.length) {
+    sheet.getRange(1, startColumn, 1, headersToAdd.length).setValues([headersToAdd]);
+  }
 }
 
 function ensureConfiguredSheetColumns_(sheetName) {
@@ -288,7 +305,10 @@ function ensureSheetColumns_(sheetName, expectedHeaders) {
 
   if (expected.length) {
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, getActualHeaders_(sheet).length).setFontWeight('bold');
+    const finalHeaderLength = getActualHeaders_(sheet).length;
+    if (finalHeaderLength > 0) {
+      sheet.getRange(1, 1, 1, finalHeaderLength).setFontWeight('bold');
+    }
   }
 
   return {

@@ -87,7 +87,6 @@ function loginAppUser(userCode, pin, context) {
 }
 
 function logoutAppUser(sessionId) {
-  ensureAppSessionsSheet();
   ensureAuditAppContextColumns();
   assertNonEmptyString(String(sessionId || ''), 'sessionId');
   const match = findRecordById(SHEET_NAMES.APP_SESSIONS, 'session_id', sessionId);
@@ -119,7 +118,6 @@ function logoutAppUser(sessionId) {
 }
 
 function getCurrentAppSession(sessionId) {
-  ensureAppSessionsSheet();
   assertNonEmptyString(String(sessionId || ''), 'sessionId');
   const match = findRecordById(SHEET_NAMES.APP_SESSIONS, 'session_id', sessionId);
   if (!match) {
@@ -153,7 +151,6 @@ function getCurrentAppSession(sessionId) {
 }
 
 function switchAppUser(userCode, pin, context) {
-  ensureAppSessionsSheet();
   ensureAuditAppContextColumns();
   const switchContext = context || {};
   const previousSessionId = switchContext.session_id || switchContext.previous_session_id || '';
@@ -179,7 +176,6 @@ function switchAppUser(userCode, pin, context) {
 }
 
 function requireAppSession(sessionId, requiredPrivileges) {
-  ensureAppSessionsSheet();
   if (!sessionId) {
     throw new Error('Sesija je istekla. Prijavite se ponovo.');
   }

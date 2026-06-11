@@ -5608,7 +5608,8 @@
     filtered: [],
     permissionsMatrix: [],
     selectedUserId: '',
-    loading: false
+    loading: false,
+    rolePermissionsDirty: false
   };
 
   function bindUsersAdminOverview_() {
@@ -5642,8 +5643,9 @@
       return;
     }
     renderUsersAdminAllowed_();
-    callApi('apiGetPermissionsMatrix', [], function(matrix) {
+    callApi('apiGetRolePermissionsMatrix', [], function(matrix) {
       USERS_ADMIN_STATE.permissionsMatrix = Array.isArray(matrix) ? matrix : [];
+      USERS_ADMIN_STATE.rolePermissionsDirty = false;
       populateUsersAdminFilters_();
       callApi('apiListUsers', [{}], function(users) {
         USERS_ADMIN_STATE.users = Array.isArray(users) ? users.map(normalizeUsersAdminUser_) : [];
@@ -5907,6 +5909,7 @@
     var toggle = document.getElementById('d-users-detail-toggle');
     if (toggle) toggle.addEventListener('click', function() { confirmToggleUserActive_(user.user_id); });
     bindUsersAdminDetailTabs_();
+    bindUsersAdminRolePermissionControls_();
   }
 
   function loginStatusLabel_(status) {
@@ -5953,24 +5956,88 @@
     return '<div class="users-admin-role-summary">' +
         '<span>Rola korisnika</span>' +
         '<strong>' + escapeHtml(user.role || '—') + '</strong>' +
-        '<p>Privilegije su izvedene iz role. Za promenu privilegija korisnika promenite rolu korisnika.</p>' +
-        (!canAssignRoles ? '<small>Nemate pravo users:assign_roles, prikaz je samo za čitanje.</small>' : '<small>Promena role u modalu menja skup privilegija korisnika.</small>') +
+        '<p>Privilegije su izvedene iz role. Prava se menjaju na nivou role, ne pojedinačno po korisniku.</p>' +
+        (!canAssignRoles ? '<small>Nemate pravo users:assign_roles, prikaz je samo za čitanje.</small>' : '<small>Izmene u matrici važe za sve korisnike sa tom rolom.</small>') +
       '</div>' +
       '<div class="users-admin-privilege-section"><h4>Privilegije role ' + escapeHtml(user.role || '—') + '</h4>' + renderUsersAdminPrivileges_(privileges) + '</div>' +
-      '<div class="users-admin-privilege-section"><h4>Matrica prava po rolama</h4>' + renderUsersAdminPermissionsMatrix_() + '</div>';
+      '<div class="users-admin-privilege-section"><h4>Matrica prava po rolama</h4>' + renderUsersAdminPermissionsMatrix_(canAssignRoles) + '</div>';
   }
 
-  function renderUsersAdminPermissionsMatrix_() {
+  function renderUsersAdminPermissionsMatrix_(editable) {
     var matrix = USERS_ADMIN_STATE.permissionsMatrix || [];
     if (!matrix.length) {
       return '<div class="po-empty-docs">Matrica prava nije učitana.</div>';
     }
-    return '<div class="users-admin-matrix">' + matrix.map(function(row) {
-      return '<div class="users-admin-matrix-row">' +
-        '<strong>' + escapeHtml(row.role || '—') + '</strong>' +
-        renderUsersAdminPrivileges_(Array.isArray(row.privileges) ? row.privileges : []) +
-      '</div>';
-    }).join('') + '</div>';
+    var roles = matrix.map(function(row) { return row.role; }).filter(Boolean);
+    var permissions = getUsersAdminAllPermissions_();
+    var controls = editable
+      ? '<div class="users-admin-matrix-actions"><button type="button" class="btn-primary small" data-save-role-permissions>Sačuvaj prava po rolama</button><button type="button" class="btn-ghost small" data-refresh-role-permissions>Osveži matricu</button></div>'
+      : '';
+    return controls + '<div class="users-admin-matrix-table-wrap"><table class="po-table users-admin-matrix-table"><thead><tr><th>Privilegija</th>' +
+      roles.map(function(role) { return '<th>' + escapeHtml(role) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      permissions.map(function(permission) {
+        return '<tr><td><code>' + escapeHtml(permission) + '</code></td>' + roles.map(function(role) {
+          var checked = getUsersAdminRolePrivileges_(role).indexOf(permission) !== -1;
+          var disabled = !editable || role === 'ADMIN';
+          return '<td><input type="checkbox" data-role-permission-check data-role="' + escapeHtml(role) + '" data-permission="' + escapeHtml(permission) + '"' + (checked ? ' checked' : '') + (disabled ? ' disabled' : '') + '></td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  function getUsersAdminAllPermissions_() {
+    var result = [];
+    (USERS_ADMIN_STATE.permissionsMatrix || []).forEach(function(row) {
+      (Array.isArray(row.privileges) ? row.privileges : []).forEach(function(permission) {
+        if (permission && result.indexOf(permission) === -1) result.push(permission);
+      });
+    });
+    return result.sort();
+  }
+
+  function bindUsersAdminRolePermissionControls_() {
+    document.querySelectorAll('[data-role-permission-check]').forEach(function(input) {
+      input.addEventListener('change', function() {
+        USERS_ADMIN_STATE.rolePermissionsDirty = true;
+      });
+    });
+    var refresh = document.querySelector('[data-refresh-role-permissions]');
+    if (refresh) refresh.addEventListener('click', function() {
+      loadDesktopUsersAdmin_();
+    });
+    var save = document.querySelector('[data-save-role-permissions]');
+    if (save) save.addEventListener('click', saveUsersAdminRolePermissions_);
+  }
+
+  function saveUsersAdminRolePermissions_() {
+    if (!currentUserHasPrivilege_('users:assign_roles')) {
+      showDesktopMessage_('Nemate ovlašćenje za izmenu prava po rolama.', 'error');
+      return;
+    }
+    var grouped = {};
+    document.querySelectorAll('[data-role-permission-check]').forEach(function(input) {
+      var role = input.getAttribute('data-role') || '';
+      var permission = input.getAttribute('data-permission') || '';
+      if (!role || role === 'ADMIN') return;
+      if (!grouped[role]) grouped[role] = [];
+      if (input.checked) grouped[role].push(permission);
+    });
+    var roles = Object.keys(grouped);
+    if (!roles.length) {
+      showDesktopMessage_('Nema izmena za čuvanje.', 'info');
+      return;
+    }
+    var index = 0;
+    var saveNext = function() {
+      if (index >= roles.length) {
+        showDesktopMessage_('Prava po rolama su sačuvana.', 'success');
+        loadDesktopUsersAdmin_();
+        return;
+      }
+      var role = roles[index++];
+      callApi('apiUpdateRolePermissions', [role, grouped[role]], saveNext, { quiet: true });
+    };
+    saveNext();
   }
 
   function getUsersAdminCashboxLabel_(cashboxId) {

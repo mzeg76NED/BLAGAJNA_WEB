@@ -5,7 +5,7 @@
  * intentionally configures this project copy for one known environment.
  */
 const APP_NAME = 'BLAGAJNA WEB';
-const APP_VERSION = '2.0.28-pilot-users-admin-privileges';
+const APP_VERSION = '2.0.30-app-login-permissions-hotfix';
 const ENVIRONMENT = 'PILOT'; // DEV, PILOT, PROD
 const DEBUG_MODE = false;
 const DATABASE_SPREADSHEET_ID = '';
@@ -14,7 +14,6 @@ const DOCUMENT_ROOT_FOLDER_ID = '';
 const DOCUMENT_ROOT_FOLDER_NAME = 'BLAGAJNA_WEB_DOCUMENTS';
 const BACKUP_ROOT_FOLDER_ID = '';
 const BACKUP_ROOT_FOLDER_NAME = 'BLAGAJNA_WEB_BACKUPS';
-const TEMP_APP_LOGIN_BOOTSTRAP_TOKEN = 'tmp-boot-20260611-7F8A2D91C64B4E17A9D0F3B8256CE4AA';
 
 const APP_CONFIG = Object.freeze({
   APP_NAME: APP_NAME,
@@ -34,6 +33,9 @@ const APP_CONFIG = Object.freeze({
 const SHEET_NAMES = Object.freeze({
   USERS: 'USERS',
   APP_SESSIONS: 'APP_SESSIONS',
+  ROLES: 'ROLES',
+  PERMISSIONS: 'PERMISSIONS',
+  ROLE_PERMISSIONS: 'ROLE_PERMISSIONS',
   CASHBOXES: 'CASHBOXES',
   CURRENCIES: 'CURRENCIES',
   PAYMENT_REQUESTS: 'PAYMENT_REQUESTS',
@@ -264,6 +266,32 @@ const TABLE_HEADERS = Object.freeze({
     'active',
     'logout_at',
     'device_label'
+  ]),
+  ROLES: Object.freeze([
+    'role_id',
+    'role_name',
+    'description',
+    'active',
+    'system_role',
+    'created_at',
+    'updated_at'
+  ]),
+  PERMISSIONS: Object.freeze([
+    'permission_id',
+    'permission_name',
+    'description',
+    'category',
+    'active',
+    'system_permission',
+    'created_at',
+    'updated_at'
+  ]),
+  ROLE_PERMISSIONS: Object.freeze([
+    'role_id',
+    'permission_id',
+    'allowed',
+    'created_at',
+    'updated_at'
   ]),
   CASHBOXES: Object.freeze([
     'cashbox_id',

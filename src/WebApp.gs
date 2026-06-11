@@ -4,7 +4,10 @@
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   if (params.bootstrap === 'app-login') {
-    return renderAppLoginBootstrap_(params);
+    return HtmlService
+      .createHtmlOutput('<!doctype html><html><body><h1>Bootstrap endpoint je deaktiviran.</h1><p>Koristite administraciju korisnika za dalje izmene.</p></body></html>')
+      .setTitle('Bootstrap deaktiviran')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
   const specialView = params.view || params.page || '';
   if (specialView === 'manifest') {
@@ -39,39 +42,6 @@ function doGet(e) {
   return template.evaluate()
     .setTitle(APP_CONFIG.APP_NAME)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
-function renderAppLoginBootstrap_(params) {
-  let status;
-  try {
-    status = getAppLoginBootstrapStatusForWeb(params.token || '');
-  } catch (error) {
-    return HtmlService
-      .createHtmlOutput('<!doctype html><html><body><h1>Bootstrap pristup je odbijen.</h1><p>' + escapeHtmlForServer_(error.message || 'Token nije validan.') + '</p></body></html>')
-      .setTitle('Bootstrap pristup odbijen')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  }
-  if (status.ok_for_deploy || status.bootstrap_done) {
-    return HtmlService
-      .createHtmlOutput('<!doctype html><html><body><h1>Bootstrap je već završen.</h1></body></html>')
-      .setTitle('Bootstrap je završen')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  }
-  const template = HtmlService.createTemplateFromFile('html/app-login-bootstrap');
-  template.bootstrapToken = params.token || '';
-  template.bootstrapStatus = JSON.stringify(status);
-  return template.evaluate()
-    .setTitle('Bootstrap app login')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
-function escapeHtmlForServer_(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function buildPwaManifest_() {
@@ -708,16 +678,54 @@ function apiPrepareUsersForAppLogin(sessionId) {
 
 function apiGetAppLoginBootstrapReadiness(tokenOrData) {
   return apiWrap_(function() {
-    const token = typeof tokenOrData === 'object' && tokenOrData
-      ? tokenOrData.token
-      : tokenOrData;
-    return getAppLoginBootstrapStatusForWeb(token);
+    throw new Error('Bootstrap endpoint je deaktiviran. Koristite administraciju korisnika za dalje izmene.');
   });
 }
 
 function apiRunAppLoginBootstrap(data) {
   return apiWrap_(function() {
-    return runAppLoginBootstrapFromWeb(data || {});
+    throw new Error('Bootstrap endpoint je deaktiviran. Koristite administraciju korisnika za dalje izmene.');
+  });
+}
+
+function apiGetRolePermissionsMatrix(sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, [
+      USER_PRIVILEGES.USERS_ASSIGN_ROLES,
+      USER_PRIVILEGES.AUDIT_VIEW
+    ], function() {
+      return getRolePermissionsMatrix();
+    });
+  });
+}
+
+function apiListRoles(sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, [
+      USER_PRIVILEGES.USERS_ASSIGN_ROLES,
+      USER_PRIVILEGES.AUDIT_VIEW
+    ], function() {
+      return listRoles();
+    });
+  });
+}
+
+function apiListPermissions(sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, [
+      USER_PRIVILEGES.USERS_ASSIGN_ROLES,
+      USER_PRIVILEGES.AUDIT_VIEW
+    ], function() {
+      return listPermissions();
+    });
+  });
+}
+
+function apiUpdateRolePermissions(roleId, permissionIdsOrMatrix, sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.USERS_ASSIGN_ROLES, function() {
+      return updateRolePermissions(roleId, permissionIdsOrMatrix);
+    });
   });
 }
 

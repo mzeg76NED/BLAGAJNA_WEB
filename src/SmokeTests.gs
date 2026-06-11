@@ -485,6 +485,68 @@ function smokeTestPermissionsMatrix() {
   });
 }
 
+function smokeTestRolePermissionSheetsReadiness() {
+  return runSmokeTest_('Role permission sheets readiness', function() {
+    const report = ensureRolePermissionSheets();
+    const matrix = getRolePermissionsMatrix();
+    if (!matrix.length) {
+      throw new Error('Role permission matrix is empty.');
+    }
+    return {
+      message: 'Role permission sheets are available and matrix can be read.',
+      details: {
+        roles: matrix.length,
+        permissions_added: report.permissions_added.length,
+        role_permissions_added: report.role_permissions_added.length
+      }
+    };
+  });
+}
+
+function smokeTestAdminHasAllPrivileges() {
+  return runSmokeTest_('ADMIN has all privileges', function() {
+    const all = getAllKnownPrivileges_();
+    const adminPrivileges = getPrivilegesForRole_(USER_ROLES.ADMIN);
+    const missing = all.filter(function(privilege) {
+      return adminPrivileges.indexOf(privilege) === -1 || !userHasPrivilege_({ role: USER_ROLES.ADMIN }, privilege);
+    });
+    if (missing.length) {
+      throw new Error('ADMIN missing privileges: ' + missing.join(', '));
+    }
+    return {
+      message: 'ADMIN has wildcard access to all known privileges.',
+      details: { privileges: all.length }
+    };
+  });
+}
+
+function smokeTestSafeSheetReadEmptySheet() {
+  return runSmokeTest_('Safe sheet read empty/missing sheet', function() {
+    const rows = listRecords('__MISSING_SMOKE_SHEET__');
+    const latest = listLatestRecords('__MISSING_SMOKE_SHEET__', 5);
+    const found = findRecordById('__MISSING_SMOKE_SHEET__', 'id', '1');
+    if (rows.length !== 0 || latest.length !== 0 || found !== null) {
+      throw new Error('Missing sheet reads did not return safe empty results.');
+    }
+    return {
+      message: 'Safe read helpers return empty results for missing/empty sheets.',
+      details: { rows: rows.length, latest: latest.length, found: found }
+    };
+  });
+}
+
+function smokeTestAppLoginPerformanceBaseline() {
+  return runSmokeTest_('App login performance baseline', function() {
+    const started = new Date().getTime();
+    getRolePermissionsMatrix();
+    const elapsedMs = new Date().getTime() - started;
+    return {
+      message: 'Permission matrix read completed.',
+      details: { elapsed_ms: elapsedMs }
+    };
+  });
+}
+
 function smokeTestAppLoginPinHelpers() {
   return runSmokeTest_('App login PIN helpers', function() {
     const pin = '1234';
@@ -784,6 +846,10 @@ function runAllSmokeTests() {
     smokeTestRequestOverLimitRequiresApproval(),
     smokeTestCashMovementsReportLimit(),
     smokeTestPermissionsMatrix(),
+    smokeTestRolePermissionSheetsReadiness(),
+    smokeTestAdminHasAllPrivileges(),
+    smokeTestSafeSheetReadEmptySheet(),
+    smokeTestAppLoginPerformanceBaseline(),
     smokeTestAppLoginPinHelpers(),
     smokeTestAppLoginModelReadOnly(),
     smokeTestUserAdminAppLoginReadOnly(),

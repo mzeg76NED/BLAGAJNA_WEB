@@ -468,12 +468,25 @@ Ekran omogućava:
 
 PIN se unosi kroz HTML formu i ne ide kroz URL. Backend ga koristi samo za generisanje `pin_hash` i `pin_salt`. PIN, `pin_hash` i `pin_salt` se ne vraćaju u response.
 
-Ako je podešen Script Property `APP_LOGIN_BOOTSTRAP_TOKEN`, forma mora poslati isti token. Pošto `clasp run` trenutno ne dozvoljava pouzdano postavljanje Script Properties-a, Faza 4.7 koristi jednu privremenu hardcoded token konstantu `TEMP_APP_LOGIN_BOOTSTRAP_TOKEN`. Token mora biti uklonjen u cleanup patch-u.
+Ako je podešen Script Property `APP_LOGIN_BOOTSTRAP_TOKEN`, forma mora poslati isti token. Faza 4.8 uklanja privremeni hardcoded token iz koda.
 
 Ovaj endpoint je privremen. Posle uspešnog bootstrap-a i potvrde `ok_for_deploy = true`, obavezan je cleanup patch koji uklanja ili trajno zaključava:
 
 - `?bootstrap=app-login`,
-- `TEMP_APP_LOGIN_BOOTSTRAP_TOKEN`,
 - `apiGetAppLoginBootstrapReadiness`,
 - `apiRunAppLoginBootstrap`,
 - web bootstrap HTML stranicu.
+
+## Faza 4.8: hotfix prava, performansi i bootstrap cleanup
+
+Faza 4.8 uklanja aktivni privremeni bootstrap endpoint i privremeni hardcoded token. `?bootstrap=app-login` više ne prikazuje formu za unos PIN-a, već vraća poruku da je bootstrap deaktiviran.
+
+Role i prava se vode u bazi:
+
+- `ROLES`
+- `PERMISSIONS`
+- `ROLE_PERMISSIONS`
+
+Hardcoded `ROLE_PRIVILEGES` ostaje samo fallback za slučaj da permission tabele nisu spremne. `ADMIN` ima sva poznata prava kroz wildcard pravilo.
+
+Permission matrica se kešira u `CacheService` oko 300 sekundi. Izmena prava po roli briše cache.

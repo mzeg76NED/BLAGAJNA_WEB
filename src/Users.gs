@@ -6,26 +6,36 @@ const USER_PRIVILEGES = Object.freeze({
   USERS_UPDATE: 'users:update',
   USERS_DISABLE: 'users:disable',
   USERS_ASSIGN_ROLES: 'users:assign_roles',
+  ROLES_VIEW: 'roles:view',
+  ROLES_UPDATE: 'roles:update',
+  PERMISSIONS_VIEW: 'permissions:view',
+  PERMISSIONS_UPDATE: 'permissions:update',
   PAYMENT_REQUESTS_CREATE: 'payment_requests:create',
   PAYMENT_REQUESTS_VIEW_OWN: 'payment_requests:view_own',
   PAYMENT_REQUESTS_VIEW_ALL: 'payment_requests:view_all',
   PAYMENT_REQUESTS_APPROVE: 'payment_requests:approve',
   PAYMENT_REQUESTS_REJECT: 'payment_requests:reject',
   PAYMENT_REQUESTS_RETURN_FOR_CORRECTION: 'payment_requests:return_for_correction',
+  PAYMENT_REQUESTS_CANCEL: 'payment_requests:cancel',
   PAYMENT_ORDERS_CREATE: 'payment_orders:create',
   PAYMENT_ORDERS_VIEW: 'payment_orders:view',
   PAYMENT_ORDERS_ISSUE: 'payment_orders:issue',
   PAYMENT_ORDERS_REJECT: 'payment_orders:reject',
+  PAYMENT_ORDERS_CANCEL: 'payment_orders:cancel',
   PAYMENT_ORDERS_EXECUTE: 'payment_orders:execute',
+  PAYMENT_ORDERS_REVERSE: 'payment_orders:reverse',
   DOCUMENTS_ATTACH: 'documents:attach',
   DOCUMENTS_VIEW: 'documents:view',
   DOCUMENTS_CANCEL: 'documents:cancel',
   CASH_EVENTS_CREATE: 'cash_events:create',
   CASH_EVENTS_VIEW: 'cash_events:view',
   CASH_EVENTS_REVERSE: 'cash_events:reverse',
+  TREASURY_CREATE: 'treasury:create',
+  TREASURY_VIEW: 'treasury:view',
   SHIFTS_OPEN: 'shifts:open',
   SHIFTS_COUNT: 'shifts:count',
   SHIFTS_CLOSE: 'shifts:close',
+  SHIFTS_HANDOVER: 'shifts:handover',
   SHIFTS_VIEW: 'shifts:view',
   AUDIT_VIEW: 'audit:view'
 });
@@ -36,26 +46,36 @@ const ROLE_PRIVILEGES = Object.freeze({
     'users:update',
     'users:disable',
     'users:assign_roles',
+    'roles:view',
+    'roles:update',
+    'permissions:view',
+    'permissions:update',
     'payment_requests:create',
     'payment_requests:view_own',
     'payment_requests:view_all',
     'payment_requests:approve',
     'payment_requests:reject',
     'payment_requests:return_for_correction',
+    'payment_requests:cancel',
     'payment_orders:create',
     'payment_orders:view',
     'payment_orders:issue',
     'payment_orders:reject',
+    'payment_orders:cancel',
     'payment_orders:execute',
+    'payment_orders:reverse',
     'documents:attach',
     'documents:view',
     'documents:cancel',
     'cash_events:create',
     'cash_events:view',
     'cash_events:reverse',
+    'treasury:create',
+    'treasury:view',
     'shifts:open',
     'shifts:count',
     'shifts:close',
+    'shifts:handover',
     'shifts:view',
     'audit:view'
   ]),
@@ -535,7 +555,8 @@ function reportAppLoginDatabaseReadiness() {
   const structureChanges = {
     users: ensureUsersAppLoginColumns(),
     app_sessions: ensureAppSessionsSheet(),
-    audit_log: ensureAuditAppContextColumns()
+    audit_log: ensureAuditAppContextColumns(),
+    role_permissions: ensureRolePermissionSheets()
   };
   const usersHeaders = getReadOnlySheetHeaders_(SHEET_NAMES.USERS);
   const appSessionsHeaders = getReadOnlySheetHeaders_(SHEET_NAMES.APP_SESSIONS);
@@ -652,6 +673,11 @@ function reportAppLoginDatabaseReadiness() {
     audit_log: {
       exists: auditHeaders.exists,
       missing_columns: auditMissingColumns
+    },
+    role_permissions: {
+      roles: reportSheetColumns_(SHEET_NAMES.ROLES, TABLE_HEADERS.ROLES),
+      permissions: reportSheetColumns_(SHEET_NAMES.PERMISSIONS, TABLE_HEADERS.PERMISSIONS),
+      role_permissions: reportSheetColumns_(SHEET_NAMES.ROLE_PERMISSIONS, TABLE_HEADERS.ROLE_PERMISSIONS)
     },
     structure_changes: structureChanges,
     attribution: reportBusinessAttributionReadiness_(),
@@ -848,12 +874,8 @@ function getAppLoginBootstrapStatusForWeb(token) {
 function assertAppLoginBootstrapAllowed_(token) {
   const props = PropertiesService.getScriptProperties();
   const expectedToken = props.getProperty('APP_LOGIN_BOOTSTRAP_TOKEN');
-  const fallbackToken = typeof TEMP_APP_LOGIN_BOOTSTRAP_TOKEN !== 'undefined'
-    ? TEMP_APP_LOGIN_BOOTSTRAP_TOKEN
-    : '';
   const providedToken = String(token || '').trim();
-  const effectiveToken = expectedToken || fallbackToken;
-  if (!effectiveToken || !providedToken || !secureCompare_(providedToken, String(effectiveToken))) {
+  if (!expectedToken || !providedToken || !secureCompare_(providedToken, String(expectedToken))) {
     throw new Error('Bootstrap token is invalid.');
   }
   return true;
@@ -997,12 +1019,147 @@ function getPermissionsMatrix() {
     USER_PRIVILEGES.USERS_ASSIGN_ROLES,
     USER_PRIVILEGES.AUDIT_VIEW
   ]);
+  ensureRolePermissionSheets();
+  return getRolePermissionsMatrix();
+}
+
+function ensureRolePermissionSheets() {
+  const now = getCurrentTimestamp_();
+  const report = {
+    roles: ensureSheetColumns_(SHEET_NAMES.ROLES, TABLE_HEADERS.ROLES),
+    permissions: ensureSheetColumns_(SHEET_NAMES.PERMISSIONS, TABLE_HEADERS.PERMISSIONS),
+    role_permissions: ensureSheetColumns_(SHEET_NAMES.ROLE_PERMISSIONS, TABLE_HEADERS.ROLE_PERMISSIONS),
+    roles_added: [],
+    permissions_added: [],
+    role_permissions_added: []
+  };
+
+  objectValues_(USER_ROLES).forEach(function(role) {
+    if (!findRecordById(SHEET_NAMES.ROLES, 'role_id', role)) {
+      appendRecord(SHEET_NAMES.ROLES, {
+        role_id: role,
+        role_name: role,
+        description: role,
+        active: true,
+        system_role: true,
+        created_at: now,
+        updated_at: now
+      });
+      report.roles_added.push(role);
+    }
+  });
+
+  getAllKnownPrivileges_().forEach(function(permission) {
+    if (!findRecordById(SHEET_NAMES.PERMISSIONS, 'permission_id', permission)) {
+      appendRecord(SHEET_NAMES.PERMISSIONS, {
+        permission_id: permission,
+        permission_name: permission,
+        description: permission,
+        category: String(permission).split(':')[0] || 'general',
+        active: true,
+        system_permission: true,
+        created_at: now,
+        updated_at: now
+      });
+      report.permissions_added.push(permission);
+    }
+  });
+
+  const existing = listRecords(SHEET_NAMES.ROLE_PERMISSIONS);
+  objectValues_(USER_ROLES).forEach(function(role) {
+    const privileges = getFallbackPrivilegesForRole_(role);
+    privileges.forEach(function(permission) {
+      const exists = existing.some(function(row) {
+        return row.role_id === role && row.permission_id === permission;
+      });
+      if (!exists) {
+        appendRecord(SHEET_NAMES.ROLE_PERMISSIONS, {
+          role_id: role,
+          permission_id: permission,
+          allowed: true,
+          created_at: now,
+          updated_at: now
+        });
+        report.role_permissions_added.push(role + ':' + permission);
+      }
+    });
+  });
+  clearRolePermissionsCache_();
+  return report;
+}
+
+function getRolePermissionsMatrix() {
+  const matrix = getRolePermissionsMatrixCached_();
   return objectValues_(USER_ROLES).map(function(role) {
     return {
       role: role,
-      privileges: getPrivilegesForRole_(role)
+      privileges: matrix[role] ? matrix[role].slice() : getFallbackPrivilegesForRole_(role)
     };
   });
+}
+
+function updateRolePermissions(roleId, permissionIdsOrMatrix) {
+  assertNonEmptyString(roleId, 'roleId');
+  assertAllowedValue(roleId, objectValues_(USER_ROLES), 'roleId');
+  const currentUser = assertCurrentUserActive();
+  if (currentUser.role !== USER_ROLES.ADMIN && !userHasPrivilege_(currentUser, USER_PRIVILEGES.USERS_ASSIGN_ROLES)) {
+    throw new Error('Nemate ovlašćenje za ovu akciju.');
+  }
+  if (roleId === USER_ROLES.ADMIN) {
+    throw new Error('ADMIN rola uvek ima sva prava i ne menja se kroz matricu.');
+  }
+
+  ensureRolePermissionSheets();
+  const now = getCurrentTimestamp_();
+  const allowedPermissions = normalizePermissionUpdateInput_(permissionIdsOrMatrix);
+  const allPermissions = getAllKnownPrivileges_();
+  const existing = listRecords(SHEET_NAMES.ROLE_PERMISSIONS).filter(function(row) {
+    return row.role_id === roleId;
+  });
+
+  allPermissions.forEach(function(permission) {
+    const allow = allowedPermissions.indexOf(permission) !== -1;
+    const match = existing.filter(function(row) {
+      return row.permission_id === permission;
+    })[0];
+    if (match) {
+      updateRolePermissionRow_(roleId, permission, {
+        allowed: allow,
+        updated_at: now
+      });
+    } else {
+      appendRecord(SHEET_NAMES.ROLE_PERMISSIONS, {
+        role_id: roleId,
+        permission_id: permission,
+        allowed: allow,
+        created_at: now,
+        updated_at: now
+      });
+    }
+  });
+  clearRolePermissionsCache_();
+  writeAuditLog(
+    AUDIT_ACTIONS.UPDATE,
+    SHEET_NAMES.ROLE_PERMISSIONS,
+    roleId,
+    null,
+    { role_id: roleId, permissions_count: allowedPermissions.length },
+    'ROLE_PERMISSIONS_UPDATED'
+  );
+  return {
+    role: roleId,
+    privileges: getPrivilegesForRole_(roleId)
+  };
+}
+
+function listRoles() {
+  ensureRolePermissionSheets();
+  return listRecords(SHEET_NAMES.ROLES);
+}
+
+function listPermissions() {
+  ensureRolePermissionSheets();
+  return listRecords(SHEET_NAMES.PERMISSIONS);
 }
 
 function assertCurrentUserHasPrivilege_(privilege) {
@@ -1026,12 +1183,150 @@ function userHasPrivilege_(user, privilege) {
   if (!user || !privilege) {
     return false;
   }
+  if (user.role === USER_ROLES.ADMIN) {
+    return true;
+  }
   return getPrivilegesForRole_(user.role).indexOf(privilege) !== -1;
 }
 
 function getPrivilegesForRole_(role) {
+  if (role === USER_ROLES.ADMIN) {
+    return getAllKnownPrivileges_();
+  }
+  const matrix = getRolePermissionsMatrixCached_();
+  if (matrix && matrix[role] && matrix[role].length) {
+    return matrix[role].slice();
+  }
+  return getFallbackPrivilegesForRole_(role);
+}
+
+function getFallbackPrivilegesForRole_(role) {
+  if (role === USER_ROLES.ADMIN) {
+    return getAllKnownPrivileges_();
+  }
   const privileges = ROLE_PRIVILEGES[role] || [];
   return privileges.slice();
+}
+
+function getAllKnownPrivileges_() {
+  const values = objectValues_(USER_PRIVILEGES);
+  Object.keys(ROLE_PRIVILEGES).forEach(function(role) {
+    (ROLE_PRIVILEGES[role] || []).forEach(function(privilege) {
+      if (values.indexOf(privilege) === -1) {
+        values.push(privilege);
+      }
+    });
+  });
+  return values.sort();
+}
+
+function getRolePermissionsMatrixCached_() {
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'BLAGAJNA_ROLE_PERMISSIONS_MATRIX';
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (error) {
+      cache.remove(cacheKey);
+    }
+  }
+  const matrix = readRolePermissionsMatrixFromSheets_();
+  cache.put(cacheKey, JSON.stringify(matrix), 300);
+  return matrix;
+}
+
+function readRolePermissionsMatrixFromSheets_() {
+  const roleRows = listRecords(SHEET_NAMES.ROLES).filter(function(role) {
+    return isTruthy_(role.active);
+  });
+  const permissionRows = listRecords(SHEET_NAMES.PERMISSIONS).filter(function(permission) {
+    return isTruthy_(permission.active);
+  });
+  const relationRows = listRecords(SHEET_NAMES.ROLE_PERMISSIONS).filter(function(row) {
+    return isTruthy_(row.allowed);
+  });
+  if (!roleRows.length || !permissionRows.length || !relationRows.length) {
+    return buildFallbackRolePermissionsMatrix_();
+  }
+  const permissionIds = permissionRows.map(function(permission) {
+    return permission.permission_id;
+  });
+  const matrix = {};
+  roleRows.forEach(function(role) {
+    matrix[role.role_id] = [];
+  });
+  relationRows.forEach(function(row) {
+    if (!matrix[row.role_id]) {
+      matrix[row.role_id] = [];
+    }
+    if (permissionIds.indexOf(row.permission_id) !== -1 && matrix[row.role_id].indexOf(row.permission_id) === -1) {
+      matrix[row.role_id].push(row.permission_id);
+    }
+  });
+  matrix[USER_ROLES.ADMIN] = getAllKnownPrivileges_();
+  return matrix;
+}
+
+function buildFallbackRolePermissionsMatrix_() {
+  const matrix = {};
+  objectValues_(USER_ROLES).forEach(function(role) {
+    matrix[role] = getFallbackPrivilegesForRole_(role);
+  });
+  return matrix;
+}
+
+function clearRolePermissionsCache_() {
+  CacheService.getScriptCache().remove('BLAGAJNA_ROLE_PERMISSIONS_MATRIX');
+}
+
+function normalizePermissionUpdateInput_(input) {
+  if (Array.isArray(input)) {
+    return uniqueStrings_(input);
+  }
+  if (input && Array.isArray(input.permission_ids)) {
+    return uniqueStrings_(input.permission_ids);
+  }
+  if (input && Array.isArray(input.privileges)) {
+    return uniqueStrings_(input.privileges);
+  }
+  return [];
+}
+
+function updateRolePermissionRow_(roleId, permissionId, updates) {
+  const sheet = getSheetByNameOrThrow(SHEET_NAMES.ROLE_PERMISSIONS);
+  const headers = getHeaders_(sheet);
+  const roleIndex = headers.indexOf('role_id');
+  const permissionIndex = headers.indexOf('permission_id');
+  if (roleIndex === -1 || permissionIndex === -1 || sheet.getLastRow() < 2 || headers.length < 1) {
+    return null;
+  }
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][roleIndex]) === String(roleId) &&
+        String(values[i][permissionIndex]) === String(permissionId)) {
+      const record = rowToRecord_(headers, values[i]);
+      Object.keys(updates || {}).forEach(function(key) {
+        record[key] = updates[key];
+      });
+      sheet.getRange(i + 2, 1, 1, headers.length).setValues([headers.map(function(header) {
+        return record[header];
+      })]);
+      return record;
+    }
+  }
+  return null;
+}
+
+function uniqueStrings_(items) {
+  const result = [];
+  (items || []).forEach(function(item) {
+    const value = String(item || '').trim();
+    if (value && result.indexOf(value) === -1) {
+      result.push(value);
+    }
+  });
+  return result;
 }
 
 function sanitizeUserForApi_(user) {
