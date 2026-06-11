@@ -512,7 +512,7 @@ function getShiftMatchOrThrow_(shiftId) {
 function assertShiftOwnerOrElevated_(shift) {
   const currentUser = getCurrentUser();
   assertCurrentUserActive();
-  if (shift.opened_by === currentUser.email) {
+  if (isShiftOwnedByUser_(shift, currentUser)) {
     return;
   }
   assertUserHasRole(SHIFT_ELEVATED_ROLES_);
@@ -521,10 +521,37 @@ function assertShiftOwnerOrElevated_(shift) {
 function assertShiftViewPermission_(shift) {
   const currentUser = getCurrentUser();
   assertCurrentUserActive();
-  if (shift.opened_by === currentUser.email || shift.handover_to === currentUser.email) {
+  if (isShiftOwnedByUser_(shift, currentUser) || isShiftFieldMatchedByUser_(shift.handover_to, currentUser)) {
     return;
   }
   assertUserHasRole(SHIFT_VIEW_ROLES_);
+}
+
+function isShiftOwnedByUser_(shift, user) {
+  return isShiftFieldMatchedByUser_(shift && shift.opened_by, user);
+}
+
+function isShiftFieldMatchedByUser_(shiftUserValue, user) {
+  const shiftText = normalizeShiftUserIdentity_(shiftUserValue);
+  if (!shiftText || !user) {
+    return false;
+  }
+  const identities = [
+    user.email,
+    user.google_session_email,
+    user.user_code,
+    user.full_name,
+    user.user_id
+  ].map(normalizeShiftUserIdentity_).filter(Boolean);
+  return identities.some(function(identity) {
+    return shiftText === identity ||
+      shiftText === identity.split('@')[0] ||
+      identity === shiftText.split('@')[0];
+  });
+}
+
+function normalizeShiftUserIdentity_(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '.');
 }
 
 function assertCurrentUserOwnsOpenShiftForCashbox_(cashboxId) {
@@ -534,7 +561,7 @@ function assertCurrentUserOwnsOpenShiftForCashbox_(cashboxId) {
   if (!activeShift) {
     throw new Error('Direktna uplata/isplata nije dozvoljena bez otvorene smene za blagajnu.');
   }
-  if (activeShift.opened_by !== currentUser.email) {
+  if (!isShiftOwnedByUser_(activeShift, currentUser)) {
     throw new Error('Direktnu uplatu/isplatu može knjižiti samo korisnik koji je otvorio aktivnu smenu.');
   }
   return activeShift;

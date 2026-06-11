@@ -459,7 +459,7 @@ function apiGetActiveShiftState(cashboxId) {
     const activeShift = getActiveShiftForCashbox(targetCashboxId);
     return {
       activeShift: activeShift,
-      canPostDirectCashEvents: !!(activeShift && activeShift.opened_by === user.email)
+      canPostDirectCashEvents: !!(activeShift && isShiftOwnedByUser_(activeShift, user))
     };
   });
 }
@@ -566,7 +566,7 @@ function apiGetUiBootstrap(includeDashboard, sessionId) {
         config: config,
         user: user,
         activeShift: activeShift,
-        canPostDirectCashEvents: !!(activeShift && activeShift.opened_by === user.email)
+        canPostDirectCashEvents: !!(activeShift && isShiftOwnedByUser_(activeShift, user))
       };
       if (includeDashboard === true) {
         data.dashboard = getManagementDashboardSummary({

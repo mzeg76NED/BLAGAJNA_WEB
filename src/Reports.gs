@@ -749,7 +749,10 @@ function isDateInRange_(dateValue, dateFrom, dateTo) {
   if (!dateValue) {
     return false;
   }
-  const dateKey = normalizeReportDateKey_(dateValue);
+  const dateKey = normalizeReportDateKeyOrEmpty_(dateValue);
+  if (!dateKey) {
+    return false;
+  }
   return (!dateFrom || dateKey >= dateFrom) && (!dateTo || dateKey <= dateTo);
 }
 
@@ -813,6 +816,14 @@ function normalizeReportDateFilter_(dateValue) {
     return '';
   }
   return normalizeReportDateKey_(dateValue);
+}
+
+function normalizeReportDateKeyOrEmpty_(dateValue) {
+  try {
+    return normalizeReportDateKey_(dateValue);
+  } catch (error) {
+    return '';
+  }
 }
 
 function isAccidentalSessionDateFilter_(value) {

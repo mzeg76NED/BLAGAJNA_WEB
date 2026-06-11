@@ -2022,7 +2022,33 @@
   function isCurrentActiveShiftOwner_() {
     var shift = uiState.activeShift || {};
     var user = uiState.currentUser || {};
-    return Boolean(shift.shift_id && user.email && String(shift.opened_by || '').toLowerCase() === String(user.email).toLowerCase());
+    if (!shift.shift_id) return false;
+    return isShiftUserMatch_(shift.opened_by, user);
+  }
+
+  function isShiftUserMatch_(shiftUserValue, user) {
+    var shiftText = normalizeUserIdentity_(shiftUserValue);
+    if (!shiftText) return false;
+    var identities = [
+      user && user.email,
+      user && user.google_session_email,
+      user && user.user_code,
+      user && user.full_name,
+      user && user.user_id,
+      APP_SESSION.googleSessionEmail,
+      APP_SESSION.appUser && APP_SESSION.appUser.email,
+      APP_SESSION.appUser && APP_SESSION.appUser.user_code,
+      APP_SESSION.appUser && APP_SESSION.appUser.full_name
+    ].map(normalizeUserIdentity_).filter(Boolean);
+    return identities.some(function(identity) {
+      return shiftText === identity ||
+        shiftText === identity.split('@')[0] ||
+        identity === shiftText.split('@')[0];
+    });
+  }
+
+  function normalizeUserIdentity_(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, '.');
   }
 
   function activeShiftLabel_() {
@@ -2656,7 +2682,7 @@
   }
 
   function applyDirectCashPermission_() {
-    var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
+    var canPost = canPostDirectCashEvents_();
     ['d-quick-form-card','m-direct-actions'].forEach(function(id) {
       var el = document.getElementById(id);
       if (!el) return;
@@ -2691,7 +2717,7 @@
   }
 
   function updateDesktopDirectActionsVisibility_() {
-    var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
+    var canPost = canPostDirectCashEvents_();
     ['d-btn-uplata','d-btn-isplata','d-btn-trezor'].forEach(function(id) {
       var el = document.getElementById(id);
       if (!el) return;
@@ -2734,7 +2760,7 @@
     var actions = document.getElementById('m-direct-actions');
     if (!actions) return;
     var activeTabIsBook = Boolean(document.querySelector('#m-section-knjiga.active'));
-    var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
+    var canPost = canPostDirectCashEvents_();
     if (activeTabIsBook && canPost) {
       actions.removeAttribute('hidden');
       actions.style.display = '';
@@ -2742,6 +2768,13 @@
       actions.setAttribute('hidden', 'hidden');
       actions.style.display = 'none';
     }
+  }
+
+  function canPostDirectCashEvents_() {
+    if (!(uiState.activeShift && uiState.activeShift.shift_id)) {
+      return false;
+    }
+    return uiState.canPostDirectCashEvents === true || isCurrentActiveShiftOwner_();
   }
 
   function updateCountWorkflowVisibility_() {
@@ -4151,7 +4184,7 @@
       target.innerHTML = '<div class="empty-state compact"><p>Nema pending isplata.</p></div>';
       return;
     }
-    var canExecute = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
+    var canExecute = canPostDirectCashEvents_();
     target.innerHTML = rows.map(function(row) {
       var disabled = canExecute ? '' : ' disabled';
       var title = canExecute ? '' : ' title="Potrebna je aktivna smena glavnog blagajnika."';
@@ -4175,7 +4208,7 @@
   }
 
   function executePendingPaymentOrderOutflow_(pendingPaymentId) {
-    if (!(uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_())) {
+    if (!canPostDirectCashEvents_()) {
       showDesktopMessage_('Isplatu može izvršiti samo glavni blagajnik aktivne smene.', 'error');
       return;
     }
@@ -4760,7 +4793,7 @@
     var sideT = document.getElementById('d-side-btn-trezor');
     var openShift = document.getElementById('d-open-shift-from-book');
     function requireDirectCashAccess_() {
-      var canPost = uiState.canPostDirectCashEvents === true && isCurrentActiveShiftOwner_();
+      var canPost = canPostDirectCashEvents_();
       if (!canPost) {
         showMessage('Akcija nije dostupna dok ne postoji aktivna smena ili dok niste glavni blagajnik smene.', 'info');
       }
