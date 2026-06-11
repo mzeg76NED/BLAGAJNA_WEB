@@ -65,30 +65,31 @@ function executePendingPaymentOrderOutflow(pendingPaymentId, paymentData) {
     if (!orderBefore) {
       throw new Error('Payment Order not found: ' + orderId);
     }
-    assertEntityStatus(orderBefore, [
+    const paymentOrder = normalizePendingPaymentOrderStatus_(orderBefore);
+    assertEntityStatus(paymentOrder, [
       ORDER_STATUSES.WAITING_PAYMENT,
       ORDER_STATUSES.PARTIALLY_PAID
     ], 'Payment Order');
 
     const data = paymentData || {};
-    const amountOrdered = Number(orderBefore.amount_ordered);
-    const amountAlreadyPaid = Number(orderBefore.amount_paid || 0);
+    const amountOrdered = Number(paymentOrder.amount_ordered);
+    const amountAlreadyPaid = Number(paymentOrder.amount_paid || 0);
     const remainingAmount = amountOrdered - amountAlreadyPaid;
     const paymentAmount = data.amount === undefined || data.amount === null || data.amount === ''
       ? Number(pendingBefore.amount || remainingAmount)
       : Number(data.amount);
-    const paymentCurrency = data.currency || orderBefore.currency;
-    const paymentCashboxId = data.cashbox_id || orderBefore.cashbox_id;
+    const paymentCurrency = data.currency || paymentOrder.currency;
+    const paymentCashboxId = data.cashbox_id || paymentOrder.cashbox_id;
 
     assertPositiveAmount(paymentAmount);
     if (paymentAmount > remainingAmount) {
       throw new Error('Payment amount exceeds remaining ordered amount. Remaining: ' + remainingAmount + '.');
     }
-    if (paymentCurrency !== orderBefore.currency) {
-      throw new Error('Payment currency must match order currency: ' + orderBefore.currency);
+    if (paymentCurrency !== paymentOrder.currency) {
+      throw new Error('Payment currency must match order currency: ' + paymentOrder.currency);
     }
-    if (paymentCashboxId !== orderBefore.cashbox_id) {
-      throw new Error('Payment cashbox must match order cashbox: ' + orderBefore.cashbox_id);
+    if (paymentCashboxId !== paymentOrder.cashbox_id) {
+      throw new Error('Payment cashbox must match order cashbox: ' + paymentOrder.cashbox_id);
     }
 
     assertActiveCashbox(paymentCashboxId);
@@ -117,7 +118,7 @@ function executePendingPaymentOrderOutflow(pendingPaymentId, paymentData) {
       {
         event_date: data.event_date || now,
         amount: paymentAmount,
-        description: buildCashPaymentDescription_(orderBefore.purpose, data.note),
+        description: buildCashPaymentDescription_(paymentOrder.purpose, data.note),
         document_status: data.document_status === DOCUMENT_STATUSES.ATTACHED
           ? DOCUMENT_STATUSES.ATTACHED
           : DOCUMENT_STATUSES.MISSING,
@@ -130,10 +131,10 @@ function executePendingPaymentOrderOutflow(pendingPaymentId, paymentData) {
 
     const totalPaid = amountAlreadyPaid + paymentAmount;
     const fullyPaid = totalPaid >= amountOrdered;
-    const orderAfter = updatePaymentOrderAfterExecution(orderBefore.order_id, {
+    const orderAfter = updatePaymentOrderAfterExecution(paymentOrder.order_id, {
       amount_paid: totalPaid,
-      executed_by: fullyPaid ? currentUser.email : orderBefore.executed_by || '',
-      executed_at: fullyPaid ? now : orderBefore.executed_at || '',
+      executed_by: fullyPaid ? currentUser.email : paymentOrder.executed_by || '',
+      executed_at: fullyPaid ? now : paymentOrder.executed_at || '',
       linked_cash_event_id: cashEvent.event_id,
       status: fullyPaid ? ORDER_STATUSES.PAID : ORDER_STATUSES.PARTIALLY_PAID,
       updated_at: now
@@ -150,7 +151,7 @@ function executePendingPaymentOrderOutflow(pendingPaymentId, paymentData) {
     writeAuditLog(
       AUDIT_ACTIONS.UPDATE,
       SHEET_NAMES.PAYMENT_ORDERS,
-      orderBefore.order_id,
+      paymentOrder.order_id,
       orderBefore,
       orderAfter,
       'Payment order updated after cash payment execution.'
@@ -166,6 +167,25 @@ function executePendingPaymentOrderOutflow(pendingPaymentId, paymentData) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function normalizePendingPaymentOrderStatus_(order) {
+  if (order.status !== REQUEST_PRIORITIES.NORMAL) {
+    return order;
+  }
+  const updated = updateRecordById(SHEET_NAMES.PAYMENT_ORDERS, 'order_id', order.order_id, {
+    status: ORDER_STATUSES.WAITING_PAYMENT,
+    updated_at: getCurrentTimestamp_()
+  });
+  writeAuditLog(
+    AUDIT_ACTIONS.UPDATE,
+    SHEET_NAMES.PAYMENT_ORDERS,
+    order.order_id,
+    order,
+    updated,
+    'Legacy payment order status NORMAL normalized to WAITING_PAYMENT before pending ISPLATA execution.'
+  );
+  return updated;
 }
 
 function createCashInflow(data) {
