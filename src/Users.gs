@@ -784,7 +784,18 @@ function initializeFirstAppAdminFromScriptProperty() {
 function runAppLoginBootstrapFromWeb(data) {
   const payload = data || {};
   assertAppLoginBootstrapAllowed_(payload.token || '');
-  assertValidUserPin_(payload.admin_pin || payload.pin || '');
+  assertAppLoginBootstrapNotDone_();
+  const status = getAppLoginBootstrapStatusForWeb(payload.token || '');
+  if (status.ok_for_deploy) {
+    markAppLoginBootstrapDone_();
+    throw new Error('Bootstrap je već završen.');
+  }
+  const pin = payload.admin_pin || payload.pin || '';
+  const pinConfirm = payload.admin_pin_confirm || payload.pin_confirm || '';
+  assertValidUserPin_(pin);
+  if (String(pin) !== String(pinConfirm)) {
+    throw new Error('PIN i potvrda PIN-a se ne poklapaju.');
+  }
 
   const before = reportAppLoginDatabaseReadiness();
   const duplicateFix = fixKnownMilankoGoogleDuplicateIfNeeded_();
@@ -794,9 +805,12 @@ function runAppLoginBootstrapFromWeb(data) {
     email: 'Milanko.Zegarac@nedeljkovic.co.rs',
     full_name: 'Milanko Zegarac',
     default_cashbox_id: 'CB_MAIN',
-    pin: payload.admin_pin || payload.pin
+    pin: pin
   });
   const after = reportAppLoginDatabaseReadiness();
+  if (after.ok_for_deploy) {
+    markAppLoginBootstrapDone_();
+  }
 
   return {
     ok_for_deploy: after.ok_for_deploy,
@@ -807,27 +821,56 @@ function runAppLoginBootstrapFromWeb(data) {
   };
 }
 
+function getAppLoginBootstrapStatusForWeb(token) {
+  assertAppLoginBootstrapAllowed_(token || '');
+  const done = isAppLoginBootstrapDone_();
+  const report = reportAppLoginDatabaseReadiness();
+  return {
+    token_valid: true,
+    bootstrap_done: done,
+    ok_for_deploy: Boolean(report.ok_for_deploy),
+    blockers: report.blockers || [],
+    warnings: report.warnings || [],
+    active_admin_count: report.users && report.users.active_admin_count || 0,
+    active_admin_with_user_code_count: report.users && report.users.active_admin_with_user_code_count || 0,
+    active_admin_with_pin_count: report.users && report.users.active_admin_with_pin_count || 0,
+    duplicate_user_ids: report.users && report.users.duplicate_user_ids || [],
+    duplicate_user_codes: report.users && report.users.duplicate_user_codes || [],
+    users_without_user_code: report.users && report.users.users_without_user_code || [],
+    users_without_pin: report.users && report.users.users_without_pin || [],
+    expected_admin_ready: Boolean(report.users && report.users.active_admin_with_pin_count > 0),
+    app_sessions: report.app_sessions || {},
+    audit_log: report.audit_log || {},
+    structure_changes: report.structure_changes || {}
+  };
+}
+
 function assertAppLoginBootstrapAllowed_(token) {
   const props = PropertiesService.getScriptProperties();
   const expectedToken = props.getProperty('APP_LOGIN_BOOTSTRAP_TOKEN');
+  const fallbackToken = typeof TEMP_APP_LOGIN_BOOTSTRAP_TOKEN !== 'undefined'
+    ? TEMP_APP_LOGIN_BOOTSTRAP_TOKEN
+    : '';
   const providedToken = String(token || '').trim();
-  if (expectedToken) {
-    if (!providedToken || !secureCompare_(providedToken, String(expectedToken))) {
-      throw new Error('Bootstrap token is invalid.');
-    }
-    return true;
-  }
-
-  const email = normalizeEmail_(getCurrentUserEmail());
-  const allowedEmails = [
-    'milanko.zegarac@nedeljkovic.co.rs',
-    'mzeg76@google.com',
-    'blagajna@nedeljkovic.co.rs'
-  ];
-  if (allowedEmails.indexOf(email) === -1) {
-    throw new Error('Bootstrap token is not configured and Google session is not allowed for bootstrap.');
+  const effectiveToken = expectedToken || fallbackToken;
+  if (!effectiveToken || !providedToken || !secureCompare_(providedToken, String(effectiveToken))) {
+    throw new Error('Bootstrap token is invalid.');
   }
   return true;
+}
+
+function assertAppLoginBootstrapNotDone_() {
+  if (isAppLoginBootstrapDone_()) {
+    throw new Error('Bootstrap je već završen.');
+  }
+}
+
+function isAppLoginBootstrapDone_() {
+  return String(PropertiesService.getScriptProperties().getProperty('APP_LOGIN_BOOTSTRAP_DONE') || '').toLowerCase() === 'true';
+}
+
+function markAppLoginBootstrapDone_() {
+  PropertiesService.getScriptProperties().setProperty('APP_LOGIN_BOOTSTRAP_DONE', 'true');
 }
 
 function fixKnownMilankoGoogleDuplicateIfNeeded_() {

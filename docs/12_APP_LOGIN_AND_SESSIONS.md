@@ -453,7 +453,7 @@ PIN ne sme biti u kodu, promptu, dokumentaciji, audit payload-u ili izveštaju.
 Pošto `clasp run` u trenutnom okruženju ne može da izvrši helper funkcije, dodat je privremeni web bootstrap ekran:
 
 ```text
-?view=app-login-bootstrap
+?bootstrap=app-login&token=<TOKEN>
 ```
 
 Ekran omogućava:
@@ -468,11 +468,12 @@ Ekran omogućava:
 
 PIN se unosi kroz HTML formu i ne ide kroz URL. Backend ga koristi samo za generisanje `pin_hash` i `pin_salt`. PIN, `pin_hash` i `pin_salt` se ne vraćaju u response.
 
-Ako je podešen Script Property `APP_LOGIN_BOOTSTRAP_TOKEN`, forma mora poslati isti token. Ako token nije podešen, bootstrap je dozvoljen samo poznatim tehničkim/admin Google sesijama u helperu.
+Ako je podešen Script Property `APP_LOGIN_BOOTSTRAP_TOKEN`, forma mora poslati isti token. Pošto `clasp run` trenutno ne dozvoljava pouzdano postavljanje Script Properties-a, Faza 4.7 koristi jednu privremenu hardcoded token konstantu `TEMP_APP_LOGIN_BOOTSTRAP_TOKEN`. Token mora biti uklonjen u cleanup patch-u.
 
 Ovaj endpoint je privremen. Posle uspešnog bootstrap-a i potvrde `ok_for_deploy = true`, obavezan je cleanup patch koji uklanja ili trajno zaključava:
 
-- `?view=app-login-bootstrap`,
+- `?bootstrap=app-login`,
+- `TEMP_APP_LOGIN_BOOTSTRAP_TOKEN`,
 - `apiGetAppLoginBootstrapReadiness`,
 - `apiRunAppLoginBootstrap`,
 - web bootstrap HTML stranicu.

@@ -112,7 +112,7 @@
     <form id="bootstrap-form">
       <label>
         Bootstrap token
-        <input id="bootstrap-token" type="password" autocomplete="off" placeholder="Ako je APP_LOGIN_BOOTSTRAP_TOKEN podesen">
+        <input id="bootstrap-token" type="password" autocomplete="off" value="<?= bootstrapToken ?>" required>
       </label>
       <label>
         ADMIN PIN za korisnika MILANKO
@@ -129,7 +129,7 @@
     </form>
 
     <div id="message" class="message"></div>
-    <pre id="result">Nema rezultata.</pre>
+    <pre id="result"><?= bootstrapStatus ?></pre>
   </main>
 
   <script>
@@ -200,7 +200,8 @@
           .withFailureHandler(handleFailure)
           .apiRunAppLoginBootstrap({
             token: token.value,
-            admin_pin: pin.value
+            admin_pin: pin.value,
+            admin_pin_confirm: confirmPin.value
           });
       });
     }());
