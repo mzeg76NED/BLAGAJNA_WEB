@@ -27,6 +27,18 @@ Tek kada blagajnik potvrdi isplatu, isti dogadjaj prelazi u:
 
 To je prvi trenutak kada se stanje blagajne smanjuje.
 
+## App session i audit
+
+Write akcije koje kreiraju, knjiže ili storniraju cash event zahtevaju validnu aplikativnu sesiju.
+
+Minimalne privilegije:
+
+- ručna uplata/isplata/trezor: `cash_events:create`
+- storno: `cash_events:reverse`
+- izvršenje naloga: `payment_orders:execute`
+
+Audit zapis treba da nosi aplikativnog korisnika koji je izvršio događaj, Google tehničku sesiju, blagajnu i smenu kada su poznati.
+
 ## Razlika izmedju zahteva, naloga i cash eventa
 
 Payment Request je samo zahtev. Ne autorizuje isplatu i ne menja stanje.

@@ -65,6 +65,13 @@ Patch 02 uvodi server-side privilegije u `Users.gs`. Ova tabela opisuje nameru m
 | `documents:attach` | Dodavanje priloga |
 | `documents:view` | Pregled priloga |
 | `documents:cancel` | Otkazivanje/zamena priloga |
+| `cash_events:create` | Kreiranje ručnih blagajničkih događaja |
+| `cash_events:view` | Pregled blagajničkih događaja |
+| `cash_events:reverse` | Storno/korekcija blagajničkog događaja |
+| `shifts:open` | Otvaranje smene |
+| `shifts:count` | Izrada preseka/popis smene |
+| `shifts:close` | Zatvaranje ili primopredaja smene |
+| `shifts:view` | Pregled smena |
 | `audit:view` | Pregled audit log-a |
 
 ## Mapiranje korisnika i prava
@@ -94,6 +101,43 @@ UI koristi:
 - `apiListUsers`,
 - `apiCreateUser`,
 - `apiUpdateUserPermissions`,
+- `apiResetUserPin`,
+- `apiPrepareUsersForAppLogin`,
 - `apiGetPermissionsMatrix`.
 
 Ekran se prikazuje samo za korisnika sa rolom `ADMIN` ili privilegijom `users:create`, `users:update` ili `users:assign_roles`. Korisnik bez tih prava vidi poruku zabrane i ne dobija listu korisnika.
+
+## Aplikativni korisnici i PIN
+
+Interni aplikativni login koristi `user_code` + PIN.
+
+Prava za administraciju:
+
+| Akcija | Potrebno pravo |
+|---|---|
+| Kreiranje aplikativnog korisnika | `users:create` |
+| Izmena imena, korisnickog koda, blagajne i osnovnih podataka | `users:update` |
+| Promena role | `users:assign_roles` |
+| Aktivacija/deaktivacija | `users:disable` ili `users:update`, u skladu sa backend pravilima |
+| Reset PIN-a | `users:update` ili `users:assign_roles` |
+
+Privilegije se ne uredjuju pojedinacno po korisniku. Korisnik dobija privilegije iskljucivo kroz rolu.
+
+Tab `Privilegije` u UI-ju prikazuje trenutnu rolu, privilegije te role, matricu prava po rolama i napomenu da se prava menjaju promenom role.
+
+## Server-side app session gating
+
+Write API pozivi zahtevaju validnu aplikativnu sesiju i odgovarajuću privilegiju.
+
+Minimalno mapiranje:
+
+| Oblast | Primeri API akcija | Privilegije |
+|---|---|---|
+| Zahtevi | submit, approve, reject, return for correction | `payment_requests:create`, `payment_requests:approve`, `payment_requests:reject`, `payment_requests:return_for_correction` |
+| Nalozi | create, issue, send to cashier, reject, execute | `payment_orders:create`, `payment_orders:issue`, `payment_orders:reject`, `payment_orders:execute` |
+| Dokumenti | attach/list documents | `documents:attach`, `documents:view` |
+| Korisnici | create/update/reset PIN/list matrix | `users:create`, `users:update`, `users:disable`, `users:assign_roles` |
+| Smene/preseci | open/count/close | `shifts:open`, `shifts:count`, `shifts:close` |
+| Cash events | inflow/outflow/treasury/reverse | `cash_events:create`, `cash_events:reverse` |
+
+Role i dalje prolaze i kroz postojeće server-side poslovne provere. Frontend gating nije autoritativan.

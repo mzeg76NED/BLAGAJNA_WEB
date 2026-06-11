@@ -87,21 +87,27 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-function apiCreatePaymentRequest(data) {
+function apiCreatePaymentRequest(data, sessionId) {
   return apiWrap_(function() {
-    return createPaymentRequest(data || {});
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_CREATE, function() {
+      return createPaymentRequest(data || {});
+    });
   });
 }
 
-function apiSubmitPaymentRequest(requestId) {
+function apiSubmitPaymentRequest(requestId, sessionId) {
   return apiWrap_(function() {
-    return submitPaymentRequest(requestId);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_CREATE, function() {
+      return submitPaymentRequest(requestId);
+    });
   });
 }
 
-function apiUpdatePaymentRequest(requestId, data) {
+function apiUpdatePaymentRequest(requestId, data, sessionId) {
   return apiWrap_(function() {
-    return updatePaymentRequest(requestId, data || {});
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_CREATE, function() {
+      return updatePaymentRequest(requestId, data || {});
+    });
   });
 }
 
@@ -123,64 +129,84 @@ function apiListPaymentRequests(filters) {
   });
 }
 
-function apiApprovePaymentRequest(requestId) {
+function apiApprovePaymentRequest(requestId, sessionId) {
   return apiWrap_(function() {
-    return approvePaymentRequest(requestId);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_APPROVE, function() {
+      return approvePaymentRequest(requestId);
+    });
   });
 }
 
-function apiApprovePaymentRequestForDirectPayment(requestId) {
+function apiApprovePaymentRequestForDirectPayment(requestId, sessionId) {
   return apiWrap_(function() {
-    return approvePaymentRequestForDirectPayment(requestId);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_APPROVE, function() {
+      return approvePaymentRequestForDirectPayment(requestId);
+    });
   });
 }
 
-function apiRejectPaymentRequest(requestId, reason) {
+function apiRejectPaymentRequest(requestId, reason, sessionId) {
   return apiWrap_(function() {
-    return rejectPaymentRequest(requestId, reason);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_REJECT, function() {
+      return rejectPaymentRequest(requestId, reason);
+    });
   });
 }
 
-function apiReturnPaymentRequestForCorrection(requestId, note) {
+function apiReturnPaymentRequestForCorrection(requestId, note, sessionId) {
   return apiWrap_(function() {
-    return returnPaymentRequestForCorrection(requestId, note);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_RETURN_FOR_CORRECTION, function() {
+      return returnPaymentRequestForCorrection(requestId, note);
+    });
   });
 }
 
-function apiCreatePaymentOrderFromRequest(requestId, orderData) {
+function apiCreatePaymentOrderFromRequest(requestId, orderData, sessionId) {
   return apiWrap_(function() {
-    return createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_CREATE, function() {
+      return createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
+    });
   });
 }
 
-function apiCreateDirectPaymentOrder(orderData) {
+function apiCreateDirectPaymentOrder(orderData, sessionId) {
   return apiWrap_(function() {
-    return createDirectPaymentOrder(withDefaultCashbox_(orderData || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_CREATE, function() {
+      return createDirectPaymentOrder(withDefaultCashbox_(orderData || {}));
+    });
   });
 }
 
-function apiUpdateDraftPaymentOrder(orderId, orderData) {
+function apiUpdateDraftPaymentOrder(orderId, orderData, sessionId) {
   return apiWrap_(function() {
-    return updateDraftPaymentOrder(orderId, withDefaultCashbox_(orderData || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_CREATE, function() {
+      return updateDraftPaymentOrder(orderId, withDefaultCashbox_(orderData || {}));
+    });
   });
 }
 
-function apiIssuePaymentOrder(orderId) {
+function apiIssuePaymentOrder(orderId, sessionId) {
   return apiWrap_(function() {
-    return issuePaymentOrder(orderId);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_ISSUE, function() {
+      return issuePaymentOrder(orderId);
+    });
   });
 }
 
-function apiCreateAndIssuePaymentOrderFromRequest(requestId, orderData) {
+function apiCreateAndIssuePaymentOrderFromRequest(requestId, orderData, sessionId) {
   return apiWrap_(function() {
-    return createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_CREATE, function() {
+      return createPaymentOrderFromRequest(requestId, withDefaultCashbox_(orderData || {}));
+    });
   });
 }
 
-function apiApproveAndIssuePaymentOrder(requestId, orderData) {
+function apiApproveAndIssuePaymentOrder(requestId, orderData, sessionId) {
   return apiWrap_(function() {
-    const approved = approvePaymentRequest(requestId, withDefaultCashbox_(orderData || {}));
-    return approved.linked_order_id ? getPaymentOrderById(approved.linked_order_id) : approved;
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_APPROVE, function() {
+      const approved = approvePaymentRequest(requestId, withDefaultCashbox_(orderData || {}));
+      return approved.linked_order_id ? getPaymentOrderById(approved.linked_order_id) : approved;
+    });
   });
 }
 
@@ -190,9 +216,11 @@ function apiListOrdersWaitingForPayment() {
   });
 }
 
-function apiSendPaymentOrderToCashier(orderId) {
+function apiSendPaymentOrderToCashier(orderId, sessionId) {
   return apiWrap_(function() {
-    return sendPaymentOrderToCashier(orderId);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_ISSUE, function() {
+      return sendPaymentOrderToCashier(orderId);
+    });
   });
 }
 
@@ -202,9 +230,11 @@ function apiListPendingPaymentOrderOutflows(filters) {
   });
 }
 
-function apiExecutePendingPaymentOrderOutflow(pendingPaymentId, paymentData) {
+function apiExecutePendingPaymentOrderOutflow(pendingPaymentId, paymentData, sessionId) {
   return apiWrap_(function() {
-    return executePendingPaymentOrderOutflow(pendingPaymentId, withDefaultCashbox_(paymentData || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_EXECUTE, function() {
+      return executePendingPaymentOrderOutflow(pendingPaymentId, withDefaultCashbox_(paymentData || {}));
+    });
   });
 }
 
@@ -220,39 +250,51 @@ function apiListPaymentOrders(filters) {
   });
 }
 
-function apiRejectPaymentOrderByCashier(orderId, reason) {
+function apiRejectPaymentOrderByCashier(orderId, reason, sessionId) {
   return apiWrap_(function() {
-    return rejectPaymentOrderByCashier(orderId, reason);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_REJECT, function() {
+      return rejectPaymentOrderByCashier(orderId, reason);
+    });
   });
 }
 
-function apiExecutePaymentOrder(orderId, paymentData) {
+function apiExecutePaymentOrder(orderId, paymentData, sessionId) {
   return apiWrap_(function() {
-    return executePaymentOrder(orderId, paymentData || {});
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.PAYMENT_ORDERS_EXECUTE, function() {
+      return executePaymentOrder(orderId, paymentData || {});
+    });
   });
 }
 
-function apiReverseCashEvent(eventId, reason) {
+function apiReverseCashEvent(eventId, reason, sessionId) {
   return apiWrap_(function() {
-    return reverseCashEvent(eventId, reason);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.CASH_EVENTS_REVERSE, function() {
+      return reverseCashEvent(eventId, reason);
+    });
   });
 }
 
-function apiCreateCashInflow(data) {
+function apiCreateCashInflow(data, sessionId) {
   return apiWrap_(function() {
-    return createCashInflow(withDefaultCashbox_(data || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.CASH_EVENTS_CREATE, function() {
+      return createCashInflow(withDefaultCashbox_(data || {}));
+    });
   });
 }
 
-function apiCreateDirectCashOutflow(data) {
+function apiCreateDirectCashOutflow(data, sessionId) {
   return apiWrap_(function() {
-    return createDirectCashOutflow(withDefaultCashbox_(data || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.CASH_EVENTS_CREATE, function() {
+      return createDirectCashOutflow(withDefaultCashbox_(data || {}));
+    });
   });
 }
 
-function apiCreateTreasuryHandover(data) {
+function apiCreateTreasuryHandover(data, sessionId) {
   return apiWrap_(function() {
-    return createTreasuryHandover(withDefaultCashbox_(data || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.CASH_EVENTS_CREATE, function() {
+      return createTreasuryHandover(withDefaultCashbox_(data || {}));
+    });
   });
 }
 
@@ -262,15 +304,19 @@ function apiPrepareCashCount(cashboxId, currency, countType) {
   });
 }
 
-function apiCreateCashCount(data) {
+function apiCreateCashCount(data, sessionId) {
   return apiWrap_(function() {
-    return createCashCount(withDefaultCashbox_(data || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_COUNT, function() {
+      return createCashCount(withDefaultCashbox_(data || {}));
+    });
   });
 }
 
-function apiCreateCashCounts(data) {
+function apiCreateCashCounts(data, sessionId) {
   return apiWrap_(function() {
-    return createCashCounts(withDefaultCashbox_(data || {}));
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_COUNT, function() {
+      return createCashCounts(withDefaultCashbox_(data || {}));
+    });
   });
 }
 
@@ -280,29 +326,37 @@ function apiCalculateCashboxBalance(cashboxId, currency) {
   });
 }
 
-function apiAttachDocumentToEntity(entityType, entityId, filePayload, note) {
+function apiAttachDocumentToEntity(entityType, entityId, filePayload, note, sessionId) {
   return apiWrap_(function() {
-    return attachDocumentToEntity(entityType, entityId, filePayload, note);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.DOCUMENTS_ATTACH, function() {
+      return attachDocumentToEntity(entityType, entityId, filePayload, note);
+    });
   });
 }
 
-function apiListDocumentsForEntity(entityType, entityId) {
+function apiListDocumentsForEntity(entityType, entityId, sessionId) {
   return apiWrap_(function() {
-    return listDocumentsForEntity(entityType, entityId);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.DOCUMENTS_VIEW, function() {
+      return listDocumentsForEntity(entityType, entityId);
+    });
   });
 }
 
-function apiOpenShift(cashboxId, openingNote) {
+function apiOpenShift(cashboxId, openingNote, sessionId) {
   return apiWrap_(function() {
-    return openShift(cashboxId || getDefaultCashboxIdForCurrentUser_(), openingNote);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_OPEN, function() {
+      return openShift(cashboxId || getDefaultCashboxIdForCurrentUser_(), openingNote);
+    });
   });
 }
 
-function apiOpenShiftWithOpeningCount(data) {
+function apiOpenShiftWithOpeningCount(data, sessionId) {
   return apiWrap_(function() {
-    data = data || {};
-    data.cashbox_id = data.cashbox_id || getDefaultCashboxIdForCurrentUser_();
-    return openShiftWithOpeningCount(data);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_OPEN, function() {
+      data = data || {};
+      data.cashbox_id = data.cashbox_id || getDefaultCashboxIdForCurrentUser_();
+      return openShiftWithOpeningCount(data);
+    });
   });
 }
 
@@ -404,40 +458,50 @@ function apiGetActiveShiftState(cashboxId) {
   });
 }
 
-function apiHandoverShift(shiftId, handoverToUserEmail, physicalBalanceByCurrency, note) {
+function apiHandoverShift(shiftId, handoverToUserEmail, physicalBalanceByCurrency, note, sessionId) {
   return apiWrap_(function() {
-    return handoverShift(shiftId, handoverToUserEmail, parseJsonInput_(physicalBalanceByCurrency), note);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_CLOSE, function() {
+      return handoverShift(shiftId, handoverToUserEmail, parseJsonInput_(physicalBalanceByCurrency), note);
+    });
   });
 }
 
-function apiCloseShift(shiftId, physicalBalanceByCurrency, note) {
+function apiCloseShift(shiftId, physicalBalanceByCurrency, note, sessionId) {
   return apiWrap_(function() {
-    return closeShift(shiftId, parseJsonInput_(physicalBalanceByCurrency), note);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_CLOSE, function() {
+      return closeShift(shiftId, parseJsonInput_(physicalBalanceByCurrency), note);
+    });
   });
 }
 
-function apiCloseShiftWithLatestCashCounts(shiftId, note) {
+function apiCloseShiftWithLatestCashCounts(shiftId, note, sessionId) {
   return apiWrap_(function() {
-    return closeShiftWithLatestCashCounts(shiftId, note);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_CLOSE, function() {
+      return closeShiftWithLatestCashCounts(shiftId, note);
+    });
   });
 }
 
-function apiCloseShiftWithClosingCount(data) {
+function apiCloseShiftWithClosingCount(data, sessionId) {
   return apiWrap_(function() {
-    data = data || {};
-    data = withDefaultCashbox_(data);
-    data.note = data.note || 'ZAVRŠNI POPIS SMENE';
-    return closeShiftWithClosingCount(data);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_CLOSE, function() {
+      data = data || {};
+      data = withDefaultCashbox_(data);
+      data.note = data.note || 'ZAVRŠNI POPIS SMENE';
+      return closeShiftWithClosingCount(data);
+    });
   });
 }
 
-function apiCloseActiveShift(cashboxId, physicalBalanceByCurrency, note) {
+function apiCloseActiveShift(cashboxId, physicalBalanceByCurrency, note, sessionId) {
   return apiWrap_(function() {
-    const activeShift = getActiveShiftForCashbox(cashboxId || getDefaultCashboxIdForCurrentUser_());
-    if (!activeShift) {
-      throw new Error('No active shift for cashbox.');
-    }
-    return closeShift(activeShift.shift_id, parseJsonInput_(physicalBalanceByCurrency), note);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_CLOSE, function() {
+      const activeShift = getActiveShiftForCashbox(cashboxId || getDefaultCashboxIdForCurrentUser_());
+      if (!activeShift) {
+        throw new Error('No active shift for cashbox.');
+      }
+      return closeShift(activeShift.shift_id, parseJsonInput_(physicalBalanceByCurrency), note);
+    });
   });
 }
 
@@ -461,9 +525,11 @@ function apiPrepareDailyClosing(cashboxId, currency, closingDate) {
   });
 }
 
-function apiCloseDailyCashbox(cashboxId, currency, closingDate, physicalBalance, note) {
+function apiCloseDailyCashbox(cashboxId, currency, closingDate, physicalBalance, note, sessionId) {
   return apiWrap_(function() {
-    return closeDailyCashbox(cashboxId || getDefaultCashboxIdForCurrentUser_(), currency, closingDate, physicalBalance, note);
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_CLOSE, function() {
+      return closeDailyCashbox(cashboxId || getDefaultCashboxIdForCurrentUser_(), currency, closingDate, physicalBalance, note);
+    });
   });
 }
 
@@ -479,59 +545,155 @@ function apiGetManagementDashboardSummary(filters) {
   });
 }
 
-function apiGetUiBootstrap(includeDashboard) {
+function apiGetUiBootstrap(includeDashboard, sessionId) {
   return apiWrap_(function() {
-    const user = getCurrentUser();
-    const config = buildAppConfigForUi_(user);
-    const activeShift = getActiveShiftForCashbox(config.defaultCashboxId || getDefaultCashboxIdForUser_(user));
-    const data = {
-      config: config,
-      user: user,
-      activeShift: activeShift,
-      canPostDirectCashEvents: !!(activeShift && activeShift.opened_by === user.email)
+    const build = function() {
+      const user = getCurrentUser();
+      const config = buildAppConfigForUi_(user);
+      const activeShift = getActiveShiftForCashbox(config.defaultCashboxId || getDefaultCashboxIdForUser_(user));
+      const data = {
+        config: config,
+        user: user,
+        activeShift: activeShift,
+        canPostDirectCashEvents: !!(activeShift && activeShift.opened_by === user.email)
+      };
+      if (includeDashboard === true) {
+        data.dashboard = getManagementDashboardSummary({
+          cashbox_id: config.defaultCashboxId || ''
+        });
+      }
+      return data;
     };
-    if (includeDashboard === true) {
-      data.dashboard = getManagementDashboardSummary({
-        cashbox_id: config.defaultCashboxId || ''
-      });
+    if (sessionId) {
+      return runWithApiSession_(sessionId, null, build);
     }
-    return data;
+    return build();
   });
 }
 
-function apiListUsers(filters) {
+function apiLoginAppUser(userCodeOrData, pin, context) {
   return apiWrap_(function() {
-    return listUsers(filters || {});
+    const data = typeof userCodeOrData === 'object'
+      ? (userCodeOrData || {})
+      : { user_code: userCodeOrData, pin: pin, context: context };
+    return loginAppUser(
+      data.user_code || data.userCode || data.code || '',
+      data.pin || '',
+      data.context || context || {}
+    );
   });
 }
 
-function apiCreateUser(userData) {
+function apiLogoutAppUser(sessionIdOrData) {
   return apiWrap_(function() {
-    return createUser(userData || {});
+    const sessionId = typeof sessionIdOrData === 'object'
+      ? (sessionIdOrData.session_id || sessionIdOrData.sessionId || '')
+      : sessionIdOrData;
+    return logoutAppUser(sessionId);
   });
 }
 
-function apiUpdateUserPermissions(userId, permissionsData) {
+function apiGetCurrentAppSession(sessionIdOrData) {
   return apiWrap_(function() {
-    return updateUserPermissions(userId, permissionsData || {});
+    const sessionId = typeof sessionIdOrData === 'object'
+      ? (sessionIdOrData.session_id || sessionIdOrData.sessionId || '')
+      : sessionIdOrData;
+    return getCurrentAppSession(sessionId);
   });
 }
 
-function apiGetPermissionsMatrix() {
+function apiSwitchAppUser(userCodeOrData, pin, context) {
   return apiWrap_(function() {
-    return getPermissionsMatrix();
+    const data = typeof userCodeOrData === 'object'
+      ? (userCodeOrData || {})
+      : { user_code: userCodeOrData, pin: pin, context: context };
+    return switchAppUser(
+      data.user_code || data.userCode || data.code || '',
+      data.pin || '',
+      data.context || context || {}
+    );
   });
 }
 
-function apiGetAuditLog(filters) {
+function apiListUsers(filters, sessionId) {
   return apiWrap_(function() {
-    assertCurrentUserHasPrivilege_(USER_PRIVILEGES.AUDIT_VIEW);
-    const limit = Number((filters || {}).limit || 100);
-    return listRecords(SHEET_NAMES.AUDIT_LOG)
-      .sort(function(left, right) {
-        return toTime_(right.timestamp) - toTime_(left.timestamp);
-      })
-      .slice(0, isFinite(limit) && limit > 0 ? limit : 100);
+    return runWithApiSession_(sessionId, [
+      USER_PRIVILEGES.USERS_CREATE,
+      USER_PRIVILEGES.USERS_UPDATE,
+      USER_PRIVILEGES.USERS_ASSIGN_ROLES
+    ], function() {
+      return listUsers(filters || {});
+    });
+  });
+}
+
+function apiCreateUser(userData, sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.USERS_CREATE, function() {
+      return createUser(userData || {});
+    });
+  });
+}
+
+function apiUpdateUserPermissions(userId, permissionsData, sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, [
+      USER_PRIVILEGES.USERS_UPDATE,
+      USER_PRIVILEGES.USERS_ASSIGN_ROLES,
+      USER_PRIVILEGES.USERS_DISABLE
+    ], function() {
+      return updateUserPermissions(userId, permissionsData || {});
+    });
+  });
+}
+
+function apiResetUserPin(userId, newPin, sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, [
+      USER_PRIVILEGES.USERS_UPDATE,
+      USER_PRIVILEGES.USERS_ASSIGN_ROLES
+    ], function() {
+      return resetUserPin(userId, newPin);
+    });
+  });
+}
+
+function apiPrepareUsersForAppLogin(sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, [
+      USER_PRIVILEGES.USERS_CREATE,
+      USER_PRIVILEGES.USERS_UPDATE,
+      USER_PRIVILEGES.USERS_ASSIGN_ROLES
+    ], function() {
+      return prepareUsersForAppLogin();
+    });
+  });
+}
+
+function apiGetPermissionsMatrix(sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, [
+      USER_PRIVILEGES.USERS_CREATE,
+      USER_PRIVILEGES.USERS_UPDATE,
+      USER_PRIVILEGES.USERS_ASSIGN_ROLES,
+      USER_PRIVILEGES.AUDIT_VIEW
+    ], function() {
+      return getPermissionsMatrix();
+    });
+  });
+}
+
+function apiGetAuditLog(filters, sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, USER_PRIVILEGES.AUDIT_VIEW, function() {
+      assertCurrentUserHasPrivilege_(USER_PRIVILEGES.AUDIT_VIEW);
+      const limit = Number((filters || {}).limit || 100);
+      return listRecords(SHEET_NAMES.AUDIT_LOG)
+        .sort(function(left, right) {
+          return toTime_(right.timestamp) - toTime_(left.timestamp);
+        })
+        .slice(0, isFinite(limit) && limit > 0 ? limit : 100);
+    });
   });
 }
 
@@ -601,16 +763,31 @@ function apiGetAuditExceptionsReport(filters) {
   });
 }
 
-function apiGetCurrentUserContext() {
+function apiGetCurrentUserContext(sessionId) {
   return apiWrap_(function() {
+    if (sessionId) {
+      return runWithApiSession_(sessionId, null, function() {
+        return getCurrentUser();
+      });
+    }
     return getCurrentUser();
   });
 }
 
-function apiGetAppConfigForUi() {
+function apiGetAppConfigForUi(sessionId) {
   return apiWrap_(function() {
+    if (sessionId) {
+      return runWithApiSession_(sessionId, null, function() {
+        return buildAppConfigForUi_(getCurrentUser());
+      });
+    }
     return buildAppConfigForUi_(getCurrentUser());
   });
+}
+
+function runWithApiSession_(sessionId, requiredPrivileges, callback) {
+  const context = requireAppSession(sessionId, requiredPrivileges);
+  return withAppSessionContext_(context, callback);
 }
 
 function apiSuccess_(data) {

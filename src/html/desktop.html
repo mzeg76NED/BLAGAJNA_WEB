@@ -10,7 +10,37 @@
       window.BLAGAJNA_WEB_APP_URL = '<?= ScriptApp.getService().getUrl() ?>';
     </script>
   </head>
-  <body>
+  <body class="app-locked">
+    <div id="app-login-lock" class="app-login-lock" aria-live="polite">
+      <section class="app-login-card" aria-labelledby="app-login-title">
+        <div class="app-login-brand">
+          <div class="app-login-icon"><i class="ti ti-building-bank" aria-hidden="true"></i></div>
+          <div>
+            <strong>BLAGAJNA</strong>
+            <span>Interni aplikativni pristup</span>
+          </div>
+        </div>
+        <div class="app-login-copy">
+          <h1 id="app-login-title">Prijava u blagajnu</h1>
+          <p>Google nalog je tehnička sesija. Unesite korisnički kod i PIN za rad u blagajni.</p>
+          <small id="app-login-google-session">Google sesija: tehnički nalog</small>
+        </div>
+        <form id="app-login-form" class="app-login-form" autocomplete="off">
+          <label>Korisnički kod
+            <input id="app-login-user-code" name="user_code" type="text" autocomplete="username" inputmode="text" spellcheck="false" required>
+          </label>
+          <label>PIN
+            <input id="app-login-pin" name="pin" type="password" autocomplete="current-password" inputmode="numeric" required>
+          </label>
+          <button id="app-login-submit" class="btn-primary btn-full btn-lg" type="submit">
+            <i class="ti ti-login-2" aria-hidden="true"></i>
+            <span data-login-submit-label>Prijavi se</span>
+          </button>
+        </form>
+        <div id="app-login-message" class="app-login-message" role="alert"></div>
+      </section>
+    </div>
+
     <div class="d-shell">
 
       <!-- NAV -->
@@ -90,6 +120,19 @@
             </span>
           </div>
           <div class="topbar-actions">
+            <div class="app-user-chip" id="app-user-chip" hidden>
+              <div>
+                <span>Prijavljen</span>
+                <strong id="app-user-label">—</strong>
+                <small id="app-google-session-label">Google sesija: tehnički nalog</small>
+              </div>
+            </div>
+            <button class="btn-ghost" id="app-switch-user-btn" type="button" hidden>
+              <i class="ti ti-switch-horizontal" aria-hidden="true"></i> Promeni korisnika
+            </button>
+            <button class="btn-ghost" id="app-logout-btn" type="button" hidden>
+              <i class="ti ti-logout" aria-hidden="true"></i> Odjava
+            </button>
             <button class="btn-ghost theme-toggle" data-theme-toggle type="button" title="Promeni temu">
               <i class="ti ti-moon" aria-hidden="true"></i>
               <span data-theme-label>Tamna</span>

@@ -485,6 +485,287 @@ function smokeTestPermissionsMatrix() {
   });
 }
 
+function smokeTestAppLoginPinHelpers() {
+  return runSmokeTest_('App login PIN helpers', function() {
+    const pin = '1234';
+    const salt = generatePinSalt();
+    const hash = hashUserPin(pin, salt);
+
+    if (!salt || salt === pin) {
+      throw new Error('PIN salt was not generated correctly.');
+    }
+    if (!hash || hash === pin || String(hash).indexOf(pin) !== -1) {
+      throw new Error('PIN hash exposes the original PIN.');
+    }
+    if (!verifyUserPin(pin, hash, salt)) {
+      throw new Error('Valid PIN was not verified.');
+    }
+    if (verifyUserPin('0000', hash, salt)) {
+      throw new Error('Invalid PIN was accepted.');
+    }
+
+    return {
+      message: 'PIN helpers generate salt, hash PIN and verify without exposing plain PIN.',
+      details: {
+        hashLength: hash.length,
+        saltLength: salt.length
+      }
+    };
+  });
+}
+
+function smokeTestAppLoginModelReadOnly() {
+  return runSmokeTest_('App login model read-only', function() {
+    const requiredUserColumns = [
+      'user_code',
+      'pin_hash',
+      'pin_salt',
+      'last_login_at',
+      'last_logout_at',
+      'failed_login_count',
+      'locked_until',
+      'last_google_session_email'
+    ];
+    const requiredSessionColumns = [
+      'session_id',
+      'app_user_id',
+      'user_code',
+      'role',
+      'google_session_email',
+      'cashbox_id',
+      'shift_id',
+      'created_at',
+      'last_seen_at',
+      'expires_at',
+      'active',
+      'logout_at',
+      'device_label'
+    ];
+    const requiredAuditActions = [
+      'APP_USER_LOGIN',
+      'APP_USER_LOGOUT',
+      'APP_USER_SWITCH',
+      'APP_USER_LOGIN_FAILED',
+      'APP_SESSION_EXPIRED'
+    ];
+
+    const missingUserColumns = requiredUserColumns.filter(function(column) {
+      return TABLE_HEADERS.USERS.indexOf(column) === -1;
+    });
+    const missingSessionColumns = requiredSessionColumns.filter(function(column) {
+      return TABLE_HEADERS.APP_SESSIONS.indexOf(column) === -1;
+    });
+    const missingAuditActions = requiredAuditActions.filter(function(action) {
+      return objectValues_(AUDIT_ACTIONS).indexOf(action) === -1;
+    });
+
+    if (SHEET_NAMES.APP_SESSIONS !== 'APP_SESSIONS') {
+      throw new Error('APP_SESSIONS sheet name is not configured.');
+    }
+    if (missingUserColumns.length || missingSessionColumns.length || missingAuditActions.length) {
+      throw new Error('App login model is incomplete.');
+    }
+
+    return {
+      message: 'App login headers and audit action constants are configured.',
+      details: {
+        userColumns: requiredUserColumns.length,
+        sessionColumns: requiredSessionColumns.length,
+        auditActions: requiredAuditActions.length
+      }
+    };
+  });
+}
+
+function smokeTestUserAdminAppLoginReadOnly() {
+  return runSmokeTest_('User admin app login read-only', function() {
+    const requiredAuditActions = [
+      'USER_PIN_SET',
+      'USER_PIN_RESET',
+      'USER_CODE_CHANGED',
+      'USER_APP_LOGIN_ENABLED',
+      'USER_APP_LOGIN_DISABLED'
+    ];
+    const missingAuditActions = requiredAuditActions.filter(function(action) {
+      return objectValues_(AUDIT_ACTIONS).indexOf(action) === -1;
+    });
+    const sample = sanitizeUserForApi_({
+      user_id: 'USR-SAMPLE',
+      email: 'sample@example.com',
+      full_name: 'Sample User',
+      role: USER_ROLES.REQUESTER,
+      active: true,
+      default_cashbox_id: '',
+      user_code: 'SAMPLE',
+      pin_hash: 'SECRET_HASH',
+      pin_salt: 'SECRET_SALT',
+      failed_login_count: 0
+    });
+
+    if (missingAuditActions.length) {
+      throw new Error('Missing user admin audit actions: ' + missingAuditActions.join(', '));
+    }
+    if (Object.prototype.hasOwnProperty.call(sample, 'pin_hash') ||
+        Object.prototype.hasOwnProperty.call(sample, 'pin_salt')) {
+      throw new Error('Sanitized user exposes PIN hash or salt.');
+    }
+    if (sample.app_login_status !== 'PIN_SET') {
+      throw new Error('Sanitized user did not expose safe app login status.');
+    }
+
+    return {
+      message: 'User admin login constants and sanitization are configured.',
+      details: {
+        auditActions: requiredAuditActions.length,
+        appLoginStatus: sample.app_login_status
+      }
+    };
+  });
+}
+
+function smokeTestAppSessionGatingReadOnly() {
+  return runSmokeTest_('App session gating read-only', function() {
+    let emptySessionFailed = false;
+    try {
+      requireAppSession('', USER_PRIVILEGES.PAYMENT_REQUESTS_CREATE);
+    } catch (error) {
+      emptySessionFailed = /sessionId|non-empty|Sesija je istekla/i.test(error.message || '');
+    }
+    if (!emptySessionFailed) {
+      throw new Error('requireAppSession did not reject empty sessionId.');
+    }
+
+    const auditContext = buildAuditContextFromSession({
+      app_user_id: 'USR-SAMPLE',
+      app_user_name: 'Sample User',
+      user_code: 'SAMPLE',
+      role: USER_ROLES.CASHIER,
+      google_session_email: 'blagajna@example.com',
+      cashbox_id: 'CB_MAIN',
+      shift_id: 'SHF-SAMPLE'
+    });
+    if (auditContext.app_user_id !== 'USR-SAMPLE' || auditContext.google_session_email !== 'blagajna@example.com') {
+      throw new Error('Audit context does not include app user and Google session email.');
+    }
+
+    const response = apiCreatePaymentRequest({
+      requested_for_name: 'Should not be written',
+      amount: 1,
+      currency: 'RSD',
+      purpose: 'Missing app session test'
+    }, '');
+    if (!response || response.ok !== false || !/Sesija je istekla|sessionId|non-empty/i.test(response.error && response.error.message || '')) {
+      throw new Error('Protected write API without session did not fail safely.');
+    }
+
+    return {
+      message: 'Session gating rejects empty session and audit context carries app identity fields.',
+      details: {
+        emptySessionRejected: true,
+        protectedWriteRejected: true,
+        auditContextFields: Object.keys(auditContext).length
+      }
+    };
+  });
+}
+
+function smokeTestAppLoginDatabaseReadiness() {
+  return runSmokeTest_('App login database readiness', function() {
+    const report = reportAppLoginDatabaseReadiness();
+    if (!report || !report.users || !report.app_sessions || !report.audit_log) {
+      throw new Error('Readiness report did not return expected sections.');
+    }
+    return {
+      message: 'App login database readiness was checked; structure columns may be ensured, but users and PINs are not changed.',
+      details: {
+        ok_for_deploy: report.ok_for_deploy,
+        blockers: report.blockers || [],
+        warnings: report.warnings || [],
+        duplicate_user_ids: report.users.duplicate_user_ids || [],
+        active_admin_count: report.users.active_admin_count || 0,
+        active_admin_with_pin_count: report.users.active_admin_with_pin_count || 0
+      }
+    };
+  });
+}
+
+function smokeTestRequireAppSessionWrite(sessionId) {
+  return runSmokeTest_('Require app session write/context', function() {
+    const context = requireAppSession(sessionId, USER_PRIVILEGES.PAYMENT_REQUESTS_CREATE);
+    if (!context.app_user_id || !context.google_session_email) {
+      throw new Error('Valid app session did not return app identity context.');
+    }
+    return {
+      message: 'Valid app session returned app user context.',
+      details: {
+        app_user_id: context.app_user_id,
+        role: context.role,
+        google_session_email: context.google_session_email
+      }
+    };
+  });
+}
+
+function smokeTestCreateUserWithPinWrite() {
+  return runSmokeTest_('Create user with app PIN write', function() {
+    ensureSmokeTestRole_([USER_ROLES.ADMIN]);
+    const suffix = Utilities.getUuid().split('-')[0].toUpperCase();
+    const user = createUser({
+      user_code: 'SMOKE_' + suffix,
+      email: 'smoke.' + suffix.toLowerCase() + '@example.com',
+      full_name: 'Smoke App Login User',
+      role: USER_ROLES.VIEWER,
+      active: true,
+      pin: '1234'
+    });
+    const raw = getUserByCode_(user.user_code);
+    if (!raw || !raw.pin_hash || !raw.pin_salt) {
+      throw new Error('Created user does not have PIN hash and salt.');
+    }
+    if (user.pin_hash || user.pin_salt) {
+      throw new Error('API user result exposes PIN hash or salt.');
+    }
+    if (!verifyUserPin('1234', raw.pin_hash, raw.pin_salt)) {
+      throw new Error('Created user PIN does not verify.');
+    }
+    return {
+      message: 'User with user_code and PIN was created. This is a write smoke test.',
+      details: { user_id: user.user_id, user_code: user.user_code }
+    };
+  });
+}
+
+function smokeTestResetUserPinWrite(userId) {
+  return runSmokeTest_('Reset user PIN write', function() {
+    ensureSmokeTestRole_([USER_ROLES.ADMIN]);
+    assertNonEmptyString(userId, 'userId');
+    const beforeMatch = findRecordById(SHEET_NAMES.USERS, 'user_id', userId);
+    if (!beforeMatch) {
+      throw new Error('User not found: ' + userId);
+    }
+    const before = beforeMatch.record;
+    const updated = resetUserPin(userId, '9876');
+    const after = getUserById_(userId);
+    if (!after || !after.pin_hash || !after.pin_salt) {
+      throw new Error('Reset PIN did not write hash and salt.');
+    }
+    if (String(before.pin_hash || '') === String(after.pin_hash || '') ||
+        String(before.pin_salt || '') === String(after.pin_salt || '')) {
+      throw new Error('Reset PIN did not change hash and salt.');
+    }
+    if (!verifyUserPin('9876', after.pin_hash, after.pin_salt)) {
+      throw new Error('Reset PIN does not verify.');
+    }
+    if (updated.pin_hash || updated.pin_salt) {
+      throw new Error('Reset result exposes PIN hash or salt.');
+    }
+    return {
+      message: 'User PIN was reset. This is a write smoke test.',
+      details: { user_id: updated.user_id, user_code: updated.user_code }
+    };
+  });
+}
+
 function runAllSmokeTests() {
   const tests = [
     smokeTestDatabaseInitialization(),
@@ -502,7 +783,12 @@ function runAllSmokeTests() {
     smokeTestRequestUnderLimitAutoCreatesOrder(),
     smokeTestRequestOverLimitRequiresApproval(),
     smokeTestCashMovementsReportLimit(),
-    smokeTestPermissionsMatrix()
+    smokeTestPermissionsMatrix(),
+    smokeTestAppLoginPinHelpers(),
+    smokeTestAppLoginModelReadOnly(),
+    smokeTestUserAdminAppLoginReadOnly(),
+    smokeTestAppLoginDatabaseReadiness(),
+    smokeTestAppSessionGatingReadOnly()
   ];
   return {
     ok: tests.every(function(test) { return test.status === 'PASS' || test.status === 'SKIPPED'; }),

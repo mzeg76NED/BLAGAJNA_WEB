@@ -75,6 +75,19 @@ Blagajnik moze da odbije/vrati nalog ako ne moze da ga izvrsi. Dozvoljene role:
 - CASHIER_SUPERVISOR
 - ADMIN
 
+## App session i audit
+
+Write akcije nad nalozima zahtevaju validnu aplikativnu sesiju.
+
+Minimalne privilegije:
+
+- kreiranje naloga: `payment_orders:create`
+- izdavanje/slanje na isplatu: `payment_orders:issue`
+- odbijanje naloga u blagajni: `payment_orders:reject`
+- blagajničko izvršenje: `payment_orders:execute`
+
+Audit zapis za kreiranje, izdavanje, slanje na isplatu i izvršenje naloga može da sadrži aplikativnog korisnika, rolu, Google tehničku sesiju, blagajnu i smenu.
+
 ## Statusi
 
 | Status | Znacenje |

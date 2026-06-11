@@ -32,6 +32,7 @@ const APP_CONFIG = Object.freeze({
 
 const SHEET_NAMES = Object.freeze({
   USERS: 'USERS',
+  APP_SESSIONS: 'APP_SESSIONS',
   CASHBOXES: 'CASHBOXES',
   CURRENCIES: 'CURRENCIES',
   PAYMENT_REQUESTS: 'PAYMENT_REQUESTS',
@@ -214,7 +215,17 @@ const AUDIT_ACTIONS = Object.freeze({
   POST: 'POST',
   LOCK: 'LOCK',
   REVERSE: 'REVERSE',
-  BACKUP: 'BACKUP'
+  BACKUP: 'BACKUP',
+  APP_USER_LOGIN: 'APP_USER_LOGIN',
+  APP_USER_LOGOUT: 'APP_USER_LOGOUT',
+  APP_USER_SWITCH: 'APP_USER_SWITCH',
+  APP_USER_LOGIN_FAILED: 'APP_USER_LOGIN_FAILED',
+  APP_SESSION_EXPIRED: 'APP_SESSION_EXPIRED',
+  USER_PIN_SET: 'USER_PIN_SET',
+  USER_PIN_RESET: 'USER_PIN_RESET',
+  USER_CODE_CHANGED: 'USER_CODE_CHANGED',
+  USER_APP_LOGIN_ENABLED: 'USER_APP_LOGIN_ENABLED',
+  USER_APP_LOGIN_DISABLED: 'USER_APP_LOGIN_DISABLED'
 });
 
 const SUPPORTED_CURRENCIES = Object.freeze(['RSD', 'EUR']);
@@ -228,7 +239,30 @@ const TABLE_HEADERS = Object.freeze({
     'active',
     'default_cashbox_id',
     'created_at',
-    'updated_at'
+    'updated_at',
+    'user_code',
+    'pin_hash',
+    'pin_salt',
+    'last_login_at',
+    'last_logout_at',
+    'failed_login_count',
+    'locked_until',
+    'last_google_session_email'
+  ]),
+  APP_SESSIONS: Object.freeze([
+    'session_id',
+    'app_user_id',
+    'user_code',
+    'role',
+    'google_session_email',
+    'cashbox_id',
+    'shift_id',
+    'created_at',
+    'last_seen_at',
+    'expires_at',
+    'active',
+    'logout_at',
+    'device_label'
   ]),
   CASHBOXES: Object.freeze([
     'cashbox_id',
@@ -396,6 +430,13 @@ const TABLE_HEADERS = Object.freeze({
     'log_id',
     'timestamp',
     'user',
+    'app_user_id',
+    'app_user_name',
+    'user_code',
+    'role',
+    'google_session_email',
+    'cashbox_id',
+    'shift_id',
     'action',
     'entity_type',
     'entity_id',

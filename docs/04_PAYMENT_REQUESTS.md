@@ -36,6 +36,19 @@ Zahteve mogu da pregledaju i odobravaju aktivni korisnici sa jednom od sledecih 
 
 Kreator zahteva moze da podnese ili otkaze svoj zahtev. Korisnici sa review rolama mogu da rade nad zahtevima u redu za odobrenje.
 
+## App session i audit
+
+Write akcije nad zahtevima zahtevaju validnu aplikativnu sesiju.
+
+Minimalne privilegije:
+
+- kreiranje/podnošenje: `payment_requests:create`
+- odobravanje: `payment_requests:approve`
+- odbijanje: `payment_requests:reject`
+- vraćanje na dopunu: `payment_requests:return_for_correction`
+
+Audit zapis za ove akcije može da sadrži aplikativnog korisnika (`app_user_id`, `app_user_name`, `user_code`, `role`) i Google tehničku sesiju (`google_session_email`).
+
 ## Statusi
 
 Dozvoljeni statusi su:

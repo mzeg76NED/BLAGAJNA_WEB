@@ -44,3 +44,8 @@ Ovaj dokument navodi poznata ograničenja trenutne pilot verzije sistema.
 5. Pre svake veće izmene treba napraviti svežu kopiju Google Sheet baze.
 6. Poznati problemi iz pilota moraju se voditi u `docs/23_KNOWN_ISSUES_REGISTER.md`.
 7. Dnevni zaključak zaključava uključene događaje i ne treba ga rutinski izvršavati nad pilot podacima bez odobrenja.
+8. Ako sistem nema nijednog aktivnog aplikativnog ADMIN korisnika sa `user_code` i PIN-om, potreban je ručni administrativni/bootstrap korak kroz Apps Script/helper. Automatsko kreiranje admin korisnika i default PIN nisu implementirani.
+9. Mobile UI još nema poseban app login ekran; server-side write akcije sada zahtevaju validan app session i zato mobilni write tok mora dobiti login podršku pre pilot upotrebe.
+10. App login deploy ne treba raditi dok `reportAppLoginDatabaseReadiness()` ne vrati `ok_for_deploy: true`.
+11. Duplirani `user_id` u `USERS` tabeli blokira spremnost za app login deploy jer sesije i audit moraju jednoznačno vezati akciju za aplikativnog korisnika.
+12. Faza 5 runtime QA ne sme početi ako Faza 4.6 nije izvršena nad realnom bazom ili ako readiness report i dalje ima blockers.

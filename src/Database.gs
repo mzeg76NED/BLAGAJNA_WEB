@@ -47,11 +47,14 @@ function getSheetByNameOrThrow(sheetName) {
 }
 
 function getHeaders_(sheet) {
-  const configured = TABLE_HEADERS[sheet.getName()];
-  if (configured && configured.length) {
-    return configured.slice();
+  const actual = getActualHeaders_(sheet).filter(function(header) {
+    return String(header || '').trim() !== '';
+  });
+  if (actual.length) {
+    return actual;
   }
-  return getActualHeaders_(sheet);
+  const configured = TABLE_HEADERS[sheet.getName()];
+  return configured && configured.length ? configured.slice() : [];
 }
 
 function getActualHeaders_(sheet) {
@@ -64,7 +67,8 @@ function getActualHeaders_(sheet) {
 
 function appendRecord(sheetName, record) {
   const sheet = getSheetByNameOrThrow(sheetName);
-  const headers = getConfiguredHeaders_(sheetName);
+  ensureConfiguredSheetColumns_(sheetName);
+  const headers = getHeaders_(sheet);
   const row = headers.map(function(header) {
     return Object.prototype.hasOwnProperty.call(record, header) ? record[header] : '';
   });
@@ -74,6 +78,7 @@ function appendRecord(sheetName, record) {
 }
 
 function findRecordById(sheetName, idField, idValue) {
+  ensureConfiguredSheetColumns_(sheetName);
   const sheet = getSheetByNameOrThrow(sheetName);
   const headers = getHeaders_(sheet);
   const idIndex = headers.indexOf(idField);
@@ -129,8 +134,9 @@ function updateRecordById(sheetName, idField, idValue, updates) {
 }
 
 function listRecords(sheetName, filters) {
+  ensureConfiguredSheetColumns_(sheetName);
   const sheet = getSheetByNameOrThrow(sheetName);
-  const headers = getConfiguredHeaders_(sheetName);
+  const headers = getHeaders_(sheet);
   const lastRow = sheet.getLastRow();
   const activeFilters = filters || {};
 
@@ -151,8 +157,9 @@ function listRecords(sheetName, filters) {
 }
 
 function listLatestRecords(sheetName, limit, filters) {
+  ensureConfiguredSheetColumns_(sheetName);
   const sheet = getSheetByNameOrThrow(sheetName);
-  const headers = getConfiguredHeaders_(sheetName);
+  const headers = getHeaders_(sheet);
   const lastRow = sheet.getLastRow();
   const maxRows = Number(limit || 100);
   const rowCount = isFinite(maxRows) && maxRows > 0 ? Math.min(maxRows, Math.max(lastRow - 1, 0)) : Math.max(lastRow - 1, 0);
@@ -238,6 +245,63 @@ function syncConfiguredHeaders_(sheet, configuredHeaders) {
 
   const startColumn = existingHeaders.length + 1;
   sheet.getRange(1, startColumn, 1, headersToAdd.length).setValues([headersToAdd]);
+}
+
+function ensureConfiguredSheetColumns_(sheetName) {
+  const configured = TABLE_HEADERS[sheetName];
+  if (!configured || !configured.length) {
+    return {
+      sheet_name: sheetName,
+      changed: false,
+      added_headers: []
+    };
+  }
+  return ensureSheetColumns_(sheetName, configured);
+}
+
+function ensureSheetColumns_(sheetName, expectedHeaders) {
+  assertNonEmptyString(sheetName, 'sheetName');
+  const expected = (expectedHeaders || []).filter(function(header) {
+    return String(header || '').trim() !== '';
+  });
+  const spreadsheet = getDatabaseSpreadsheet_();
+  let sheet = spreadsheet.getSheetByName(sheetName);
+  let created = false;
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+    created = true;
+  }
+
+  const existingHeaders = getActualHeaders_(sheet).filter(function(header) {
+    return String(header || '').trim() !== '';
+  });
+  const missingBefore = expected.filter(function(header) {
+    return existingHeaders.indexOf(header) === -1;
+  });
+
+  if (existingHeaders.length === 0 && expected.length) {
+    sheet.getRange(1, 1, 1, expected.length).setValues([expected]);
+  } else if (missingBefore.length) {
+    const startColumn = existingHeaders.length + 1;
+    sheet.getRange(1, startColumn, 1, missingBefore.length).setValues([missingBefore]);
+  }
+
+  if (expected.length) {
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, getActualHeaders_(sheet).length).setFontWeight('bold');
+  }
+
+  return {
+    sheet_name: sheetName,
+    created: created,
+    existing_headers: existingHeaders,
+    missing_before: missingBefore,
+    added_headers: existingHeaders.length === 0 ? expected.slice() : missingBefore,
+    final_headers: getActualHeaders_(sheet).filter(function(header) {
+      return String(header || '').trim() !== '';
+    }),
+    changed: created || missingBefore.length > 0
+  };
 }
 
 function rowToRecord_(headers, row) {

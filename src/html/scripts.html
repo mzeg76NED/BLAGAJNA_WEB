@@ -2,7 +2,17 @@
   var uiState = {
     config: {},
     currentUser: null,
+    googleUser: null,
     loading: false
+  };
+
+  var APP_SESSION_STORAGE_KEY = 'BLAGAJNA_APP_SESSION_ID';
+  var APP_SESSION = {
+    sessionId: '',
+    sessionExpiresAt: '',
+    googleSessionEmail: '',
+    appUser: null,
+    active: false
   };
 
   var SESSION = {
@@ -989,6 +999,21 @@
     if (/Pre zatvaranja smene uradite presek blagajne|presek blagajne za valute/i.test(text)) {
       return 'Pre zatvaranja smene morate uraditi popis u meniju Presek stanja za sve aktivne valute.';
     }
+    if (/PIN must contain at least 4 digits/i.test(text)) {
+      return 'PIN mora imati najmanje 4 cifre.';
+    }
+    if (/User code already exists/i.test(text)) {
+      return 'Korisnički kod već postoji.';
+    }
+    if (/user_code must/i.test(text)) {
+      return 'Korisnički kod je obavezan i mora biti ispravnog formata.';
+    }
+    if (/Sesija je istekla|Prijavite se ponovo/i.test(text)) {
+      return 'Sesija je istekla. Prijavite se ponovo.';
+    }
+    if (/Nemate ovlašćenje za ovu akciju|privilege is not allowed|required privileges/i.test(text)) {
+      return 'Nemate ovlašćenje za ovu akciju.';
+    }
     return text || 'Poziv nije uspeo.';
   }
 
@@ -1007,13 +1032,16 @@
     if (!options.quiet) {
       showMessage(options.loadingMessage || 'Obrađujem zahtev...', 'info');
     }
+    var finalArgs = appendAppSessionToApiArgs_(functionName, args || []);
     var runner = google.script.run
       .withSuccessHandler(function(response) {
         if (!options.quiet) {
           setLoading(false);
         }
         if (!response || response.ok !== true) {
-          showMessage('Greška: ' + humanizeError_(response && response.error ? response.error.message : 'poziv nije uspeo.'), 'error');
+          var message = response && response.error ? response.error.message : 'poziv nije uspeo.';
+          handleApiErrorForAppSession_(message);
+          showMessage('Greška: ' + humanizeError_(message), 'error');
           if (options.onComplete) {
             options.onComplete(response);
           }
@@ -1033,12 +1061,346 @@
         if (!options.quiet) {
           setLoading(false);
         }
-        showMessage('Greška: ' + humanizeError_(error && error.message ? error.message : 'tehnički problem.'), 'error');
+        var message = error && error.message ? error.message : 'tehnički problem.';
+        handleApiErrorForAppSession_(message);
+        showMessage('Greška: ' + humanizeError_(message), 'error');
         if (options.onComplete) {
           options.onComplete(error);
         }
       });
+    runner[functionName].apply(runner, finalArgs);
+  }
+
+  function appendAppSessionToApiArgs_(functionName, args) {
+    var passthrough = {
+      apiLoginAppUser: true,
+      apiLogoutAppUser: true,
+      apiGetCurrentAppSession: true,
+      apiSwitchAppUser: true
+    };
+    var result = (args || []).slice();
+    if (!passthrough[functionName]) {
+      result.push(getAppSessionId_());
+    }
+    return result;
+  }
+
+  function getAppSessionId_() {
+    return APP_SESSION.sessionId || getStoredAppSessionId_();
+  }
+
+  function handleApiErrorForAppSession_(message) {
+    if (!/Sesija je istekla|Prijavite se ponovo/i.test(String(message || ''))) {
+      return;
+    }
+    clearStoredAppSession_();
+    clearAppSession_();
+    if (document.getElementById('app-login-lock')) {
+      showAppLogin_('Sesija je istekla. Prijavite se ponovo.');
+    }
+  }
+
+  function appLoginCallApi_(functionName, args, onSuccess, onError) {
+    if (!window.google || !google.script || !google.script.run) {
+      if (onError) onError('Apps Script okruženje nije dostupno.');
+      return;
+    }
+    var runner = google.script.run
+      .withSuccessHandler(function(response) {
+        if (!response || response.ok !== true) {
+          if (onError) onError(humanizeAppLoginError_(response && response.error ? response.error.message : 'poziv nije uspeo.'));
+          return;
+        }
+        if (onSuccess) onSuccess(response.data);
+      })
+      .withFailureHandler(function(error) {
+        if (onError) onError(humanizeAppLoginError_(error && error.message ? error.message : 'tehnički problem.'));
+      });
     runner[functionName].apply(runner, args || []);
+  }
+
+  function bindAppLoginUi_() {
+    if (window.__appLoginUiBound) return;
+    window.__appLoginUiBound = true;
+    var form = document.getElementById('app-login-form');
+    if (form) {
+      form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        submitAppLogin_();
+      });
+    }
+    var logout = document.getElementById('app-logout-btn');
+    if (logout) logout.addEventListener('click', function() { logoutAppSession_(false); });
+    var switchUser = document.getElementById('app-switch-user-btn');
+    if (switchUser) switchUser.addEventListener('click', function() { logoutAppSession_(true); });
+  }
+
+  function initDesktopAppLogin_(onReady) {
+    bindAppLoginUi_();
+    setAppLocked_(true);
+    var sessionId = getStoredAppSessionId_();
+    if (!sessionId) {
+      showAppLogin_('');
+      return;
+    }
+    setAppLoginMessage_('Proveravam aplikativnu sesiju...', 'info');
+    appLoginCallApi_('apiGetCurrentAppSession', [sessionId], function(session) {
+      if (session && session.active === true && session.app_user && session.app_user.app_user_id) {
+        applyAppSession_(session);
+        setAppLocked_(false);
+        clearAppLoginMessage_();
+        if (onReady) onReady();
+        return;
+      }
+      clearStoredAppSession_();
+      clearAppSession_();
+      showAppLogin_(session && session.expired ? 'Sesija je istekla. Prijavite se ponovo.' : '');
+    }, function(message) {
+      clearStoredAppSession_();
+      clearAppSession_();
+      showAppLogin_(message || 'Greška pri proveri sesije. Pokušajte ponovo.');
+    });
+  }
+
+  function submitAppLogin_() {
+    var userCode = (document.getElementById('app-login-user-code') || {}).value || '';
+    var pin = (document.getElementById('app-login-pin') || {}).value || '';
+    userCode = String(userCode).trim();
+    pin = String(pin);
+    if (!userCode || !pin) {
+      setAppLoginMessage_('Unesite korisnički kod i PIN.', 'error');
+      return;
+    }
+    setAppLoginLoading_(true);
+    setAppLoginMessage_('', '');
+    appLoginCallApi_('apiLoginAppUser', [{
+      user_code: userCode,
+      pin: pin,
+      context: {
+        cashbox_id: SESSION.cashboxId || '',
+        shift_id: uiState.activeShift && uiState.activeShift.shift_id || '',
+        device_label: 'desktop'
+      }
+    }], function(session) {
+      setAppLoginLoading_(false);
+      applyAppSession_(session);
+      storeAppSessionId_(APP_SESSION.sessionId);
+      setAppLocked_(false);
+      clearAppLoginForm_();
+      bootstrapDesktopAfterLogin_();
+    }, function(message) {
+      setAppLoginLoading_(false);
+      setAppLoginMessage_(message || 'Neispravan korisnički kod ili PIN.', 'error');
+    });
+  }
+
+  function logoutAppSession_(switchUser) {
+    var sessionId = APP_SESSION.sessionId || getStoredAppSessionId_();
+    var finish = function(message) {
+      clearStoredAppSession_();
+      clearAppSession_();
+      setAppLocked_(true);
+      showAppLogin_(message || '');
+    };
+    if (!sessionId) {
+      finish('');
+      return;
+    }
+    appLoginCallApi_('apiLogoutAppUser', [sessionId], function() {
+      finish(switchUser ? '' : 'Odjavljeni ste iz aplikativne sesije.');
+    }, function() {
+      finish('Aplikativna sesija je zatvorena lokalno. Prijavite se ponovo.');
+    });
+  }
+
+  function bootstrapDesktopAfterLogin_() {
+    callApi('apiGetUiBootstrap', [true], function(data) {
+      bootstrapShellAfterAppSession_(true, false, data);
+    }, { quiet: true });
+  }
+
+  function bootstrapShellAfterAppSession_(isDesktop, isMobile, data) {
+    data = data || {};
+    uiState.config = data.config || {};
+    uiState.googleUser = data.user || null;
+    uiState.currentUser = APP_SESSION.appUser || data.user || null;
+    if (APP_SESSION.appUser && APP_SESSION.appUser.default_cashbox_id) {
+      uiState.config.defaultCashboxId = APP_SESSION.appUser.default_cashbox_id;
+      uiState.config.defaultCashboxName = APP_SESSION.appUser.default_cashbox_id;
+    }
+    uiState.activeShift = data.activeShift || null;
+    uiState.canPostDirectCashEvents = data.canPostDirectCashEvents === true;
+    initializeSession();
+    if (isMobile) {
+      renderSheetCurrencyButtons_();
+      bindSheetCurrencyButtons_();
+    }
+    fillConfigOptions();
+    setTodayDefaults();
+    renderPhysicalBalanceInputs();
+    renderDenominationInputs_();
+    applyDefaultCashboxFields();
+    renderCurrentUser(uiState.currentUser);
+    renderAppVersion_();
+    renderAppSessionHeader_();
+    applyActiveShiftFields_();
+    applyDirectCashPermission_();
+    loadCashbookFilterOptions_();
+    bindBalanceOverviewButtons_();
+    bindShiftWorkActions_();
+    bindAmountFormatting_();
+    enforceShiftStartup_(isDesktop, isMobile);
+    if (isDesktop && data.dashboard) renderDesktopDashboard(data.dashboard);
+    if (isMobile) applyRoleBasedHomeMobile_(uiState.currentUser && uiState.currentUser.role);
+    refreshBalance_();
+    loadKnjiga_(true);
+    if (isMobile) { refreshUrgentAlert(); loadMobileNalozi_(); }
+    if (isDesktop) loadDesktopNavBadges_();
+    startLiveRefresh_(isDesktop, isMobile);
+  }
+
+  function applyAppSession_(session) {
+    session = session || {};
+    APP_SESSION.sessionId = session.session_id || '';
+    APP_SESSION.sessionExpiresAt = session.session_expires_at || '';
+    APP_SESSION.googleSessionEmail = session.google_session_email || '';
+    APP_SESSION.appUser = session.app_user || null;
+    APP_SESSION.active = session.active === true;
+    if (APP_SESSION.appUser) {
+      uiState.currentUser = APP_SESSION.appUser;
+    }
+    renderAppSessionHeader_();
+  }
+
+  function clearAppSession_() {
+    APP_SESSION.sessionId = '';
+    APP_SESSION.sessionExpiresAt = '';
+    APP_SESSION.googleSessionEmail = '';
+    APP_SESSION.appUser = null;
+    APP_SESSION.active = false;
+    renderAppSessionHeader_();
+  }
+
+  function renderAppSessionHeader_() {
+    var user = APP_SESSION.appUser || uiState.currentUser || {};
+    var userLabel = user && (user.user_code || user.full_name || user.email)
+      ? ((user.user_code ? user.user_code + ' — ' : '') + (user.full_name || user.email || '') + (user.role ? ' · ' + roleLabel_(user.role) : ''))
+      : 'Korisnik nije prijavljen';
+    var googleLabel = 'Google sesija: ' + (APP_SESSION.googleSessionEmail || 'tehnički nalog');
+    setText_('app-user-label', userLabel);
+    setText_('app-google-session-label', googleLabel);
+    setText_('app-login-google-session', googleLabel);
+    document.querySelectorAll('[data-nav-user]').forEach(function(element) {
+      element.textContent = user && (user.user_code || user.full_name || user.email)
+        ? ((user.user_code || user.full_name || user.email) + (user.role ? ' · ' + roleLabel_(user.role) : ''))
+        : 'Nije prijavljen';
+    });
+    var chip = document.getElementById('app-user-chip');
+    var logout = document.getElementById('app-logout-btn');
+    var switchUser = document.getElementById('app-switch-user-btn');
+    var visible = APP_SESSION.active === true;
+    if (chip) chip.hidden = !visible;
+    if (logout) logout.hidden = !visible;
+    if (switchUser) switchUser.hidden = !visible;
+  }
+
+  function roleLabel_(role) {
+    var labels = {
+      ADMIN: 'Administrator',
+      DIRECTOR: 'Direktor',
+      FINANCE: 'Finansije',
+      CASHIER_SUPERVISOR: 'Supervizor blagajne',
+      CASHIER: 'Blagajnik',
+      APPROVER: 'Odobravač',
+      REQUESTER: 'Podnosilac',
+      VIEWER: 'Pregled'
+    };
+    return labels[role] || role || '';
+  }
+
+  function getStoredAppSessionId_() {
+    try {
+      return window.sessionStorage ? sessionStorage.getItem(APP_SESSION_STORAGE_KEY) || '' : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function storeAppSessionId_(sessionId) {
+    try {
+      if (window.sessionStorage) sessionStorage.setItem(APP_SESSION_STORAGE_KEY, sessionId || '');
+    } catch (e) {}
+  }
+
+  function clearStoredAppSession_() {
+    try {
+      if (window.sessionStorage) sessionStorage.removeItem(APP_SESSION_STORAGE_KEY);
+    } catch (e) {}
+  }
+
+  function setAppLocked_(locked) {
+    document.body.classList.toggle('app-locked', locked);
+    var lock = document.getElementById('app-login-lock');
+    if (lock) lock.hidden = !locked;
+    if (locked && window.__blagajnaLiveRefreshTimer) {
+      window.clearInterval(window.__blagajnaLiveRefreshTimer);
+      window.__blagajnaLiveRefreshTimer = null;
+    }
+  }
+
+  function showAppLogin_(message) {
+    setAppLocked_(true);
+    setAppLoginLoading_(false);
+    setAppLoginMessage_(message || '', message ? 'error' : '');
+    var input = document.getElementById('app-login-user-code');
+    if (input) window.setTimeout(function() { input.focus(); }, 50);
+  }
+
+  function setAppLoginLoading_(loading) {
+    var button = document.getElementById('app-login-submit');
+    var label = document.querySelector('[data-login-submit-label]');
+    var code = document.getElementById('app-login-user-code');
+    var pin = document.getElementById('app-login-pin');
+    if (button) button.disabled = loading;
+    if (code) code.disabled = loading;
+    if (pin) pin.disabled = loading;
+    if (label) label.textContent = loading ? 'Proveravam...' : 'Prijavi se';
+  }
+
+  function setAppLoginMessage_(message, type) {
+    var el = document.getElementById('app-login-message');
+    if (!el) return;
+    el.textContent = message || '';
+    el.classList.toggle('info', type === 'info');
+  }
+
+  function clearAppLoginMessage_() {
+    setAppLoginMessage_('', '');
+  }
+
+  function clearAppLoginForm_() {
+    var pin = document.getElementById('app-login-pin');
+    if (pin) pin.value = '';
+  }
+
+  function humanizeAppLoginError_(message) {
+    var text = String(message || '');
+    if (/nije aktivan|inactive|deaktiv/i.test(text)) return 'Korisnik je deaktiviran.';
+    if (/zaklju/i.test(text)) return 'Korisnik je privremeno zaključan.';
+    if (/PIN nije postavljen|not set/i.test(text)) {
+      return 'Aplikativni login nije inicijalizovan. Potrebno je da administrator postavi korisničke kodove i PIN-ove.';
+    }
+    if (/PIN must contain at least 4 digits/i.test(text)) {
+      return 'PIN mora imati najmanje 4 cifre.';
+    }
+    if (/User code already exists/i.test(text)) {
+      return 'Korisnički kod već postoji.';
+    }
+    if (/Neispravan korisnički kod ili PIN|invalid pin|UNKNOWN_USER_CODE|INVALID_PIN/i.test(text)) {
+      return 'Neispravan korisnički kod ili PIN.';
+    }
+    if (/session|sesija/i.test(text)) return 'Sesija je istekla. Prijavite se ponovo.';
+    return 'Greška pri proveri sesije. Pokušajte ponovo.';
   }
 
   function initTheme_() {
@@ -1641,7 +2003,12 @@
 
   function renderCurrentUser(user) {
     document.querySelectorAll('[data-current-user]').forEach(function(element) {
-      element.textContent = user && user.email ? user.email + ' · ' + user.role : 'Korisnik nije učitan';
+      if (!user) {
+        element.textContent = 'Korisnik nije učitan';
+        return;
+      }
+      var primary = user.user_code || user.full_name || user.email || user.user_id || '';
+      element.textContent = primary ? primary + ' · ' + (user.role || '') : 'Korisnik nije učitan';
     });
   }
 
@@ -4542,16 +4909,20 @@
           removeOptimisticEvent_(tempId);
           renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
           if (cur === SESSION.currency) updateTopbarBalance_(direction === 'IN' ? -amount : amount);
-          showDesktopMessage_('Greška: ' + humanizeError_(resp && resp.error ? resp.error.message : 'problem.'), 'error');
+          var message = resp && resp.error ? resp.error.message : 'problem.';
+          handleApiErrorForAppSession_(message);
+          showDesktopMessage_('Greška: ' + humanizeError_(message), 'error');
         }
       })
       .withFailureHandler(function(err) {
         removeOptimisticEvent_(tempId);
         renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
         if (cur === SESSION.currency) updateTopbarBalance_(direction === 'IN' ? -amount : amount);
-        showDesktopMessage_('Greška: ' + humanizeError_(err && err.message ? err.message : 'tehnički problem.'), 'error');
+        var message = err && err.message ? err.message : 'tehnički problem.';
+        handleApiErrorForAppSession_(message);
+        showDesktopMessage_('Greška: ' + humanizeError_(message), 'error');
       })
-      [fn](data);
+      [fn](data, getAppSessionId_());
   }
 
   function prependDesktopOptimistic_(tempId, direction, amount, currency, label) {
@@ -4708,16 +5079,20 @@
           removeOptimisticEvent_(tempId);
           renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
           if (cur === SESSION.currency) updateMobileBalance_(direction === 'IN' ? -amount : amount);
-          showMobileMessage_('Greška: ' + humanizeError_(resp && resp.error ? resp.error.message : 'problem.'), 'error');
+          var message = resp && resp.error ? resp.error.message : 'problem.';
+          handleApiErrorForAppSession_(message);
+          showMobileMessage_('Greška: ' + humanizeError_(message), 'error');
         }
       })
       .withFailureHandler(function(err) {
         removeOptimisticEvent_(tempId);
         renderKnjigaTable_(LAST_KNJIGA_EVENTS || []);
         if (cur === SESSION.currency) updateMobileBalance_(direction === 'IN' ? -amount : amount);
-        showMobileMessage_('Greška: ' + humanizeError_(err && err.message ? err.message : 'problem.'), 'error');
+        var message = err && err.message ? err.message : 'problem.';
+        handleApiErrorForAppSession_(message);
+        showMobileMessage_('Greška: ' + humanizeError_(message), 'error');
       })
-      [fn](data);
+      [fn](data, getAppSessionId_());
   }
 
   function prependMobileOptimistic_(tempId, direction, amount, currency, label) {
@@ -5317,15 +5692,28 @@
     return {
       raw: user,
       user_id: user.user_id || '',
+      user_code: user.user_code || '',
       email: user.email || '',
       full_name: user.full_name || '',
       role: user.role || 'VIEWER',
       active: user.active === true || user.active === 'TRUE' || user.active === 'true' || user.active === 1 || user.active === '1',
       default_cashbox_id: user.default_cashbox_id || '',
+      app_login_status: user.app_login_status || inferUsersAdminLoginStatus_(user),
       privileges: Array.isArray(user.privileges) ? user.privileges.slice() : getUsersAdminRolePrivileges_(user.role || 'VIEWER'),
+      last_login_at: user.last_login_at || '',
+      last_logout_at: user.last_logout_at || '',
+      failed_login_count: Number(user.failed_login_count || 0),
+      locked_until: user.locked_until || '',
+      last_google_session_email: user.last_google_session_email || '',
       created_at: user.created_at || '',
       updated_at: user.updated_at || ''
     };
+  }
+
+  function inferUsersAdminLoginStatus_(user) {
+    if (!user || !user.user_code) return 'NO_USER_CODE';
+    if (user.locked_until) return 'LOCKED';
+    return 'PIN_SET';
   }
 
   function getUsersAdminRolePrivileges_(role) {
@@ -5384,7 +5772,7 @@
       if (status === 'inactive' && user.active) return false;
       if (cashbox && user.default_cashbox_id !== cashbox) return false;
       if (search) {
-        var haystack = [user.user_id, user.email, user.full_name, user.role, user.default_cashbox_id].join(' ').toLowerCase();
+        var haystack = [user.user_id, user.user_code, user.email, user.full_name, user.role, user.default_cashbox_id].join(' ').toLowerCase();
         if (haystack.indexOf(search) === -1) return false;
       }
       return true;
@@ -5420,17 +5808,19 @@
     }
     target.innerHTML =
       '<table class="po-table users-admin-table"><thead><tr>' +
-        '<th>Korisnik</th><th>Rola</th><th>Status</th><th>Default blagajna</th><th>Privilegije</th><th>Ažurirano</th><th>Akcije</th>' +
+        '<th>Korisnik</th><th>Kod</th><th>Rola</th><th>Status</th><th>Login</th><th>Poslednja prijava</th><th>Google sesija</th><th>Privilegije</th><th>Akcije</th>' +
       '</tr></thead><tbody>' +
       rows.map(function(user) {
         var selected = user.user_id === USERS_ADMIN_STATE.selectedUserId ? ' po-row-selected' : '';
         return '<tr class="po-row' + selected + '" data-user-id="' + escapeHtml(user.user_id) + '">' +
           '<td><strong>' + escapeHtml(user.full_name || '—') + '</strong><small>' + escapeHtml(user.email || user.user_id || '—') + '</small></td>' +
+          '<td><strong>' + escapeHtml(user.user_code || '—') + '</strong></td>' +
           '<td><span class="user-role-badge">' + escapeHtml(user.role || '—') + '</span></td>' +
           '<td>' + renderUsersAdminStatusBadge_(user.active) + '</td>' +
-          '<td>' + escapeHtml(getUsersAdminCashboxLabel_(user.default_cashbox_id)) + '</td>' +
+          '<td>' + renderUsersAdminLoginBadge_(user) + '</td>' +
+          '<td>' + escapeHtml(formatDateTimeShort_(user.last_login_at) || '—') + '</td>' +
+          '<td>' + escapeHtml(user.last_google_session_email || '—') + '</td>' +
           '<td>' + escapeHtml(String((user.privileges || []).length)) + '</td>' +
-          '<td>' + escapeHtml(formatDateTimeShort_(user.updated_at || user.created_at)) + '</td>' +
           '<td class="users-admin-row-actions">' + renderUsersAdminRowActions_(user) + '</td>' +
         '</tr>';
       }).join('') + '</tbody></table>';
@@ -5464,6 +5854,14 @@
     return '<span class="user-status-badge ' + (active ? 'is-active' : 'is-inactive') + '">' + (active ? 'Aktivan' : 'Neaktivan') + '</span>';
   }
 
+  function renderUsersAdminLoginBadge_(user) {
+    var status = user && user.app_login_status || 'PIN_NOT_SET';
+    if (status === 'LOCKED') return '<span class="user-status-badge is-inactive">Zaključan</span>';
+    if (status === 'PIN_SET') return '<span class="user-status-badge is-active">PIN podešen</span>';
+    if (status === 'NO_USER_CODE') return '<span class="user-status-badge is-inactive">Nema koda</span>';
+    return '<span class="user-status-badge is-inactive">PIN nije podešen</span>';
+  }
+
   function renderUsersAdminDetails_(user) {
     var target = document.getElementById('d-users-detail-body');
     if (!target) return;
@@ -5480,11 +5878,18 @@
       '<div class="users-admin-tab-panel" data-users-tab-panel="overview">' +
         '<div class="po-detail-grid">' +
           renderPaymentOrderField_('User ID', user.user_id) +
+          renderPaymentOrderField_('Korisnički kod', user.user_code || '—') +
           renderPaymentOrderField_('Email', user.email) +
           renderPaymentOrderField_('Ime i prezime', user.full_name) +
           renderPaymentOrderField_('Rola', user.role) +
           renderPaymentOrderField_('Status', user.active ? 'Aktivan' : 'Neaktivan') +
+          renderPaymentOrderField_('App login', loginStatusLabel_(user.app_login_status)) +
           renderPaymentOrderField_('Default blagajna', getUsersAdminCashboxLabel_(user.default_cashbox_id)) +
+          renderPaymentOrderField_('Poslednja prijava', formatDateTimeShort_(user.last_login_at) || '—') +
+          renderPaymentOrderField_('Poslednja odjava', formatDateTimeShort_(user.last_logout_at) || '—') +
+          renderPaymentOrderField_('Pogrešni pokušaji', String(user.failed_login_count || 0)) +
+          renderPaymentOrderField_('Zaključan do', formatDateTimeShort_(user.locked_until) || '—') +
+          renderPaymentOrderField_('Poslednji Google nalog', user.last_google_session_email || '—') +
           renderPaymentOrderField_('Kreiran', formatDateTimeShort_(user.created_at)) +
           renderPaymentOrderField_('Ažuriran', formatDateTimeShort_(user.updated_at)) +
         '</div>' +
@@ -5502,6 +5907,16 @@
     var toggle = document.getElementById('d-users-detail-toggle');
     if (toggle) toggle.addEventListener('click', function() { confirmToggleUserActive_(user.user_id); });
     bindUsersAdminDetailTabs_();
+  }
+
+  function loginStatusLabel_(status) {
+    var map = {
+      PIN_SET: 'PIN podešen',
+      PIN_NOT_SET: 'PIN nije podešen',
+      LOCKED: 'Zaključan',
+      NO_USER_CODE: 'Nema korisnički kod'
+    };
+    return map[status] || status || '—';
   }
 
   function bindUsersAdminDetailTabs_() {
@@ -5594,11 +6009,19 @@
         '<h3>' + (isEdit ? 'Izmeni korisnika' : 'Dodaj korisnika') + '</h3>' +
         '<form id="users-admin-modal-form" class="form-grid users-admin-modal-form" novalidate>' +
           (isEdit ? '<input type="hidden" name="user_id" value="' + escapeHtml(user.user_id || '') + '">' : '') +
-          '<label>Email<input name="email" type="email" value="' + escapeHtml(user.email || '') + '"' + (isEdit ? ' readonly' : '') + ' required></label>' +
+          '<label>Korisnički kod<input name="user_code" type="text" value="' + escapeHtml(user.user_code || '') + '" autocomplete="off" spellcheck="false" required></label>' +
           '<label>Ime i prezime<input name="full_name" type="text" value="' + escapeHtml(user.full_name || '') + '" required></label>' +
+          '<label>Email<input name="email" type="email" value="' + escapeHtml(user.email || '') + '"' + (isEdit ? ' readonly' : '') + ' required><small>Email je kompatibilno/informativno polje; login koristi korisnički kod.</small></label>' +
           '<label>Rola<select name="role" required></select></label>' +
           '<label>Status<select name="active"><option value="true">Aktivan</option><option value="false">Neaktivan</option></select></label>' +
           '<label>Default blagajna<select name="default_cashbox_id"></select></label>' +
+          (!isEdit
+            ? '<label>Početni PIN<input name="initial_pin" type="password" inputmode="numeric" autocomplete="new-password" required></label>' +
+              '<label>Potvrda PIN-a<input name="initial_pin_confirm" type="password" inputmode="numeric" autocomplete="new-password" required></label>'
+            : '<div class="users-admin-pin-reset"><strong>Reset PIN-a</strong><p>PIN se ne prikazuje. Popunite oba polja samo ako želite da resetujete PIN.</p>' +
+              '<label>Novi PIN<input name="new_pin" type="password" inputmode="numeric" autocomplete="new-password"></label>' +
+              '<label>Potvrda novog PIN-a<input name="new_pin_confirm" type="password" inputmode="numeric" autocomplete="new-password"></label>' +
+              '<button type="button" class="cash-count-action draft" data-reset-pin ' + ((currentUserHasPrivilege_('users:update') || currentUserHasPrivilege_('users:assign_roles')) ? '' : 'disabled') + '><i class="ti ti-key" aria-hidden="true"></i> Resetuj PIN</button></div>') +
           '<label>Napomena<textarea name="note" rows="3" placeholder="Interna napomena za ovu izmenu"></textarea></label>' +
           '<div class="users-admin-modal-privileges"><strong>Privilegije izabrane role</strong><p>Privilegije su izvedene iz role i nije ih moguće menjati pojedinačno.</p><div data-modal-role-privileges></div></div>' +
         '</form>' +
@@ -5621,9 +6044,11 @@
       if (isEdit) submitUpdateUser_(form, close);
       else submitCreateUser_(form, close);
     });
+    var resetPin = overlay.querySelector('[data-reset-pin]');
+    if (resetPin) resetPin.addEventListener('click', function() { submitResetUserPin_(form); });
     bindUsersAdminModalPrivilegePreview_(form);
     window.setTimeout(function() {
-      var first = form.querySelector(isEdit ? '[name="full_name"]' : '[name="email"]');
+      var first = form.querySelector(isEdit ? '[name="user_code"]' : '[name="user_code"]');
       if (first) first.focus();
     }, 50);
   }
@@ -5640,9 +6065,11 @@
       roleSelect.disabled = !currentUserHasPrivilege_('users:assign_roles');
     }
     var activeSelect = form.elements.active;
-    if (activeSelect && user && user.active && !currentUserHasPrivilege_('users:disable')) {
-      activeSelect.disabled = true;
-      activeSelect.title = 'Deaktivacija zahteva pravo users:disable.';
+    if (activeSelect && user) {
+      if ((user.active && !currentUserHasPrivilege_('users:disable')) || (!user.active && !currentUserHasPrivilege_('users:update'))) {
+        activeSelect.disabled = true;
+        activeSelect.title = 'Promena statusa zahteva odgovarajuće users pravo.';
+      }
     }
     var cashboxSelect = form.elements.default_cashbox_id;
     if (cashboxSelect) {
@@ -5650,6 +6077,11 @@
       cashboxSelect.innerHTML = '<option value="">Bez podrazumevane blagajne</option>' + cashboxes.map(function(cashbox) {
         return '<option value="' + escapeHtml(cashbox.cashbox_id) + '">' + escapeHtml(cashbox.name || cashbox.cashbox_id) + '</option>';
       }).join('');
+    }
+    if (user && user.user_id && !currentUserHasPrivilege_('users:update')) {
+      ['user_code', 'full_name', 'default_cashbox_id'].forEach(function(name) {
+        if (form.elements[name]) form.elements[name].disabled = true;
+      });
     }
   }
 
@@ -5665,9 +6097,15 @@
   }
 
   function validateUsersAdminForm_(form, isEdit) {
+    var userCode = (form.elements.user_code.value || '').trim();
     var email = (form.elements.email.value || '').trim();
     var fullName = (form.elements.full_name.value || '').trim();
     var role = form.elements.role.value || '';
+    if (!/^[A-Za-z0-9._-]{2,40}$/.test(userCode)) {
+      showDesktopMessage_('Korisnički kod je obavezan i sme da sadrži slova, brojeve, tačku, donju crtu ili crticu.', 'error');
+      form.elements.user_code.focus();
+      return false;
+    }
     if (!isEdit && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       showDesktopMessage_('Unesite validan email korisnika.', 'error');
       form.elements.email.focus();
@@ -5683,17 +6121,33 @@
       form.elements.role.focus();
       return false;
     }
+    if (!isEdit) {
+      var pin = form.elements.initial_pin.value || '';
+      var pinConfirm = form.elements.initial_pin_confirm.value || '';
+      if (!/^\d{4,}$/.test(pin)) {
+        showDesktopMessage_('Početni PIN je obavezan i mora imati najmanje 4 cifre.', 'error');
+        form.elements.initial_pin.focus();
+        return false;
+      }
+      if (pin !== pinConfirm) {
+        showDesktopMessage_('Potvrda PIN-a se ne poklapa.', 'error');
+        form.elements.initial_pin_confirm.focus();
+        return false;
+      }
+    }
     return true;
   }
 
   function submitCreateUser_(form, close) {
     if (!validateUsersAdminForm_(form, false)) return;
     var payload = {
+      user_code: form.elements.user_code.value.trim(),
       email: form.elements.email.value.trim(),
       full_name: form.elements.full_name.value.trim(),
       role: form.elements.role.value,
       active: form.elements.active.value === 'true',
-      default_cashbox_id: form.elements.default_cashbox_id.value || ''
+      default_cashbox_id: form.elements.default_cashbox_id.value || '',
+      initial_pin: form.elements.initial_pin.value || ''
     };
     callApi('apiCreateUser', [payload], function(created) {
       if (close) close();
@@ -5706,10 +6160,12 @@
   function submitUpdateUser_(form, close) {
     if (!validateUsersAdminForm_(form, true)) return;
     var userId = form.elements.user_id.value || '';
-    var payload = {
-      full_name: form.elements.full_name.value.trim(),
-      default_cashbox_id: form.elements.default_cashbox_id.value || ''
-    };
+    var payload = {};
+    if (currentUserHasPrivilege_('users:update')) {
+      payload.user_code = form.elements.user_code.value.trim();
+      payload.full_name = form.elements.full_name.value.trim();
+      payload.default_cashbox_id = form.elements.default_cashbox_id.value || '';
+    }
     if (currentUserHasPrivilege_('users:assign_roles')) {
       payload.role = form.elements.role.value;
     }
@@ -5722,6 +6178,29 @@
       USERS_ADMIN_STATE.selectedUserId = updated && updated.user_id || userId;
       loadDesktopUsersAdmin_();
     }, { successMessage: 'Korisnik je ažuriran.' });
+  }
+
+  function submitResetUserPin_(form) {
+    var userId = form.elements.user_id.value || '';
+    var pin = form.elements.new_pin.value || '';
+    var pinConfirm = form.elements.new_pin_confirm.value || '';
+    if (!/^\d{4,}$/.test(pin)) {
+      showDesktopMessage_('Novi PIN mora imati najmanje 4 cifre.', 'error');
+      form.elements.new_pin.focus();
+      return;
+    }
+    if (pin !== pinConfirm) {
+      showDesktopMessage_('Potvrda novog PIN-a se ne poklapa.', 'error');
+      form.elements.new_pin_confirm.focus();
+      return;
+    }
+    callApi('apiResetUserPin', [userId, pin], function(updated) {
+      showDesktopMessage_('PIN je resetovan.', 'success');
+      form.elements.new_pin.value = '';
+      form.elements.new_pin_confirm.value = '';
+      USERS_ADMIN_STATE.selectedUserId = updated && updated.user_id || userId;
+      loadDesktopUsersAdmin_();
+    }, { successMessage: 'PIN je resetovan.' });
   }
 
   function confirmToggleUserActive_(userId) {
@@ -7978,48 +8457,18 @@
       dateEl.textContent = now.getDate() + '.' + (now.getMonth()+1) + '.' + now.getFullYear() + '.';
     }
 
+    if (isDesktop) {
+      initDesktopAppLogin_(function() {
+        callApi('apiGetUiBootstrap', [true], function(data) {
+          bootstrapShellAfterAppSession_(true, false, data);
+        }, { quiet: true });
+      });
+      return;
+    }
+
     // Bootstrap API call
     callApi('apiGetUiBootstrap', [isDesktop], function(data) {
-      uiState.config      = data.config || {};
-      uiState.currentUser = data.user   || null;
-      uiState.activeShift = data.activeShift || null;
-      uiState.canPostDirectCashEvents = data.canPostDirectCashEvents === true;
-      initializeSession();
-      if (isMobile) {
-        renderSheetCurrencyButtons_();
-        bindSheetCurrencyButtons_();
-      }
-      fillConfigOptions();
-      setTodayDefaults();
-      renderPhysicalBalanceInputs();
-      renderDenominationInputs_();
-      applyDefaultCashboxFields();
-      renderCurrentUser(uiState.currentUser);
-      renderAppVersion_();
-      applyActiveShiftFields_();
-      applyDirectCashPermission_();
-      loadCashbookFilterOptions_();
-      bindBalanceOverviewButtons_();
-      bindShiftWorkActions_();
-      bindAmountFormatting_();
-      enforceShiftStartup_(isDesktop, isMobile);
-
-      // Ažuriraj korisnika u sidebar-u
-      var navUser = document.querySelector('[data-nav-user]');
-      if (navUser && uiState.currentUser) {
-        navUser.textContent = (uiState.currentUser.full_name || uiState.currentUser.email || '') +
-          ' · ' + (uiState.currentUser.role || '');
-      }
-
-      if (isDesktop && data.dashboard) renderDesktopDashboard(data.dashboard);
-      if (isMobile)  applyRoleBasedHomeMobile_(uiState.currentUser && uiState.currentUser.role);
-
-      refreshBalance_();
-      loadKnjiga_(true);
-
-      if (isMobile)  { refreshUrgentAlert(); loadMobileNalozi_(); }
-      if (isDesktop) loadDesktopNavBadges_();
-      startLiveRefresh_(isDesktop, isMobile);
+      bootstrapShellAfterAppSession_(isDesktop, isMobile, data);
     }, { quiet: true });
   });
 

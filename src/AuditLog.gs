@@ -3,12 +3,25 @@
  * Audit rows are append-only.
  */
 function writeAuditLog(action, entityType, entityId, oldValue, newValue, comment) {
+  if (typeof ensureAuditAppContextColumns === 'function') {
+    ensureAuditAppContextColumns();
+  }
   assertAllowedValue(action, objectValues_(AUDIT_ACTIONS), 'action');
+  const auditContext = typeof buildAuditContextFromSession === 'function'
+    ? buildAuditContextFromSession(null, extractAuditContextFromValues_(oldValue, newValue))
+    : {};
 
   const record = {
     log_id: generateId_('LOG'),
     timestamp: new Date(),
     user: getActiveUserEmail_(),
+    app_user_id: auditContext.app_user_id || '',
+    app_user_name: auditContext.app_user_name || '',
+    user_code: auditContext.user_code || '',
+    role: auditContext.role || '',
+    google_session_email: auditContext.google_session_email || '',
+    cashbox_id: auditContext.cashbox_id || '',
+    shift_id: auditContext.shift_id || '',
     action: action,
     entity_type: entityType,
     entity_id: entityId,
@@ -33,6 +46,14 @@ function stringifyAuditValue_(value) {
     return '';
   }
   return JSON.stringify(value);
+}
+
+function extractAuditContextFromValues_(oldValue, newValue) {
+  const source = newValue && typeof newValue === 'object' ? newValue : oldValue && typeof oldValue === 'object' ? oldValue : {};
+  return {
+    cashbox_id: source.cashbox_id || source.preferred_cashbox_id || '',
+    shift_id: source.shift_id || ''
+  };
 }
 
 function getActiveUserEmail_() {

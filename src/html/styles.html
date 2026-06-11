@@ -1699,6 +1699,130 @@
 
   /* ─── Desktop shell ───────────────────────────────────── */
 
+  body.app-locked .d-shell {
+    display: none;
+  }
+
+  body:not(.app-locked) .app-login-lock {
+    display: none;
+  }
+
+  .app-login-lock {
+    align-items: center;
+    background: var(--color-bg);
+    color: var(--color-text);
+    display: flex;
+    min-height: 100dvh;
+    padding: 24px;
+    justify-content: center;
+  }
+
+  .app-login-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(15, 23, 42, .12);
+    display: grid;
+    gap: 18px;
+    max-width: 430px;
+    padding: 22px;
+    width: min(100%, 430px);
+  }
+
+  :root[data-theme="dark"] .app-login-card {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .36);
+  }
+
+  .app-login-brand {
+    align-items: center;
+    border-bottom: 1px solid var(--color-border-light);
+    display: flex;
+    gap: 12px;
+    padding-bottom: 14px;
+  }
+
+  .app-login-icon {
+    align-items: center;
+    background: var(--color-primary-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-primary);
+    display: flex;
+    height: 42px;
+    justify-content: center;
+    width: 42px;
+  }
+
+  .app-login-icon i {
+    font-size: 24px;
+  }
+
+  .app-login-brand strong {
+    display: block;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .app-login-brand span,
+  .app-login-copy p,
+  .app-login-copy small {
+    color: var(--color-text-muted);
+  }
+
+  .app-login-brand span,
+  .app-login-copy small {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .app-login-copy {
+    display: grid;
+    gap: 8px;
+  }
+
+  .app-login-form {
+    display: grid;
+    gap: 12px;
+  }
+
+  .app-login-message {
+    color: var(--color-out);
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 20px;
+  }
+
+  .app-login-message.info {
+    color: var(--color-primary);
+  }
+
+  .app-user-chip {
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    display: flex;
+    min-height: 40px;
+    padding: 6px 10px;
+  }
+
+  .app-user-chip span,
+  .app-user-chip small {
+    color: var(--color-text-muted);
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .app-user-chip strong {
+    display: block;
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
   .d-shell {
     display: grid;
     grid-template-columns: 220px minmax(0, 1fr);
@@ -4854,6 +4978,22 @@
     margin: 0;
   }
 
+  .users-admin-pin-reset {
+    background: rgba(3, 18, 33, .28);
+    border: 1px solid rgba(120, 170, 220, .14);
+    border-radius: 12px;
+    display: grid;
+    gap: 10px;
+    grid-column: 1 / -1;
+    padding: 12px;
+  }
+
+  .users-admin-pin-reset p {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    margin: 0;
+  }
+
   :root:not([data-theme="dark"]) .users-admin-page,
   :root:not([data-theme="dark"]) .users-admin-page .po-page-head,
   :root:not([data-theme="dark"]) .users-admin-page .po-filters,
@@ -4924,7 +5064,8 @@
 
   :root:not([data-theme="dark"]) .users-admin-role-summary,
   :root:not([data-theme="dark"]) .users-admin-matrix-row,
-  :root:not([data-theme="dark"]) .users-admin-modal-privileges {
+  :root:not([data-theme="dark"]) .users-admin-modal-privileges,
+  :root:not([data-theme="dark"]) .users-admin-pin-reset {
     background: #f8fafc;
     border-color: #e2e8f0;
   }
