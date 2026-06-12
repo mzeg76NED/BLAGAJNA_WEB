@@ -821,7 +821,9 @@ function repairPaymentOrdersCashboxFromRequest() {
     found_count: 0,
     repaired_count: 0,
     skipped_count: 0,
-    skipped_orders: []
+    repaired_orders: [],
+    skipped_orders: [],
+    errors: []
   };
 
   listRecords(SHEET_NAMES.PAYMENT_ORDERS)
@@ -854,16 +856,43 @@ function repairPaymentOrdersCashboxFromRequest() {
           'Repaired payment order cashbox_id from request/default cashbox. No status, amount or recipient changed.'
         );
         report.repaired_count++;
+        report.repaired_orders.push({
+          order_id: order.order_id,
+          old_cashbox_id: order.cashbox_id || '',
+          new_cashbox_id: cashboxId,
+          linked_request_id: requestId
+        });
       } catch (error) {
+        const reason = error && error.message ? error.message : String(error);
         report.skipped_count++;
         report.skipped_orders.push({
           order_id: order.order_id,
           source_request_id: order.source_request_id || '',
           linked_request_id: order.linked_request_id || '',
-          reason: error && error.message ? error.message : String(error)
+          reason: reason
+        });
+        report.errors.push({
+          order_id: order.order_id,
+          message: reason
         });
       }
     });
+
+  if (report.found_count > 0) {
+    writeAuditLog(
+      AUDIT_ACTIONS.PAYMENT_ORDER_CASHBOX_REPAIR,
+      SHEET_NAMES.PAYMENT_ORDERS,
+      'PAYMENT_ORDER_CASHBOX_REPAIR',
+      null,
+      {
+        found_count: report.found_count,
+        repaired_count: report.repaired_count,
+        skipped_count: report.skipped_count,
+        repaired_orders: report.repaired_orders
+      },
+      'Admin repair for payment order cashbox_id from request/default cashbox. No payments, statuses, amounts or recipients changed.'
+    );
+  }
 
   return report;
 }

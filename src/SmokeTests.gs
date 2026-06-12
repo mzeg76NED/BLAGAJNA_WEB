@@ -508,6 +508,24 @@ function smokeTestRepairPaymentOrdersCashboxFromRequest() {
   });
 }
 
+function smokeTestPaymentOrderCashboxRepairApiStatic() {
+  return runSmokeTest_('Payment order cashbox repair API static checks', function() {
+    if (typeof apiRepairPaymentOrdersCashboxFromRequest !== 'function') {
+      throw new Error('apiRepairPaymentOrdersCashboxFromRequest is missing.');
+    }
+    if (isValidPaymentOrderCashboxId_(ORDER_TYPES.FROM_REQUEST)) {
+      throw new Error('FROM_REQUEST must not be treated as a valid payment order cashbox_id.');
+    }
+    const response = apiRepairPaymentOrdersCashboxFromRequest('');
+    if (!response || response.ok !== false) {
+      throw new Error('Repair API must require a valid app session.');
+    }
+    return {
+      message: 'Repair API exists, requires app session and rejects FROM_REQUEST as a valid cashbox.'
+    };
+  });
+}
+
 function smokeTestCashMovementsReportLimit() {
   return runSmokeTest_('Cash movements report limit', function() {
     ensureSmokeTestRole_(REPORT_VIEW_ROLES_);
@@ -916,6 +934,7 @@ function runAllSmokeTests() {
     smokeTestRequestUnderLimitAutoCreatesOrder(),
     smokeTestRequestOverLimitRequiresApproval(),
     smokeTestRepairPaymentOrdersCashboxFromRequest(),
+    smokeTestPaymentOrderCashboxRepairApiStatic(),
     smokeTestCashMovementsReportLimit(),
     smokeTestPermissionsMatrix(),
     smokeTestRolePermissionSheetsReadiness(),

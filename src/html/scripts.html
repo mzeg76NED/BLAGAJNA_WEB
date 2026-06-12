@@ -5667,6 +5667,8 @@
     if (refresh) refresh.addEventListener('click', loadDesktopUsersAdmin_);
     var add = document.getElementById('d-users-add-btn');
     if (add) add.addEventListener('click', openCreateUserModal_);
+    var repairOrderCashbox = document.getElementById('d-users-repair-order-cashbox-btn');
+    if (repairOrderCashbox) repairOrderCashbox.addEventListener('click', confirmRepairPaymentOrderCashboxes_);
   }
 
   function loadDesktopUsersAdmin_() {
@@ -5704,6 +5706,10 @@
     return privileges.indexOf(privilege) !== -1 || user.role === 'ADMIN';
   }
 
+  function isCurrentUserAdmin_() {
+    return !!(uiState.currentUser && uiState.currentUser.role === 'ADMIN');
+  }
+
   function renderUsersAdminDenied_() {
     var denied = document.getElementById('d-users-admin-denied');
     var content = document.getElementById('d-users-admin-content');
@@ -5711,6 +5717,8 @@
     if (content) content.hidden = true;
     var add = document.getElementById('d-users-add-btn');
     if (add) add.hidden = true;
+    var repairOrderCashbox = document.getElementById('d-users-repair-order-cashbox-btn');
+    if (repairOrderCashbox) repairOrderCashbox.hidden = true;
   }
 
   function renderUsersAdminAllowed_() {
@@ -5720,6 +5728,66 @@
     if (content) content.hidden = false;
     var add = document.getElementById('d-users-add-btn');
     if (add) add.hidden = !currentUserHasPrivilege_('users:create');
+    var repairOrderCashbox = document.getElementById('d-users-repair-order-cashbox-btn');
+    if (repairOrderCashbox) repairOrderCashbox.hidden = !isCurrentUserAdmin_();
+  }
+
+  function confirmRepairPaymentOrderCashboxes_() {
+    if (!isCurrentUserAdmin_()) {
+      showDesktopMessage_('Samo ADMIN može da pokrene servisnu popravku blagajne naloga.', 'error');
+      return;
+    }
+    appConfirm_({
+      title: 'Servisna popravka naloga',
+      message: 'Ova akcija će popraviti naloge koji imaju cashbox_id = FROM_REQUEST ili praznu blagajnu. Neće izvršiti isplate i neće promeniti iznose. Nastaviti?',
+      confirmText: 'Pokreni popravku'
+    }, function() {
+      callApi('apiRepairPaymentOrdersCashboxFromRequest', [], function(report) {
+        showDesktopMessage_('Popravka naloga je završena.', 'success');
+        appHtmlDialog_({
+          title: 'Rezultat popravke blagajni naloga',
+          html: renderRepairPaymentOrderCashboxReport_(report || {}),
+          confirmText: 'Zatvori'
+        });
+        loadPendingPaymentOrderOutflows_(true);
+        if (typeof loadDesktopNalozi_ === 'function') {
+          loadDesktopNalozi_();
+        }
+      }, { successMessage: 'Popravka naloga je završena.' });
+    });
+  }
+
+  function renderRepairPaymentOrderCashboxReport_(report) {
+    report = report || {};
+    var repaired = Array.isArray(report.repaired_orders) ? report.repaired_orders : [];
+    var skipped = Array.isArray(report.skipped_orders) ? report.skipped_orders : [];
+    var errors = Array.isArray(report.errors) ? report.errors : [];
+    var repairedHtml = repaired.length
+      ? repaired.map(function(item) {
+          return '<li><strong>' + escapeHtml(item.order_id || '') + '</strong>: ' +
+            escapeHtml(item.old_cashbox_id || '-') + ' &rarr; ' + escapeHtml(item.new_cashbox_id || '-') +
+            (item.linked_request_id ? ' <small>(' + escapeHtml(item.linked_request_id) + ')</small>' : '') +
+          '</li>';
+        }).join('')
+      : '<li>Nema popravljenih naloga.</li>';
+    var skippedHtml = skipped.length
+      ? skipped.map(function(item) {
+          return '<li><strong>' + escapeHtml(item.order_id || '') + '</strong>: ' + escapeHtml(item.reason || 'Preskočeno') + '</li>';
+        }).join('')
+      : '<li>Nema preskočenih naloga.</li>';
+    var errorsHtml = errors.length
+      ? '<h4>Greške</h4><ul>' + errors.map(function(item) {
+          return '<li><strong>' + escapeHtml(item.order_id || '') + '</strong>: ' + escapeHtml(item.message || '') + '</li>';
+        }).join('') + '</ul>'
+      : '';
+    return '<div class="users-admin-repair-report">' +
+      '<p><strong>Pronađeno:</strong> ' + escapeHtml(report.found_count || 0) + '</p>' +
+      '<p><strong>Popravljeno:</strong> ' + escapeHtml(report.repaired_count || 0) + '</p>' +
+      '<p><strong>Preskočeno:</strong> ' + escapeHtml(report.skipped_count || 0) + '</p>' +
+      '<h4>Popravljeni nalozi</h4><ul>' + repairedHtml + '</ul>' +
+      '<h4>Preskočeni nalozi</h4><ul>' + skippedHtml + '</ul>' +
+      errorsHtml +
+    '</div>';
   }
 
   function normalizeUsersAdminUser_(user) {

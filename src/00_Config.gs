@@ -5,7 +5,7 @@
  * intentionally configures this project copy for one known environment.
  */
 const APP_NAME = 'BLAGAJNA WEB';
-const APP_VERSION = '2.0.34-payment-order-cashbox-fix';
+const APP_VERSION = '2.0.35-admin-payment-order-cashbox-repair';
 const ENVIRONMENT = 'PILOT'; // DEV, PILOT, PROD
 const DEBUG_MODE = false;
 const DATABASE_SPREADSHEET_ID = '';
@@ -228,7 +228,8 @@ const AUDIT_ACTIONS = Object.freeze({
   USER_PIN_RESET: 'USER_PIN_RESET',
   USER_CODE_CHANGED: 'USER_CODE_CHANGED',
   USER_APP_LOGIN_ENABLED: 'USER_APP_LOGIN_ENABLED',
-  USER_APP_LOGIN_DISABLED: 'USER_APP_LOGIN_DISABLED'
+  USER_APP_LOGIN_DISABLED: 'USER_APP_LOGIN_DISABLED',
+  PAYMENT_ORDER_CASHBOX_REPAIR: 'PAYMENT_ORDER_CASHBOX_REPAIR'
 });
 
 const SUPPORTED_CURRENCIES = Object.freeze(['RSD', 'EUR']);

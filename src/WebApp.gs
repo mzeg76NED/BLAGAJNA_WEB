@@ -318,6 +318,18 @@ function apiCreateCashCount(data, sessionId) {
   });
 }
 
+function apiRepairPaymentOrdersCashboxFromRequest(sessionId) {
+  return apiWrap_(function() {
+    return runWithApiSession_(sessionId, null, function() {
+      const user = assertCurrentUserActive();
+      if (user.role !== USER_ROLES.ADMIN) {
+        throw new Error('Samo ADMIN može da pokrene servisnu popravku blagajne naloga.');
+      }
+      return repairPaymentOrdersCashboxFromRequest();
+    });
+  });
+}
+
 function apiCreateCashCounts(data, sessionId) {
   return apiWrap_(function() {
     return runWithApiSession_(sessionId, USER_PRIVILEGES.SHIFTS_COUNT, function() {
