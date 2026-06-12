@@ -366,7 +366,7 @@ function sendPaymentOrderToCashier(orderId) {
     assertNonEmptyString(orderId, 'orderId');
 
     const match = getPaymentOrderMatchOrThrow_(orderId);
-    const order = match.record;
+    const order = normalizePaymentOrderForRead_(match.record);
     assertEntityStatus(order, [
       ORDER_STATUSES.WAITING_PAYMENT,
       ORDER_STATUSES.PARTIALLY_PAID
@@ -492,7 +492,7 @@ function rejectPaymentOrderByCashier(orderId, reason) {
 
 function getPaymentOrderById(orderId) {
   const match = findRecordById(SHEET_NAMES.PAYMENT_ORDERS, 'order_id', orderId);
-  return match ? match.record : null;
+  return match ? normalizePaymentOrderForRead_(match.record) : null;
 }
 
 function updatePaymentOrderAfterExecution(orderId, executionData) {
@@ -529,6 +529,7 @@ function listOrdersWaitingForPayment() {
   requireActiveUserWithRole_(PAYMENT_ORDER_WAITING_LIST_ROLES_);
 
   return listRecords(SHEET_NAMES.PAYMENT_ORDERS)
+    .map(normalizePaymentOrderForRead_)
     .filter(function(order) {
       return order.status === ORDER_STATUSES.WAITING_PAYMENT ||
         order.status === ORDER_STATUSES.PARTIALLY_PAID;
@@ -707,7 +708,13 @@ function listPaymentOrders(filters) {
     }
   });
 
-  return listRecords(SHEET_NAMES.PAYMENT_ORDERS, activeFilters);
+  return listRecords(SHEET_NAMES.PAYMENT_ORDERS)
+    .map(normalizePaymentOrderForRead_)
+    .filter(function(order) {
+      return Object.keys(activeFilters).every(function(field) {
+        return String(order[field]) === String(activeFilters[field]);
+      });
+    });
 }
 
 function markPaymentOrderClosed(orderId, reason) {
@@ -895,6 +902,185 @@ function repairPaymentOrdersCashboxFromRequest() {
   }
 
   return report;
+}
+
+function normalizePaymentOrderForRead_(order) {
+  const normalized = Object.assign({}, order || {});
+  if (!normalized.order_id) {
+    return normalized;
+  }
+
+  if (isLikelyMisalignedPaymentOrder_(normalized)) {
+    const status = normalizePaymentOrderStatusValue_(normalized.status) ||
+      normalizePaymentOrderStatusValue_(normalized.created_by) ||
+      ORDER_STATUSES.WAITING_PAYMENT;
+    const orderType = normalizePaymentOrderTypeValue_(normalized.cashbox_id) ||
+      normalizePaymentOrderTypeValue_(normalized.order_type) ||
+      ORDER_TYPES.DIRECT_ORDER;
+    const cashboxId = looksPaymentOrderCashboxId_(normalized.pay_to_name)
+      ? String(normalized.pay_to_name).trim()
+      : normalized.cashbox_id;
+    const currency = normalizePaymentOrderCurrencyValue_(normalized.purpose) ||
+      normalizePaymentOrderCurrencyValue_(normalized.currency) ||
+      '';
+    const amountFromCurrency = numericPaymentOrderValue_(normalized.currency);
+    const amountFromPaid = numericPaymentOrderValue_(normalized.amount_paid);
+    const amountFromOrdered = numericPaymentOrderValue_(normalized.amount_ordered);
+    const amountOrdered = amountFromCurrency || amountFromPaid || amountFromOrdered || 0;
+
+    normalized.created_by = normalized.created_at || normalized.created_by || '';
+    normalized.created_at = isPaymentOrderDateLike_(normalized.issued_at)
+      ? normalized.issued_at
+      : (isPaymentOrderDateLike_(normalized.updated_at) ? normalized.updated_at : '');
+    normalized.status = status;
+    normalized.order_type = orderType;
+    normalized.cashbox_id = cashboxId;
+    normalized.currency = currency;
+    normalized.amount_ordered = amountOrdered;
+    normalized.amount_paid = status === ORDER_STATUSES.PAID || status === ORDER_STATUSES.CLOSED
+      ? amountOrdered
+      : 0;
+    normalized.priority = normalizePaymentOrderPriorityValue_(normalized.status) ||
+      normalizePaymentOrderPriorityValue_(order.status) ||
+      REQUEST_PRIORITIES.NORMAL;
+    normalized.pay_to_name = looksPaymentOrderCashboxId_(normalized.pay_to_name)
+      ? ''
+      : normalized.pay_to_name;
+    normalized.purpose = normalizePaymentOrderCurrencyValue_(order.purpose)
+      ? ''
+      : (order.purpose || '');
+    if (!normalized.purpose && order.due_date && !isPaymentOrderDateLike_(order.due_date)) {
+      normalized.purpose = order.due_date;
+      normalized.due_date = '';
+    }
+  }
+
+  return enrichPaymentOrderFromCashEvents_(normalized);
+}
+
+function isLikelyMisalignedPaymentOrder_(order) {
+  if (!order || !order.order_id) {
+    return false;
+  }
+  const createdByLooksStatus = Boolean(normalizePaymentOrderStatusValue_(order.created_by));
+  const statusLooksPriority = Boolean(normalizePaymentOrderPriorityValue_(order.status));
+  const purposeLooksCurrency = Boolean(normalizePaymentOrderCurrencyValue_(order.purpose));
+  const cashboxLooksOrderType = Boolean(normalizePaymentOrderTypeValue_(order.cashbox_id));
+  const currencyLooksAmount = numericPaymentOrderValue_(order.currency) > 0;
+  return createdByLooksStatus && (statusLooksPriority || purposeLooksCurrency || cashboxLooksOrderType || currencyLooksAmount);
+}
+
+function enrichPaymentOrderFromCashEvents_(order) {
+  const events = listRecords(SHEET_NAMES.CASH_EVENTS, {
+    linked_order_id: order.order_id
+  }).filter(function(event) {
+    return event.event_type === CASH_EVENT_TYPES.CASH_OUTFLOW;
+  });
+  if (!events.length) {
+    return order;
+  }
+
+  const postedTotal = events.filter(function(event) {
+    return event.status === CASH_EVENT_STATUSES.POSTED || event.status === CASH_EVENT_STATUSES.LOCKED;
+  }).reduce(function(total, event) {
+    return total + Number(event.amount || 0);
+  }, 0);
+  const pendingTotal = events.filter(function(event) {
+    return event.status === CASH_EVENT_STATUSES.SUBMITTED;
+  }).reduce(function(total, event) {
+    return total + Number(event.amount || 0);
+  }, 0);
+  const latest = events.slice().sort(function(left, right) {
+    return toTime_(right.posted_at || right.created_at || right.event_date) -
+      toTime_(left.posted_at || left.created_at || left.event_date);
+  })[0];
+  const eventAmount = postedTotal + pendingTotal;
+
+  if (latest.cashbox_id && isInvalidPaymentOrderCashboxId_(order.cashbox_id)) {
+    order.cashbox_id = latest.cashbox_id;
+  }
+  if (latest.cashbox_id && looksPaymentOrderCashboxId_(latest.cashbox_id) && !looksPaymentOrderCashboxId_(order.cashbox_id)) {
+    order.cashbox_id = latest.cashbox_id;
+  }
+  if (latest.currency && !normalizePaymentOrderCurrencyValue_(order.currency)) {
+    order.currency = latest.currency;
+  }
+  if (eventAmount > 0 && Number(order.amount_ordered || 0) <= 0) {
+    order.amount_ordered = eventAmount;
+  }
+  if (postedTotal > 0) {
+    order.amount_paid = postedTotal;
+  }
+  if (latest.partner_name && (!order.pay_to_name || looksPaymentOrderCashboxId_(order.pay_to_name))) {
+    order.pay_to_name = latest.partner_name;
+  }
+  if (latest.description && !order.purpose) {
+    order.purpose = latest.description;
+  }
+  if (!order.created_at) {
+    order.created_at = latest.created_at || latest.event_date || '';
+  }
+  if (!order.issued_at) {
+    order.issued_at = latest.created_at || latest.event_date || '';
+  }
+  if (!order.linked_cash_event_id) {
+    const pending = events.filter(function(event) {
+      return event.status === CASH_EVENT_STATUSES.SUBMITTED;
+    })[0];
+    order.linked_cash_event_id = pending ? pending.event_id : latest.event_id;
+  }
+  if (pendingTotal > 0 && order.status !== ORDER_STATUSES.PAID && order.status !== ORDER_STATUSES.CLOSED) {
+    order.status = ORDER_STATUSES.WAITING_PAYMENT;
+  }
+  if (postedTotal > 0 && postedTotal >= Number(order.amount_ordered || 0)) {
+    order.status = ORDER_STATUSES.PAID;
+  }
+  if ((order.status === ORDER_STATUSES.PAID || order.status === ORDER_STATUSES.CLOSED) && Number(order.amount_paid || 0) <= 0) {
+    order.amount_paid = Number(order.amount_ordered || 0);
+  }
+  return order;
+}
+
+function normalizePaymentOrderStatusValue_(value) {
+  const text = String(value || '').trim().toUpperCase();
+  return objectValues_(ORDER_STATUSES).indexOf(text) !== -1 ? text : '';
+}
+
+function normalizePaymentOrderPriorityValue_(value) {
+  const text = String(value || '').trim().toUpperCase();
+  return objectValues_(REQUEST_PRIORITIES).indexOf(text) !== -1 ? text : '';
+}
+
+function normalizePaymentOrderTypeValue_(value) {
+  const text = String(value || '').trim().toUpperCase();
+  return objectValues_(ORDER_TYPES).indexOf(text) !== -1 ? text : '';
+}
+
+function normalizePaymentOrderCurrencyValue_(value) {
+  const text = String(value || '').trim().toUpperCase();
+  return SUPPORTED_CURRENCIES.indexOf(text) !== -1 ? text : '';
+}
+
+function numericPaymentOrderValue_(value) {
+  const text = String(value === undefined || value === null ? '' : value).replace(/\./g, '').replace(',', '.').trim();
+  const number = Number(text);
+  return isFinite(number) ? number : 0;
+}
+
+function looksPaymentOrderCashboxId_(value) {
+  const text = String(value || '').trim();
+  return /^CB[_-]/i.test(text);
+}
+
+function isPaymentOrderDateLike_(value) {
+  if (!value) {
+    return false;
+  }
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return !isNaN(value.getTime());
+  }
+  const text = String(value || '').trim();
+  return /\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\.\d{4}/.test(text) && !isNaN(new Date(text).getTime());
 }
 
 function buildOrderDescriptionFromRequest_(requestDescription, orderDescription) {
