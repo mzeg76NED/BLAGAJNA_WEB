@@ -63,6 +63,11 @@ const PAYMENT_ORDER_SEND_TO_CASHIER_ROLES_ = Object.freeze([
   USER_ROLES.APPROVER
 ]);
 
+const PAYMENT_ORDER_INVALID_CASHBOX_IDS_ = Object.freeze([
+  '',
+  ORDER_TYPES.FROM_REQUEST
+]);
+
 function createPaymentOrderFromRequest(requestId, orderData) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -81,9 +86,9 @@ function createPaymentOrderFromRequest(requestId, orderData) {
     }
     assertNoActiveOrderForRequest_(requestId);
 
-    assertRequiredFields(data, ['cashbox_id']);
-    assertActiveCashbox(data.cashbox_id);
-    assertCashboxAccess(data.cashbox_id);
+    const cashboxId = resolvePaymentOrderCashboxFromRequest_(request, data);
+    assertActiveCashbox(cashboxId);
+    assertCashboxAccess(cashboxId);
 
     const amountOrdered = Number(data.amount_ordered || request.amount);
     const currency = data.currency || request.currency;
@@ -107,7 +112,7 @@ function createPaymentOrderFromRequest(requestId, orderData) {
       source_request_id: request.request_id,
       linked_request_id: request.request_id,
       order_type: ORDER_TYPES.FROM_REQUEST,
-      cashbox_id: data.cashbox_id,
+      cashbox_id: cashboxId,
       pay_to_name: data.pay_to_name || request.requested_for_name,
       amount_ordered: amountOrdered,
       amount_paid: 0,
@@ -763,6 +768,104 @@ function assertNoActiveOrderForRequest_(requestId) {
   if (activeOrders.length > 0) {
     throw new Error('Payment Request already has active payment order: ' + activeOrders[0].order_id);
   }
+}
+
+function resolvePaymentOrderCashboxFromRequest_(request, context) {
+  const data = context || {};
+  const currentUser = getCurrentUser();
+  const candidates = [
+    data.cashbox_id,
+    data.preferred_cashbox_id,
+    request && request.cashbox_id,
+    request && request.preferred_cashbox_id,
+    data.default_cashbox_id,
+    currentUser && currentUser.default_cashbox_id,
+    'CB_MAIN'
+  ];
+
+  for (let index = 0; index < candidates.length; index++) {
+    const cashboxId = normalizePaymentOrderCashboxId_(candidates[index]);
+    if (isValidPaymentOrderCashboxId_(cashboxId)) {
+      return cashboxId;
+    }
+  }
+
+  throw new Error('Nije moguće odrediti blagajnu za nalog iz zahteva.');
+}
+
+function normalizePaymentOrderCashboxId_(cashboxId) {
+  return String(cashboxId || '').trim();
+}
+
+function isInvalidPaymentOrderCashboxId_(cashboxId) {
+  return PAYMENT_ORDER_INVALID_CASHBOX_IDS_.indexOf(normalizePaymentOrderCashboxId_(cashboxId)) !== -1;
+}
+
+function isValidPaymentOrderCashboxId_(cashboxId) {
+  const normalized = normalizePaymentOrderCashboxId_(cashboxId);
+  if (isInvalidPaymentOrderCashboxId_(normalized)) {
+    return false;
+  }
+  const match = findRecordById(SHEET_NAMES.CASHBOXES, 'cashbox_id', normalized);
+  return Boolean(match && isTruthy_(match.record.active));
+}
+
+function repairPaymentOrdersCashboxFromRequest() {
+  requireActiveUserWithRole_([
+    USER_ROLES.ADMIN,
+    USER_ROLES.FINANCE,
+    USER_ROLES.CASHIER_SUPERVISOR
+  ]);
+
+  const report = {
+    found_count: 0,
+    repaired_count: 0,
+    skipped_count: 0,
+    skipped_orders: []
+  };
+
+  listRecords(SHEET_NAMES.PAYMENT_ORDERS)
+    .filter(function(order) {
+      return isInvalidPaymentOrderCashboxId_(order.cashbox_id);
+    })
+    .forEach(function(order) {
+      report.found_count++;
+      try {
+        const requestId = order.linked_request_id || order.source_request_id || '';
+        const requestMatch = requestId
+          ? findRecordById(SHEET_NAMES.PAYMENT_REQUESTS, 'request_id', requestId)
+          : null;
+        const request = requestMatch ? requestMatch.record : null;
+        const cashboxId = resolvePaymentOrderCashboxFromRequest_(request || {}, {
+          cashbox_id: '',
+          default_cashbox_id: 'CB_MAIN'
+        });
+        const before = Object.assign({}, order);
+        const updated = updateRecordById(SHEET_NAMES.PAYMENT_ORDERS, 'order_id', order.order_id, {
+          cashbox_id: cashboxId,
+          updated_at: getCurrentTimestamp_()
+        });
+        writeAuditLog(
+          AUDIT_ACTIONS.UPDATE,
+          SHEET_NAMES.PAYMENT_ORDERS,
+          order.order_id,
+          before,
+          updated,
+          'Repaired payment order cashbox_id from request/default cashbox. No status, amount or recipient changed.'
+        );
+        report.repaired_count++;
+      } catch (error) {
+        report.skipped_count++;
+        report.skipped_orders.push({
+          order_id: order.order_id,
+          source_request_id: order.source_request_id || '',
+          linked_request_id: order.linked_request_id || '',
+          reason: error && error.message ? error.message : String(error)
+        });
+      }
+    });
+
+  return report;
 }
 
 function buildOrderDescriptionFromRequest_(requestDescription, orderDescription) {

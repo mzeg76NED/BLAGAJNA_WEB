@@ -396,6 +396,9 @@ function smokeTestRequestUnderLimitAutoCreatesOrder() {
     if (!order || order.status !== ORDER_STATUSES.WAITING_PAYMENT) {
       throw new Error('Under-limit request did not create WAITING_PAYMENT order.');
     }
+    if (order.cashbox_id === ORDER_TYPES.FROM_REQUEST || !order.cashbox_id) {
+      throw new Error('Under-limit request created order without real cashbox_id.');
+    }
     if (order.source_request_id !== request.request_id || order.linked_request_id !== request.request_id) {
       throw new Error('Order is not linked to source request.');
     }
@@ -430,9 +433,77 @@ function smokeTestRequestOverLimitRequiresApproval() {
     if (!order || order.status !== ORDER_STATUSES.WAITING_PAYMENT) {
       throw new Error('Higher approval did not create waiting order.');
     }
+    if (order.cashbox_id === ORDER_TYPES.FROM_REQUEST || !order.cashbox_id) {
+      throw new Error('Approved over-limit request created order without real cashbox_id.');
+    }
     return {
       message: 'Over-limit request waited for approval and then created waiting order.',
       details: { request_id: request.request_id, order_id: order.order_id }
+    };
+  });
+}
+
+function smokeTestRepairPaymentOrdersCashboxFromRequest() {
+  return runSmokeTest_('Repair payment order cashbox from request', function() {
+    ensureSmokeTestRole_([
+      USER_ROLES.ADMIN,
+      USER_ROLES.FINANCE,
+      USER_ROLES.CASHIER_SUPERVISOR
+    ]);
+    createMinimalTestSetup();
+
+    const request = createPaymentRequest({
+      requested_for_name: 'Smoke Test Repair Primalac',
+      amount: 1000,
+      currency: 'RSD',
+      purpose: 'Smoke test repair cashbox',
+      description: 'Smoke test repair za nalog sa pogresnom blagajnom.',
+      preferred_cashbox_id: 'TEST_CB_MAIN',
+      priority: REQUEST_PRIORITIES.NORMAL
+    });
+    const order = {
+      order_id: generateId_('ORD'),
+      created_at: getCurrentTimestamp_(),
+      created_by: getCurrentUser().email,
+      source_request_id: request.request_id,
+      linked_request_id: request.request_id,
+      order_type: ORDER_TYPES.FROM_REQUEST,
+      cashbox_id: ORDER_TYPES.FROM_REQUEST,
+      pay_to_name: request.requested_for_name,
+      amount_ordered: request.amount,
+      amount_paid: 0,
+      currency: request.currency,
+      purpose: request.purpose,
+      description: request.description,
+      due_date: '',
+      priority: REQUEST_PRIORITIES.NORMAL,
+      status: ORDER_STATUSES.WAITING_PAYMENT,
+      issued_by: getCurrentUser().email,
+      issued_at: getCurrentTimestamp_(),
+      executed_by: '',
+      executed_at: '',
+      linked_cash_event_id: '',
+      document_status: DOCUMENT_STATUSES.NONE,
+      cancellation_reason: '',
+      cashier_rejection_reason: '',
+      updated_at: ''
+    };
+    appendRecord(SHEET_NAMES.PAYMENT_ORDERS, order);
+
+    const report = repairPaymentOrdersCashboxFromRequest();
+    const repaired = getPaymentOrderById(order.order_id);
+    if (!repaired || repaired.cashbox_id !== 'TEST_CB_MAIN') {
+      throw new Error('Repair helper did not resolve payment order cashbox_id from request.');
+    }
+    if (repaired.status !== order.status ||
+      Number(repaired.amount_ordered) !== Number(order.amount_ordered) ||
+      repaired.pay_to_name !== order.pay_to_name) {
+      throw new Error('Repair helper changed status, amount or recipient.');
+    }
+
+    return {
+      message: 'Repair helper fixed FROM_REQUEST cashbox without changing order business fields.',
+      details: report
     };
   });
 }
@@ -844,6 +915,7 @@ function runAllSmokeTests() {
     smokeTestDuplicateOrderPrevention(),
     smokeTestRequestUnderLimitAutoCreatesOrder(),
     smokeTestRequestOverLimitRequiresApproval(),
+    smokeTestRepairPaymentOrdersCashboxFromRequest(),
     smokeTestCashMovementsReportLimit(),
     smokeTestPermissionsMatrix(),
     smokeTestRolePermissionSheetsReadiness(),
