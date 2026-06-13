@@ -236,6 +236,7 @@ function getCashCountsReport(filters) {
   const range = getDateRangeFilter_(scoped);
   const shiftFilter = String(scoped.shift_id || '').trim();
   return listRecords(SHEET_NAMES.CASH_COUNTS)
+    .map(normalizeCashCountForRead_)
     .filter(function(count) {
       return (!scoped.cashbox_id || count.cashbox_id === scoped.cashbox_id) &&
         (!scoped.currency || count.currency === scoped.currency) &&
@@ -252,6 +253,117 @@ function getCashCountsReport(filters) {
     .sort(function(left, right) {
       return toTime_(right.posted_at || right.created_at) - toTime_(left.posted_at || left.created_at);
     });
+}
+
+function normalizeCashCountForRead_(count) {
+  const normalized = Object.assign({}, count || {});
+  if (!normalized.count_id) {
+    return normalized;
+  }
+
+  const audit = findCashCountAuditRecord_(normalized.count_id);
+  const adjustment = normalized.adjustment_event_id
+    ? findRecordById(SHEET_NAMES.CASH_EVENTS, 'event_id', normalized.adjustment_event_id)
+    : null;
+  const event = adjustment ? adjustment.record : null;
+  const fallbackTime = audit && audit.timestamp || event && (event.posted_at || event.created_at || event.event_date) || '';
+  const fallbackUser = audit && audit.user || event && (event.posted_by || event.created_by) || '';
+
+  if (!isCashCountDateLike_(normalized.created_at)) {
+    normalized.created_at = fallbackTime;
+  }
+  if (!isCashCountDateLike_(normalized.posted_at)) {
+    normalized.posted_at = fallbackTime || normalized.created_at;
+  }
+  if (isInvalidCashCountActor_(normalized.created_by)) {
+    normalized.created_by = fallbackUser;
+  }
+  if (isInvalidCashCountActor_(normalized.posted_by)) {
+    normalized.posted_by = fallbackUser || normalized.created_by;
+  }
+
+  if (!isValidCashCountType_(normalized.count_type)) {
+    normalized.count_type = [
+      normalized.created_by,
+      normalized.cashbox_id,
+      normalized.shift_id,
+      normalized.currency,
+      normalized.status
+    ].map(normalizeCashCountTypeValue_).filter(Boolean)[0] || CASH_COUNT_TYPES.CASHBOX_COUNT;
+  }
+
+  if (!isValidCashCountStatus_(normalized.status)) {
+    if (!normalized.note && isBusinessCashCountText_(normalized.status)) {
+      normalized.note = normalized.status;
+    }
+    normalized.status = CASH_COUNT_STATUSES.POSTED;
+  }
+
+  return normalized;
+}
+
+function findCashCountAuditRecord_(countId) {
+  return listRecords(SHEET_NAMES.AUDIT_LOG)
+    .filter(function(log) {
+      return String(log.entity_type) === String(SHEET_NAMES.CASH_COUNTS) &&
+        String(log.entity_id) === String(countId);
+    })
+    .sort(function(left, right) {
+      return toTime_(left.timestamp) - toTime_(right.timestamp);
+    })[0] || null;
+}
+
+function isCashCountDateLike_(value) {
+  if (!value) {
+    return false;
+  }
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return !isNaN(value.getTime());
+  }
+  const text = String(value || '').trim();
+  return /\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\.\d{4}/.test(text) && !isNaN(new Date(text).getTime());
+}
+
+function isInvalidCashCountActor_(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return true;
+  }
+  return isValidCashCountStatus_(text) ||
+    isValidCashCountType_(text) ||
+    normalizeCashCountCurrencyValue_(text) ||
+    /^CB[_-]/i.test(text) ||
+    safeNumber_(text) > 0;
+}
+
+function isValidCashCountStatus_(value) {
+  return objectValues_(CASH_COUNT_STATUSES).indexOf(String(value || '').trim().toUpperCase()) !== -1;
+}
+
+function isValidCashCountType_(value) {
+  return objectValues_(CASH_COUNT_TYPES).indexOf(String(value || '').trim().toUpperCase()) !== -1;
+}
+
+function normalizeCashCountTypeValue_(value) {
+  const text = String(value || '').trim().toUpperCase();
+  return isValidCashCountType_(text) ? text : '';
+}
+
+function normalizeCashCountCurrencyValue_(value) {
+  const text = String(value || '').trim().toUpperCase();
+  return SUPPORTED_CURRENCIES.indexOf(text) !== -1 ? text : '';
+}
+
+function isBusinessCashCountText_(value) {
+  const text = String(value || '').trim();
+  return Boolean(text) &&
+    !isCashCountDateLike_(text) &&
+    !isValidCashCountStatus_(text) &&
+    !isValidCashCountType_(text) &&
+    !normalizeCashCountCurrencyValue_(text) &&
+    !/^CB[_-]/i.test(text) &&
+    safeNumber_(text) <= 0 &&
+    text.indexOf('@') === -1;
 }
 
 function normalizeDenominations_(currency, rows) {
