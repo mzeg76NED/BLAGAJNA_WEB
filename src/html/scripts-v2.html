@@ -273,8 +273,10 @@
 
   function v2RefreshShiftStatus() {
     v2CallApi('apiGetActiveShiftState', [V2.session.cashboxId], function(state) {
-      V2.uiState.activeShift = state && state.shift ? state.shift : null;
+      V2.uiState.activeShift = state && state.activeShift ? state.activeShift : null;
+      V2.uiState.canPostDirectCashEvents = Boolean(state && state.canPostDirectCashEvents);
       v2RenderShiftStatus(V2.uiState.activeShift);
+      v2UpdateQuickFormAvailability();
     }, { quiet: true });
   }
 
@@ -450,6 +452,10 @@
 
   /* ── Quick form ──────────────────────────────────────────────── */
   function v2SetQfType(type) {
+    if (type === 'OUT') {
+      v2ShowMsg('Direktna isplata bez naloga nije deo redovnog toka. Koristite Nalozi za isplatu → Pošalji blagajni → pending ISPLATA.', 'error');
+      type = 'IN';
+    }
     V2.qfType = type;
     var isIn = type === 'IN';
     document.getElementById('v2-qf-btn-in').className  = 'v2-qf-btn' + (isIn  ? ' active-in'  : '');
@@ -457,7 +463,24 @@
     var submit = document.getElementById('v2-qf-submit');
     if (submit) {
       submit.className = 'v2-qf-submit' + (!isIn ? ' type-out' : '');
-      document.getElementById('v2-qf-submit-label').textContent = isIn ? 'Proknjiti uplatu' : 'Proknjiti isplatu';
+      document.getElementById('v2-qf-submit-label').textContent = isIn ? 'Proknjiti uplatu' : 'Isplata ide kroz nalog';
+    }
+  }
+
+  function v2UpdateQuickFormAvailability() {
+    var outBtn = document.getElementById('v2-qf-btn-out');
+    if (outBtn) {
+      outBtn.disabled = true;
+      outBtn.title = 'Direktna isplata bez naloga nije deo redovnog toka. Isplata ide kroz nalog i pending ISPLATA zapis.';
+      outBtn.classList.remove('active-out');
+    }
+    if (V2.qfType === 'OUT') v2SetQfType('IN');
+
+    var permCard = document.getElementById('v2-permission-card');
+    var qfCard = document.getElementById('v2-qf-card');
+    if (permCard && qfCard) {
+      permCard.style.display = V2.uiState.canPostDirectCashEvents ? 'none' : '';
+      qfCard.style.display = V2.uiState.canPostDirectCashEvents ? '' : 'none';
     }
   }
 
@@ -468,18 +491,20 @@
     var desc     = ((document.getElementById('v2-qf-desc') || {}).value || '').trim();
     if (!amount || amount <= 0) { v2ShowMsg('Unesite ispravan iznos.', 'error'); return; }
     if (!desc) { v2ShowMsg('Opis / razlog je obavezan.', 'error'); return; }
-    if (!V2.uiState.canPostDirectCashEvents) { v2ShowMsg('Direktne uplate/isplate zahtevaju aktivnu smenu.', 'error'); return; }
+    if (!V2.uiState.canPostDirectCashEvents) { v2ShowMsg('Direktne uplate zahtevaju aktivnu smenu. Isplate idu kroz naloge i pending ISPLATA zapis.', 'error'); return; }
+    if (V2.qfType !== 'IN') {
+      v2ShowMsg('Direktna isplata bez naloga nije dozvoljena iz redovnog UI toka.', 'error');
+      return;
+    }
 
     var payload = { cashbox_id: V2.session.cashboxId, currency: currency, amount: amount, partner_name: partner, description: desc };
-    var fn = V2.qfType === 'IN' ? 'apiCreateCashInflow' : 'apiCreateDirectCashOutflow';
-    var label = V2.qfType === 'IN' ? 'Uplata' : 'Isplata';
-    v2CallApi(fn, [payload], function() {
+    v2CallApi('apiCreateCashInflow', [payload], function() {
       document.getElementById('v2-qf-amount').value  = '';
       document.getElementById('v2-qf-partner').value = '';
       document.getElementById('v2-qf-desc').value    = '';
       v2LoadKnjiga(true);
       v2RefreshBalance();
-    }, { successMessage: label + ' proknjižena.' });
+    }, { successMessage: 'Uplata proknjižena.' });
   }
 
   /* ── Nalozi ──────────────────────────────────────────────────── */
@@ -546,15 +571,15 @@
     var execBtn = document.getElementById('v2-nalog-execute-btn');
     if (execBtn) {
       execBtn.onclick = function() {
-        v2Confirm('Izvršenje isplate', 'Izvršiti isplatu ' + v2Fmt(rem) + ' ' + (order.currency||'') + ' za nalog ' + order.order_id + '?', 'Izvrši isplatu', false, function() {
-          v2CallApi('apiExecutePaymentOrder', [order.order_id, {}], function() {
+        v2Confirm('Slanje blagajni', 'Poslati nalog ' + order.order_id + ' blagajni kao pending ISPLATA zapis? Ova akcija ne menja stanje blagajne.', 'Pošalji blagajni', false, function() {
+          v2CallApi('apiSendPaymentOrderToCashier', [order.order_id], function() {
             panel.classList.remove('open');
             V2.selectedOrderId = '';
             v2LoadNalozi();
             v2LoadKnjiga(true);
             v2RefreshBalance();
             v2RefreshUrgentAlert();
-          }, { successMessage: 'Isplata je izvršena.' });
+          }, { successMessage: 'Nalog je poslat blagajni kao pending ISPLATA.' });
         });
       };
     }
@@ -903,13 +928,7 @@
       v2RefreshApprovalBadge();
       v2StartLiveRefresh();
 
-      // Quick form permission indicator
-      var permCard = document.getElementById('v2-permission-card');
-      var qfCard   = document.getElementById('v2-qf-card');
-      if (permCard && qfCard) {
-        permCard.style.display = V2.uiState.canPostDirectCashEvents ? 'none' : '';
-        qfCard.style.display   = V2.uiState.canPostDirectCashEvents ? '' : 'none';
-      }
+      v2UpdateQuickFormAvailability();
     }, { quiet: true });
   });
 </script>

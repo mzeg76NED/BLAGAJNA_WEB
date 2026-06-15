@@ -183,7 +183,7 @@
                 <div class="v2-card-title"><i class="ti ti-lock" aria-hidden="true"></i> Direktan rad blagajne</div>
               </div>
               <div class="v2-card-body" style="font-size:13px;color:var(--v2-text-2)">
-                Direktne uplate i isplate može knjižiti samo blagajnik aktivne smene.
+                Direktne uplate može knjižiti samo blagajnik aktivne smene. Isplata ide kroz nalog i pending ISPLATA zapis.
               </div>
               <div style="padding:0 14px 12px">
                 <button class="v2-btn v2-btn-primary" onclick="v2GoTo('smena')">
@@ -202,7 +202,7 @@
                   <button class="v2-qf-btn active-in" id="v2-qf-btn-in">
                     <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
                   </button>
-                  <button class="v2-qf-btn" id="v2-qf-btn-out">
+                  <button class="v2-qf-btn" id="v2-qf-btn-out" disabled title="Direktna isplata bez naloga nije deo redovnog toka.">
                     Isplata <i class="ti ti-arrow-up-circle" aria-hidden="true"></i>
                   </button>
                 </div>

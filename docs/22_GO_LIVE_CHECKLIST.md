@@ -45,7 +45,8 @@
 - [ ] Odobravanje zahteva radi
 - [ ] Kreiranje naloga iz zahteva radi
 - [ ] Izdavanje naloga radi
-- [ ] Izvršenje naloga kreira `CASH_OUTFLOW`
+- [ ] Slanje naloga blagajni kreira pending `CASH_OUTFLOW/SUBMITTED`
+- [ ] Izvršenje pending ISPLATA zapisa menja `CASH_OUTFLOW` u `POSTED`
 - [ ] Upload dokumenta radi
 - [ ] Otvaranje i zatvaranje smene radi
 - [ ] Dnevni zaključak radi

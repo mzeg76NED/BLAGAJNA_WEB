@@ -34,8 +34,9 @@ Stanje blagajne se ne unosi ručno. Sistem ga računa iz proknjiženih blagajni�
 1. Otvoriti `Nalozi za isplatu`.
 2. Izabrati nalog u statusu `WAITING_PAYMENT`.
 3. Proveriti primaoca, iznos, valutu i svrhu.
-4. Izvršiti isplatu samo ako je nalog validan.
-5. Sistem tada pravi `CASH_OUTFLOW`.
+4. Poslati nalog blagajni kao pending ISPLATA zapis ako vec nije poslat.
+5. Blagajnik izvršava pending ISPLATA zapis samo ako je nalog validan.
+6. Tek tada pending `CASH_OUTFLOW` postaje `POSTED` i menja stanje blagajne.
 
 ## Kako se dodaje dokument
 

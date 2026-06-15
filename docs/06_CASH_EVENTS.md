@@ -166,7 +166,8 @@ createCashInflow({
 Izvrsenje naloga u celosti:
 
 ```javascript
-const result = executePaymentOrder(orderId, {
+const sent = sendPaymentOrderToCashier(orderId);
+const result = executePendingPaymentOrderOutflow(sent.pendingPayment.event_id, {
   note: 'Isplata izvrsena primaocu'
 });
 ```
@@ -174,7 +175,8 @@ const result = executePaymentOrder(orderId, {
 Delimicna isplata:
 
 ```javascript
-const result = executePaymentOrder(orderId, {
+const sent = sendPaymentOrderToCashier(orderId);
+const result = executePendingPaymentOrderOutflow(sent.pendingPayment.event_id, {
   amount: 5000,
   note: 'Delimicna isplata'
 });

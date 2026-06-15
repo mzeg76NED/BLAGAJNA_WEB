@@ -95,9 +95,10 @@ Payment Orders:
 
 Cash Events:
 
-1. `apiExecutePaymentOrder(orderId, paymentData)`,
-2. `apiCreateCashInflow(data)`,
-3. `apiCalculateCashboxBalance(cashboxId, currency)`.
+1. `apiSendPaymentOrderToCashier(orderId)`,
+2. `apiExecutePendingPaymentOrderOutflow(pendingPaymentId, paymentData)`,
+3. `apiCreateCashInflow(data)`,
+4. `apiCalculateCashboxBalance(cashboxId, currency)`.
 
 Documents:
 

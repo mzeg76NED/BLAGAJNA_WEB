@@ -226,16 +226,29 @@
     bindClick('load-my-shifts-home-btn', loadMyShifts);
 
     bindForm('execute-payment-form', function(data) {
-      callApi('apiExecutePaymentOrder', [data.order_id, cleanObject({
-        amount: data.amount,
-        note: data.note
-      })], function(result) {
-        renderPaymentExecutionSummary('execute-payment-result', result);
-        loadWaitingOrders(true);
-        loadWaitingOrdersForExecution(true);
-        cancelExecutionSelection();
-        refreshDashboardInBackground();
-      }, { successMessage: 'Isplata je uspešno izvršena.' });
+      callApi('apiListPendingPaymentOrderOutflows', [withUiDefaults({
+        cashbox_id: SESSION.cashboxId,
+        currency: SESSION.currency
+      })], function(rows) {
+        var pending = (rows || []).filter(function(row) {
+          return row.order_id === data.order_id || row.linked_order_id === data.order_id;
+        })[0] || null;
+        var pendingId = pending && (pending.event_id || pending.pending_payment_id);
+        if (!pendingId) {
+          showMessage('Nalog prvo mora biti poslat blagajni kao pending ISPLATA zapis.', 'error');
+          return;
+        }
+        callApi('apiExecutePendingPaymentOrderOutflow', [pendingId, cleanObject({
+          amount: data.amount,
+          note: data.note
+        })], function(result) {
+          renderPaymentExecutionSummary('execute-payment-result', result);
+          loadWaitingOrders(true);
+          loadWaitingOrdersForExecution(true);
+          cancelExecutionSelection();
+          refreshDashboardInBackground();
+        }, { successMessage: 'Pending ISPLATA je izvršena.' });
+      }, { quiet: true });
     });
 
     bindForm('cash-inflow-form', function(data) {
@@ -2705,11 +2718,11 @@
     }
     if (permissionText) {
       permissionText.textContent = uiState.activeShift && uiState.activeShift.shift_id
-        ? 'Glavni blagajnik smene je ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '. Direktno knjiženje može da radi samo glavni blagajnik. Ostali korisnici rade preko zahteva.'
-        : 'Nema otvorene smene. Otvorite smenu da biste mogli da knjižite direktne uplate i isplate.';
+        ? 'Glavni blagajnik smene je ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '. Direktne uplate i trezor može da radi samo glavni blagajnik. Isplate idu kroz naloge.'
+        : 'Nema otvorene smene. Otvorite smenu da biste mogli da knjižite direktne uplate i predaju u trezor.';
     }
     if (!canPost) {
-      showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i isplate može knjižiti samo glavni blagajnik aktivne smene.', 'info');
+      showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i predaju u trezor može knjižiti samo glavni blagajnik aktivne smene.', 'info');
     }
     updateDesktopDirectActionsVisibility_();
     updateMobileDirectActionsVisibility_();
@@ -2735,10 +2748,10 @@
         var note = lockMessage.querySelector('span');
         if (hasShift) {
           if (title) title.innerHTML = '<i class="ti ti-info-circle" aria-hidden="true"></i> Aktivna smena je otvorena';
-          if (note) note.textContent = 'Direktne akcije su dostupne samo glavnom blagajniku smene: ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '.';
+          if (note) note.textContent = 'Direktne uplate i trezor su dostupni samo glavnom blagajniku smene: ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '. Isplate idu kroz naloge.';
         } else {
           if (title) title.innerHTML = '<i class="ti ti-alert-triangle" aria-hidden="true"></i> Nema aktivne smene - otvorite smenu za direktan rad';
-          if (note) note.textContent = 'Uplata, isplata i trezor su zaključani dok smena nije otvorena.';
+          if (note) note.textContent = 'Uplata i trezor su zaključani dok smena nije otvorena. Isplata ide kroz nalog i pending ISPLATA zapis.';
         }
       }
     }
@@ -2751,8 +2764,10 @@
     ['d-side-btn-uplata','d-side-btn-isplata','d-side-btn-trezor'].forEach(function(id) {
       var btn = document.getElementById(id);
       if (!btn) return;
-      btn.disabled = !canPost;
-      btn.classList.toggle('quick-action-button--locked', !canPost);
+      var isOut = id === 'd-side-btn-isplata';
+      btn.disabled = isOut || !canPost;
+      btn.classList.toggle('quick-action-button--locked', isOut || !canPost);
+      if (isOut) btn.title = 'Direktna isplata bez naloga nije deo redovnog toka.';
     });
   }
 
@@ -2767,6 +2782,11 @@
     } else {
       actions.setAttribute('hidden', 'hidden');
       actions.style.display = 'none';
+    }
+    var outBtn = document.getElementById('m-btn-isplata');
+    if (outBtn) {
+      outBtn.disabled = true;
+      outBtn.title = 'Direktna isplata bez naloga nije deo redovnog toka.';
     }
   }
 
@@ -2817,7 +2837,7 @@
 
   function enforceShiftStartup_(isDesktop, isMobile) {
     if (uiState.activeShift && uiState.activeShift.shift_id) return;
-    showMessage('Prvo otvorite smenu. Direktne uplate i isplate nisu dostupne dok smena nije otvorena.', 'info');
+    showMessage('Prvo otvorite smenu. Direktne uplate i trezor nisu dostupni dok smena nije otvorena. Isplata ide kroz nalog i pending ISPLATA zapis.', 'info');
     if (isMobile) {
       document.querySelectorAll('.m-section').forEach(function(section) {
         section.classList.toggle('active', section.id === 'm-section-smena');
@@ -2873,7 +2893,7 @@
     [
       ['d-shift-action-open', function() { openShiftOpeningDialog_('desktop'); }],
       ['d-shift-action-in', function() { openDesktopDirectAction_('d-btn-uplata'); }],
-      ['d-shift-action-out', function() { openDesktopDirectAction_('d-btn-isplata'); }],
+      ['d-shift-action-out', showDirectOutflowDisabledMessage_],
       ['d-shift-action-treasury', function() { openDesktopDirectAction_('d-btn-trezor'); }],
       ['d-shift-action-count', function() { openDesktopSection_('presek'); }],
       ['d-shift-action-sheet', function() {
@@ -2883,7 +2903,7 @@
       ['d-shift-action-close', function() { openShiftClosingDialog_('desktop'); }],
       ['m-shift-action-open', function() { openShiftOpeningDialog_('mobile'); }],
       ['m-shift-action-in', function() { openMobileDirectAction_('m-btn-uplata'); }],
-      ['m-shift-action-out', function() { openMobileDirectAction_('m-btn-isplata'); }],
+      ['m-shift-action-out', showDirectOutflowDisabledMessage_],
       ['m-shift-action-treasury', function() { openMobileDirectAction_('m-btn-trezor'); }],
       ['m-shift-action-count', function() { openMobileSection_('m-section-presek'); }],
       ['m-shift-action-close', function() { openShiftClosingDialog_('mobile'); }]
@@ -2893,6 +2913,15 @@
       btn.dataset.bound = '1';
       btn.addEventListener('click', item[1]);
     });
+  }
+
+  function showDirectOutflowDisabledMessage_() {
+    var message = 'Direktna isplata bez naloga nije deo redovnog toka. Koristite Nalozi za isplatu: nalog se šalje blagajni kao pending ISPLATA, a blagajnik zatim izvršava taj zapis.';
+    if (document.getElementById('m-shell')) {
+      showMobileMessage_(message, 'info');
+    } else {
+      showDesktopMessage_(message, 'info');
+    }
   }
 
   function showAllCurrencyBalances_() {
@@ -4766,6 +4795,10 @@
     if (!btnIn || !btnOut || !submit) return;
 
     function setQuickType(type) {
+      if (type === 'OUT') {
+        showDirectOutflowDisabledMessage_();
+        type = 'IN';
+      }
       currentQuickFormType_ = 'IN';
       if (type === 'OUT' || type === 'TREASURY') currentQuickFormType_ = type;
       btnIn.classList.toggle('active', currentQuickFormType_ === 'IN');
@@ -4776,12 +4809,14 @@
           ? 'Proknjiti uplatu'
           : currentQuickFormType_ === 'TREASURY'
             ? 'Proknjiti predaju u trezor'
-            : 'Proknjiti isplatu';
+            : 'Isplata ide kroz nalog';
       }
     }
 
     btnIn.addEventListener('click', function() { setQuickType('IN'); });
-    btnOut.addEventListener('click', function() { setQuickType('OUT'); });
+    btnOut.disabled = true;
+    btnOut.title = 'Direktna isplata bez naloga nije deo redovnog toka.';
+    btnOut.addEventListener('click', showDirectOutflowDisabledMessage_);
     submit.addEventListener('click', submitDesktopQuickForm_);
     bindDesktopEnterFlow_();
 
@@ -4811,9 +4846,7 @@
       focusQuickAmount_();
     }
     function openQuickOut_() {
-      if (!requireDirectCashAccess_()) return;
-      setQuickType('OUT');
-      focusQuickAmount_();
+      showDirectOutflowDisabledMessage_();
     }
     function openQuickTreasury_() {
       if (!requireDirectCashAccess_()) return;
@@ -4906,6 +4939,11 @@
     var isTreasury = type === 'TREASURY';
     var direction = type === 'IN' ? 'IN' : 'OUT';
 
+    if (type === 'OUT') {
+      showDirectOutflowDisabledMessage_();
+      return;
+    }
+
     if (!amount || amount <= 0) { var a = document.getElementById('d-qf-amount'); if (a) a.focus(); return; }
     if (!isTreasury && !desc && !partner) { var d2 = document.getElementById('d-qf-description'); if (d2) d2.focus(); return; }
     if (!assertClientSideCashAmount_(direction, amount, cur)) return;
@@ -4922,7 +4960,7 @@
     }
 
     var data = { cashbox_id: SESSION.cashboxId, currency: cur, amount: amount, partner_name: partner, description: desc || partner };
-    var fn   = type === 'IN' ? 'apiCreateCashInflow' : isTreasury ? 'apiCreateTreasuryHandover' : 'apiCreateDirectCashOutflow';
+    var fn   = type === 'IN' ? 'apiCreateCashInflow' : 'apiCreateTreasuryHandover';
 
     google.script.run
       .withSuccessHandler(function(resp) {
@@ -4996,7 +5034,11 @@
     var overlay= document.getElementById('sheet-overlay');
 
     if (btnU)    btnU.addEventListener('click',    function() { openSheet_('IN'); });
-    if (btnI)    btnI.addEventListener('click',    function() { openSheet_('OUT'); });
+    if (btnI) {
+      btnI.disabled = true;
+      btnI.title = 'Direktna isplata bez naloga nije deo redovnog toka.';
+      btnI.addEventListener('click', showDirectOutflowDisabledMessage_);
+    }
     if (btnT)    btnT.addEventListener('click',    function() { openSheet_('TREASURY'); });
     if (submit)  submit.addEventListener('click',  submitSheet_);
     if (cancel)  cancel.addEventListener('click',  closeSheet_);
@@ -5027,6 +5069,10 @@
   }
 
   function openSheet_(type) {
+    if (type === 'OUT') {
+      showDirectOutflowDisabledMessage_();
+      return;
+    }
     currentSheetType_      = type;
     currentQuickFormType_  = type;
     var overlay = document.getElementById('sheet-overlay');
@@ -5037,9 +5083,9 @@
     var isTreasury = type === 'TREASURY';
     if (!overlay) return;
 
-    if (title)  { title.textContent = isIn ? 'Nova uplata' : isTreasury ? 'Predaja u trezor' : 'Nova isplata'; title.className = 'sheet-title ' + (isIn ? 'in' : 'out'); }
+    if (title)  { title.textContent = isIn ? 'Nova uplata' : isTreasury ? 'Predaja u trezor' : 'Isplata kroz nalog'; title.className = 'sheet-title ' + (isIn ? 'in' : 'out'); }
     if (submit) submit.className = 'btn-full btn-lg ' + (isIn ? 'btn-in' : 'btn-out');
-    if (lbl)    lbl.textContent  = isIn ? 'Proknjiti uplatu' : isTreasury ? 'Proknjiti predaju' : 'Proknjiti isplatu';
+    if (lbl)    lbl.textContent  = isIn ? 'Proknjiti uplatu' : isTreasury ? 'Proknjiti predaju' : 'Isplata ide kroz nalog';
 
     document.querySelectorAll('#sheet-cur-toggle .cur-btn').forEach(function(btn) {
       var sel = (btn.dataset.currency || 'RSD') === SESSION.currency;
@@ -5072,6 +5118,11 @@
     var isTreasury = type === 'TREASURY';
     var direction = type === 'IN' ? 'IN' : 'OUT';
 
+    if (type === 'OUT') {
+      showDirectOutflowDisabledMessage_();
+      return;
+    }
+
     var activeCur = document.querySelector('#sheet-cur-toggle .cur-btn.active');
     if (activeCur) cur = activeCur.dataset.currency || cur;
 
@@ -5093,7 +5144,7 @@
     }
 
     var data = { cashbox_id: SESSION.cashboxId, currency: cur, amount: amount, partner_name: partner, description: desc || partner };
-    var fn   = type === 'IN' ? 'apiCreateCashInflow' : isTreasury ? 'apiCreateTreasuryHandover' : 'apiCreateDirectCashOutflow';
+    var fn   = type === 'IN' ? 'apiCreateCashInflow' : 'apiCreateTreasuryHandover';
 
     google.script.run
       .withSuccessHandler(function(resp) {

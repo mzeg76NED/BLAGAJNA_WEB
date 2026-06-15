@@ -282,7 +282,7 @@ Ocekivano:
 
 ## Task 05 - Cash payment execution
 
-Pre testiranja mora postojati aktivan korisnik u `USERS`. Za `executePaymentOrder()` korisnik mora imati rolu `CASHIER`, `CASHIER_SUPERVISOR` ili `ADMIN`. Za `createCashInflow()` korisnik mora imati rolu `CASHIER`, `CASHIER_SUPERVISOR`, `FINANCE` ili `ADMIN`.
+Pre testiranja mora postojati aktivan korisnik u `USERS`. Za `sendPaymentOrderToCashier()` korisnik mora imati rolu koja sme da izda/pošalje nalog blagajni. Za `executePendingPaymentOrderOutflow()` korisnik mora imati rolu `CASHIER`, `CASHIER_SUPERVISOR` ili `ADMIN` i aktivnu smenu. Za `createCashInflow()` korisnik mora imati rolu `CASHIER`, `CASHIER_SUPERVISOR`, `FINANCE` ili `ADMIN`.
 
 ### Test 1: Create cash inflow for test balance
 
@@ -301,7 +301,7 @@ Ocekivano:
 4. Audit log sadrzi `POST`.
 5. Izracunato stanje se povecava.
 
-### Test 2: Execute payment order fully
+### Test 2: Send payment order to cashier and execute pending ISPLATA fully
 
 Priprema:
 
@@ -312,29 +312,33 @@ Priprema:
 
 Koraci:
 
-1. Pokrenuti `executePaymentOrder(order_id, {})`.
+1. Pokrenuti `sendPaymentOrderToCashier(order_id)`.
 2. Proveriti `CASH_EVENTS`.
-3. Proveriti `PAYMENT_ORDERS`.
-4. Proveriti `AUDIT_LOG`.
-5. Pokrenuti `calculateCashboxBalance(cashbox_id, currency)`.
+3. Potvrditi da pending `CASH_OUTFLOW` ima status `SUBMITTED`.
+4. Pokrenuti `executePendingPaymentOrderOutflow(pending_event_id, {})`.
+5. Proveriti `PAYMENT_ORDERS`.
+6. Proveriti `AUDIT_LOG`.
+7. Pokrenuti `calculateCashboxBalance(cashbox_id, currency)`.
 
 Ocekivano:
 
-1. `executePaymentOrder()` kreira `CASH_OUTFLOW`.
-2. Cash event status je `POSTED`.
-3. Cash event direction je `OUT`.
-4. Payment order status postaje `PAID`.
-5. `amount_paid` je jednak `amount_ordered`.
-6. Audit log sadrzi cash event `POST`.
-7. Audit log sadrzi order `UPDATE`.
-8. Izracunato stanje se smanjuje za iznos isplate.
+1. `sendPaymentOrderToCashier()` kreira pending `CASH_OUTFLOW` sa statusom `SUBMITTED`.
+2. Pending cash event ne menja stanje blagajne.
+3. `executePendingPaymentOrderOutflow()` menja cash event status u `POSTED`.
+4. Cash event direction je `OUT`.
+5. Payment order status postaje `PAID`.
+6. `amount_paid` je jednak `amount_ordered`.
+7. Audit log sadrzi cash event `POST`.
+8. Audit log sadrzi order `UPDATE`.
+9. Izracunato stanje se smanjuje tek posle izvrsenja pending ISPLATA zapisa.
 
 ### Test 3: Prevent payment if balance is insufficient
 
 Koraci:
 
 1. Kreirati i izdati nalog ciji je iznos veci od trenutnog stanja.
-2. Pokrenuti `executePaymentOrder(order_id, {})`.
+2. Pokrenuti `sendPaymentOrderToCashier(order_id)`.
+3. Pokrenuti `executePendingPaymentOrderOutflow(pending_event_id, {})`.
 3. Proveriti `CASH_EVENTS`.
 4. Proveriti `PAYMENT_ORDERS`.
 
@@ -343,7 +347,7 @@ Ocekivano:
 1. Nalog postoji i ceka isplatu.
 2. Stanje blagajne je manje od iznosa naloga.
 3. Sistem baca jasnu gresku.
-4. Ne kreira se `CASH_OUTFLOW`.
+4. Pending `CASH_OUTFLOW` ostaje `SUBMITTED` i ne ulazi u stanje.
 5. `amount_paid` ostaje nepromenjen.
 6. Status naloga ostaje nepromenjen.
 
@@ -352,7 +356,7 @@ Ocekivano:
 Koraci:
 
 1. Kreirati i otkazati nalog.
-2. Pokrenuti `executePaymentOrder(order_id, {})`.
+2. Pokrenuti `sendPaymentOrderToCashier(order_id)`.
 3. Proveriti `CASH_EVENTS`.
 
 Ocekivano:
@@ -366,7 +370,7 @@ Ocekivano:
 Koraci:
 
 1. Kreirati nalog u statusu `DRAFT`.
-2. Pokrenuti `executePaymentOrder(order_id, {})`.
+2. Pokrenuti `sendPaymentOrderToCashier(order_id)`.
 3. Proveriti `CASH_EVENTS`.
 
 Ocekivano:
@@ -381,13 +385,14 @@ Koraci:
 
 1. Kreirati i izdati nalog.
 2. Obezbediti dovoljno stanje.
-3. Pokrenuti `executePaymentOrder(order_id, { amount: 5000 })` gde je 5000 manje od preostalog iznosa.
-4. Proveriti `CASH_EVENTS`, `PAYMENT_ORDERS` i stanje.
+3. Pokrenuti `sendPaymentOrderToCashier(order_id)`.
+4. Pokrenuti `executePendingPaymentOrderOutflow(pending_event_id, { amount: 5000 })` gde je 5000 manje od preostalog iznosa.
+5. Proveriti `CASH_EVENTS`, `PAYMENT_ORDERS` i stanje.
 
 Ocekivano:
 
 1. Iznos isplate je manji od preostalog iznosa naloga.
-2. `CASH_OUTFLOW` je kreiran.
+2. Pending `CASH_OUTFLOW` je prebačen u `POSTED`.
 3. Status naloga postaje `PARTIALLY_PAID`.
 4. `amount_paid` je azuriran.
 5. Stanje se smanjuje samo za placeni iznos.
@@ -397,7 +402,8 @@ Ocekivano:
 Koraci:
 
 1. Kreirati i izdati nalog.
-2. Pokrenuti `executePaymentOrder(order_id, { amount: amount_ordered + 1 })`.
+2. Pokrenuti `sendPaymentOrderToCashier(order_id)`.
+3. Pokrenuti `executePendingPaymentOrderOutflow(pending_event_id, { amount: amount_ordered + 1 })`.
 3. Proveriti `CASH_EVENTS`.
 
 Ocekivano:
@@ -416,7 +422,8 @@ Koraci:
 4. Kreirati payment order.
 5. Izdati payment order.
 6. Ponovo izmeriti stanje.
-7. Tek onda pokrenuti `executePaymentOrder(order_id, {})`.
+7. Pokrenuti `sendPaymentOrderToCashier(order_id)` i ponovo izmeriti stanje.
+8. Tek onda pokrenuti `executePendingPaymentOrderOutflow(pending_event_id, {})`.
 
 Ocekivano:
 
@@ -424,7 +431,8 @@ Ocekivano:
 2. Odobrenje zahteva ne menja stanje.
 3. Kreiranje naloga ne menja stanje.
 4. Izdavanje naloga ne menja stanje.
-5. Stanje se menja tek posle `executePaymentOrder()`.
+5. Slanje naloga blagajni kreira samo pending `CASH_OUTFLOW/SUBMITTED` i ne menja stanje.
+6. Stanje se menja tek posle `executePendingPaymentOrderOutflow()`.
 
 ## Task 06 - Document metadata and upload workflow
 
@@ -471,7 +479,7 @@ Ocekivano:
 
 Koraci:
 
-1. Kreirati Cash Event kroz `createCashInflow()` ili `executePaymentOrder()`.
+1. Kreirati Cash Event kroz `createCashInflow()` ili kroz `sendPaymentOrderToCashier()` pa `executePendingPaymentOrderOutflow()`.
 2. Pokrenuti `attachDocumentToEntity('CASH_EVENT', event_id, filePayload, 'Dokaz dogadjaja')`.
 3. Proveriti `DOCUMENTS` i `CASH_EVENTS`.
 
@@ -791,7 +799,7 @@ Ocekivano:
 
 Koraci:
 
-1. Izvrsiti payment order kroz `executePaymentOrder()`.
+1. Izvrsiti payment order kroz `sendPaymentOrderToCashier()` pa `executePendingPaymentOrderOutflow()`.
 2. Pokrenuti `prepareDailyClosing()` za isti datum, blagajnu i valutu.
 
 Ocekivano:
@@ -919,11 +927,12 @@ Koraci:
 
 1. Pripremiti nalog u statusu `WAITING_PAYMENT`.
 2. Obezbediti dovoljno stanje kroz `CASH_INFLOW`.
-3. Korisnik sa rolom `CASHIER` pokrece `executePaymentOrder(order_id, {})`.
+3. Ovlašćeni korisnik pokreće `sendPaymentOrderToCashier(order_id)`.
+4. Korisnik sa rolom `CASHIER` pokrece `executePendingPaymentOrderOutflow(pending_event_id, {})`.
 
 Ocekivano:
 
-1. `CASH_OUTFLOW` je kreiran.
+1. Pending `CASH_OUTFLOW` je prebačen u `POSTED`.
 2. Nalog je `PAID` ili `PARTIALLY_PAID`.
 3. Stanje blagajne se menja samo kroz cash event.
 

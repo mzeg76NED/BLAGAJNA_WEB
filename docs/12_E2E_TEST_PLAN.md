@@ -38,7 +38,8 @@ Requester creates Payment Request
 | 4 | FINANCE ili CASHIER_SUPERVISOR | `apiCreatePaymentOrderFromRequest` | `request_id`, `cashbox_id` | Kreiran nalog `DRAFT` | Novi red u `PAYMENT_ORDERS`, zahtev `CONVERTED_TO_ORDER` | `CREATE` za nalog i `UPDATE` za zahtev |
 | 5 | FINANCE ili CASHIER_SUPERVISOR | `apiIssuePaymentOrder` | `order_id` | Nalog je `WAITING_PAYMENT` | Ažuriran red naloga | `SUBMIT` za nalog |
 | 6 | CASHIER | `apiCreateCashInflow` | `CB_MAIN`, `RSD`, test iznos | Kreiran priliv za test stanje | Novi `CASH_INFLOW` u `CASH_EVENTS` | `POST` za cash event |
-| 7 | CASHIER | `apiExecutePaymentOrder` | `order_id` | Isplata je izvrsena | Novi `CASH_OUTFLOW`, nalog `PAID` ili `PARTIALLY_PAID` | `POST` za cash event i `UPDATE` za nalog |
+| 7a | FINANCE ili CASHIER_SUPERVISOR | `apiSendPaymentOrderToCashier` | `order_id` | Kreiran pending ISPLATA zapis | Novi `CASH_OUTFLOW/SUBMITTED`, nalog i dalje ne menja stanje | `CREATE` za pending cash event |
+| 7b | CASHIER | `apiExecutePendingPaymentOrderOutflow` | `pending_payment_id` | Isplata je izvrsena | Pending `CASH_OUTFLOW` postaje `POSTED`, nalog `PAID` ili `PARTIALLY_PAID` | `POST` za cash event i `UPDATE` za nalog |
 | 8 | CASHIER ili REQUESTER | `apiAttachDocumentToEntity` | entity type/id, fajl | Dokument je sacuvan u Drive | Novi red u `DOCUMENTS`, `document_status = ATTACHED` | `CREATE` za dokument |
 | 9 | CASHIER | `apiOpenShift` | `cashbox_id`, napomena | Smena je otvorena | Novi red u `SHIFTS` sa `OPEN` | `CREATE` za smenu |
 | 10 | CASHIER | `apiCloseShift` | `shift_id`, fizicko stanje | Smena je zatvorena | `SHIFTS.status = CLOSED` ili `CLOSED_WITH_DIFFERENCE` | `LOCK` ili `UPDATE` za smenu |
