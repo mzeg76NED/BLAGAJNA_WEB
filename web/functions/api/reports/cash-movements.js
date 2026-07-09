@@ -17,7 +17,7 @@ function isDateInRange(value, dateFrom, dateTo) {
   return true;
 }
 
-function sanitizeEvent(event, index) {
+function sanitizeEvent(event, index, runningBalance) {
   const amount = Number(event.amount || 0);
   const signedAmount = event.direction === 'OUT' ? -amount : amount;
   return {
@@ -30,7 +30,7 @@ function sanitizeEvent(event, index) {
     signed_amount: signedAmount,
     display_direction: event.direction || '',
     display_amount: amount,
-    running_balance: null,
+    running_balance: runningBalance === undefined || runningBalance === null ? null : Number(runningBalance),
     cashbox_id: event.cashbox_id || '',
     currency: event.currency || '',
     partner_name: event.partner_name || '',
@@ -45,6 +45,30 @@ function sanitizeEvent(event, index) {
     created_at: event.created_at || '',
     source_type: 'CASH_EVENT'
   };
+}
+
+// Running balance ("Stanje" column) requires the *full* chronological history of
+// posted/locked events for this cashbox+currency, not just the page of rows being
+// displayed - otherwise every row would only know its own amount, not the cumulative
+// total. We fetch the full history (ascending), fold a running sum over it, then
+// slice back down to the requested date range / limit for the response. Only
+// computed when a single currency is requested - a running balance mixing
+// currencies would not be meaningful.
+async function fetchRunningBalances(env, cashboxId, currency) {
+  let path = '/cash_events?select=event_id,event_date,created_at,direction,amount,status';
+  if (cashboxId) path += '&cashbox_id=' + encodeEq(cashboxId);
+  if (currency) path += '&currency=' + encodeEq(currency);
+  path += '&status=in.(POSTED,LOCKED)&order=event_date.asc,created_at.asc&limit=5000';
+
+  const rows = await supabaseRest(env, path);
+  const balanceByEventId = {};
+  let running = 0;
+  (rows || []).forEach((row) => {
+    const amount = Number(row.amount || 0);
+    running += row.direction === 'OUT' ? -amount : row.direction === 'IN' ? amount : 0;
+    balanceByEventId[row.event_id] = running;
+  });
+  return balanceByEventId;
 }
 
 export async function onRequestGet(context) {
@@ -75,13 +99,20 @@ export async function onRequestGet(context) {
     if (cashboxId) path += '&cashbox_id=' + encodeEq(cashboxId);
     if (currency) path += '&currency=' + encodeEq(currency);
     if (status) path += '&status=' + encodeEq(status);
-    path += '&order=event_date.desc&limit=' + limit;
+    // Fetch a generous window ordered newest-first, then apply the date filter, then
+    // slice to `limit`. Filtering after fetching (rather than limiting server-side
+    // first) avoids silently dropping in-range rows when the cashbox has more than
+    // `limit` events overall.
+    path += '&order=event_date.desc,created_at.desc&limit=5000';
+
+    const balanceByEventId = currency ? await fetchRunningBalances(env, cashboxId, currency) : {};
 
     const rows = await supabaseRest(env, path);
     const events = (rows || [])
       .filter((event) => ['POSTED', 'LOCKED'].includes(event.status))
       .filter((event) => isDateInRange(event.event_date || event.created_at, dateFrom, dateTo))
-      .map(sanitizeEvent);
+      .slice(0, limit)
+      .map((event, index) => sanitizeEvent(event, index, balanceByEventId[event.event_id]));
 
     return apiOk({
       rows: events,

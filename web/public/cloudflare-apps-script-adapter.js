@@ -215,7 +215,8 @@
       return handlers.apiCloseActiveShift(data.cashbox_id || '', physical, data.note || '', sessionId);
     },
     apiCalculateCashboxBalance: async function (cashboxId, currency) {
-      return apiFetch('/api/cashbox-balance?cashbox_id=' + encodeURIComponent(cashboxId || '') + '&currency=' + encodeURIComponent(currency || ''), {});
+      var response = await apiFetch('/api/cashbox-balance?cashbox_id=' + encodeURIComponent(cashboxId || '') + '&currency=' + encodeURIComponent(currency || ''), {});
+      return Number((response && response.balance) || 0);
     },
     apiGetActiveShiftState: async function (cashboxId) {
       var response = await apiFetch('/api/shifts/mine/active');
