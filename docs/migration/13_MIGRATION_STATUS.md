@@ -351,3 +351,27 @@ Sledeci korak:
 
 - Korisnik testira ceo tok: kreiranje zahteva → slanje → (auto-nalog ako je u limitu, ili odobravanje pa nalog) → slanje blagajni → izvršenje.
 - Nakon potvrde, nastaviti sa "Presek stanja" (Cash Counts) modulom.
+
+## FAZA 3d - Direktna isplata bez naloga (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE
+
+Kontekst: Zahtev-Nalog-Isplata tok je potvrdjen kao funkcionalan ("sve radi"). Korisnik je eksplicitno trazio da se pored toga otkljuca i direktna isplata (bez naloga), analogno vec postojecim direktnim Uplata/Trezor akcijama za glavnog blagajnika otvorene smene. Ovo je namerna promena poslovnog pravila (ranije je "Isplata" dugme bilo trajno onemoguceno u UI-ju - `hasDisabled`/`showDirectOutflowDisabledMessage_` - jer je originalni GAS dizajn zahtevao da svaka isplata ide kroz Zahtev → Nalog → pending ISPLATA izvrsenje).
+
+Sta je uradjeno:
+
+- Novi endpoint `web/functions/api/cash-events/outflow.js` (POST) - direktan CASH_OUTFLOW cash event, po uzoru na `cash-events/inflow.js` i `cash-events/treasury-handover.js`: zahteva privilegiju `cash_events:create`, otvorenu smenu trenutnog korisnika i da iznos ne prelazi zivi `cashbox_balances` saldo blagajne.
+- Adapter (`web/public/cloudflare-apps-script-adapter.js`) - dodat `apiCreateCashOutflow` handler koji zove novi endpoint.
+- `scripts.html` - uklonjeno trajno `disabled`/`showDirectOutflowDisabledMessage_` ponasanje za: `d-side-btn-isplata`, `d-qf-type-out`, `d-shift-action-out`, `m-btn-isplata`, `m-shift-action-out`, mobilni "sheet" OUT tip. Sve sada koriste isti gejt kao Uplata/Trezor (`canPostDirectCashEvents_()` - otvorena smena + glavni blagajnik smene) i zovu `apiCreateCashOutflow`. Client-side provera salda (`assertClientSideCashAmount_`) vec je postojala i radi bez izmena.
+- `desktop.html` / `mobile.html` - uklonjeni hard-kodirani `disabled`/`title="Direktna isplata bez naloga..."` atributi sa isplata dugmadi i azuriran prateci info tekst (vise ne pominje da isplata ide iskljucivo kroz nalog).
+- `desktop-v2.html` / `scripts-v2.html` (alternativni, trenutno ne-podrazumevani UI) namerno NISU dirani - build.mjs i dalje generise `index.html`/`desktop.html` sa view-om `desktop` (klasicni scripts.html), ne `desktop-v2`.
+
+Sta nije uradjeno:
+
+- `desktop-v2.html`/`scripts-v2.html` i dalje imaju staro, onemoguceno "Isplata" dugme - relevantno samo ako se ta alternativna UI ikad ukljuci kao podrazumevana.
+- Nije dodata posebna, uza privilegija za direktnu isplatu (npr. `cash_events:create_outflow`) - ponovo je iskoriscena postojeca `cash_events:create` (ista privilegija koja vec pokriva direktnu uplatu), radi konzistentnosti sa `inflow.js`.
+
+Sledeci korak:
+
+- Korisnik testira direktnu isplatu na live sajtu (Knjiga → Isplata, i "Nova isplata" na strani smene) i potvrdjuje da se saldo ispravno umanjuje i da se audit log zapis pravi.
+- Nastaviti sa "Presek stanja" (Cash Counts) modulom.

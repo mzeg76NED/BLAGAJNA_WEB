@@ -296,6 +296,13 @@
         body: JSON.stringify(data || {})
       });
     },
+    apiCreateCashOutflow: async function (data, sessionId) {
+      return apiFetch('/api/cash-events/outflow', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
+    },
     apiCreatePaymentRequest: async function (data, sessionId) {
       return apiFetch('/api/payment-requests/create', {
         method: 'POST',
