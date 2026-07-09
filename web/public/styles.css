@@ -145,6 +145,11 @@ button:disabled {
   color: #ffffff;
 }
 
+.danger-button {
+  background: var(--danger);
+  color: #ffffff;
+}
+
 .ghost-button,
 .small-button {
   background: rgba(255, 255, 255, 0.08);
@@ -171,6 +176,10 @@ button:disabled {
   gap: 12px;
   grid-template-columns: minmax(0, 1fr) auto;
   margin-bottom: 14px;
+}
+
+.inline-form.three-column {
+  grid-template-columns: minmax(120px, 160px) minmax(120px, 160px) minmax(0, 1fr) auto;
 }
 
 .workspace-grid {
@@ -298,6 +307,10 @@ dd {
   }
 
   .inline-form {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-form.three-column {
     grid-template-columns: 1fr;
   }
 }

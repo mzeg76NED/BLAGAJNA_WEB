@@ -173,6 +173,7 @@ Sta je uradjeno:
 - Pocetni shell je prebacen u prvi operativni frontend tok: login, session restore, logout i read-only lista blagajni.
 - Frontend prikazuje i read-only listu mojih aktivnih smena.
 - Frontend ima formu za otvaranje smene.
+- Frontend ima osnovnu formu za zatvaranje aktivne smene za seed valute RSD/EUR.
 - Frontend koristi `sessionStorage` kljuc `BLAGAJNA_APP_SESSION_ID`.
 - Frontend salje sesiju kroz `X-App-Session-Id` header.
 - Kreiran Cloudflare Pages Functions health endpoint: `web/functions/api/health.js`.
@@ -186,6 +187,7 @@ Sta je uradjeno:
 - Kreiran prvi read-only poslovni adapter: `web/functions/api/cashboxes.js`.
 - Kreiran prvi read-only adapter za smene: `web/functions/api/shifts/mine/active.js`.
 - Kreiran prvi write adapter za smene: `web/functions/api/shifts/open.js`.
+- Kreiran prvi write adapter za zatvaranje smene: `web/functions/api/shifts/close.js`.
 - Kreirani zajednicki adapter helperi u `web/functions/_lib/`.
 - Kreiran `package.json` sa osnovnim build/check skriptama.
 - `package.json` je oznacen sa `"type": "module"` zbog Cloudflare ES module handlera.
@@ -226,6 +228,7 @@ Nove datoteke:
 - `web/functions/api/auth/switch-user.js`
 - `web/functions/api/cashboxes.js`
 - `web/functions/api/shifts/open.js`
+- `web/functions/api/shifts/close.js`
 - `web/functions/api/shifts/mine/active.js`
 - `web/functions/_lib/api.js`
 - `web/functions/_lib/auth.js`
@@ -247,6 +250,7 @@ Testovi:
 - `node --check web/functions/api/auth/switch-user.js` je prosao.
 - `node --check web/functions/api/cashboxes.js` je prosao.
 - `node --check web/functions/api/shifts/open.js` je prosao.
+- `node --check web/functions/api/shifts/close.js` je prosao.
 - `node --check web/functions/api/shifts/mine/active.js` je prosao.
 - `node --check web/functions/_lib/api.js` je prosao.
 - `node --check web/functions/_lib/auth.js` je prosao.
@@ -264,8 +268,9 @@ Otvoreni rizici:
 - Legacy Apps Script ostaje source of truth.
 - Runtime test je potvrdio auth/session, read-only cashboxes adapter i read-only mine active shifts adapter.
 - `POST /api/shifts/open` nije runtime testiran automatski jer otvara stvarnu smenu u Supabase bazi.
+- `POST /api/shifts/close` nije runtime testiran automatski jer menja stvarnu smenu u Supabase bazi.
 - Lokalni Wrangler runtime se ne koristi zbog stabilnosti masine.
 
 Sledeci korak:
 
-- Deploy-ovati novi frontend/API na Cloudflare Pages okruzenje i rucno testirati otvaranje smene, zatim proveriti audit zapis.
+- Rucno testirati otvaranje i zatvaranje smene preko Cloudflare Pages okruzenja, zatim proveriti audit zapis.

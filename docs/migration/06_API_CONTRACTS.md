@@ -209,6 +209,49 @@ Efekti:
 
 Ovaj endpoint ne menja stanje blagajne. Stanje i dalje proizlazi samo iz `cash_events`.
 
+Prvi write endpoint za zatvaranje smene:
+
+```text
+POST /api/shifts/close
+```
+
+Zahteva aplikativnu sesiju i privilegiju:
+
+```text
+shifts:close
+```
+
+Body:
+
+```json
+{
+  "shift_id": "SHF-...",
+  "physical_balance_json": {
+    "RSD": 0,
+    "EUR": 0
+  },
+  "note": "Kraj rada"
+}
+```
+
+Validacije:
+
+- sesija postoji i aktivna je,
+- korisnik ima `shifts:close`,
+- smena postoji i ima status `OPEN`,
+- korisnik je otvorio smenu ili ima rolu `ADMIN`, `FINANCE` ili `CASHIER_SUPERVISOR`,
+- `physical_balance_json` sadrzi sve aktivne valute i numericke vrednosti.
+
+Efekti:
+
+- racuna `closing_balance_json` iz `cashbox_balances`,
+- racuna `difference_json` kao fizicko stanje minus izracunato stanje,
+- postavlja status `CLOSED` ako nema razlike ili `CLOSED_WITH_DIFFERENCE` ako postoji razlika,
+- upisuje audit akciju `LOCK` bez razlike ili `UPDATE` sa razlikom,
+- skida `shift_id` sa aktivnih sesija vezanih za zatvorenu smenu.
+
+Ovaj endpoint ne menja stanje blagajne i ne kreira korektivne `cash_events`. Korekcije kroz preseke smene ostaju poseban migracioni korak.
+
 ## 6. Otvoreno pre implementacije
 
 Za svaku legacy funkciju jos treba dopuniti:

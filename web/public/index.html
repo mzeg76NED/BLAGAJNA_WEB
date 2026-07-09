@@ -75,6 +75,21 @@
             </label>
             <button id="openShiftButton" class="primary-button" type="submit">Otvori smenu</button>
           </form>
+          <form id="closeShiftForm" class="inline-form three-column">
+            <label>
+              Fizičko stanje RSD
+              <input id="physicalRsdInput" name="physical_rsd" type="number" inputmode="decimal" step="0.01" min="0" value="0">
+            </label>
+            <label>
+              Fizičko stanje EUR
+              <input id="physicalEurInput" name="physical_eur" type="number" inputmode="decimal" step="0.01" min="0" value="0">
+            </label>
+            <label>
+              Napomena za zatvaranje
+              <input id="closingNoteInput" name="closing_note" type="text" autocomplete="off">
+            </label>
+            <button id="closeShiftButton" class="danger-button" type="submit">Zatvori smenu</button>
+          </form>
           <ul id="shiftList" class="cashbox-list"></ul>
           <p id="shiftMessage" class="form-message" role="status"></p>
         </article>

@@ -2,13 +2,17 @@ const SESSION_KEY = 'BLAGAJNA_APP_SESSION_ID';
 
 const state = {
   sessionId: sessionStorage.getItem(SESSION_KEY) || '',
-  session: null
+  session: null,
+  activeShifts: []
 };
 
 const elements = {
   appView: document.getElementById('appView'),
   cashboxList: document.getElementById('cashboxList'),
   cashboxMessage: document.getElementById('cashboxMessage'),
+  closeShiftButton: document.getElementById('closeShiftButton'),
+  closeShiftForm: document.getElementById('closeShiftForm'),
+  closingNoteInput: document.getElementById('closingNoteInput'),
   currentCashbox: document.getElementById('currentCashbox'),
   currentUserName: document.getElementById('currentUserName'),
   currentUserRole: document.getElementById('currentUserRole'),
@@ -21,6 +25,8 @@ const elements = {
   openingNoteInput: document.getElementById('openingNoteInput'),
   openShiftButton: document.getElementById('openShiftButton'),
   openShiftForm: document.getElementById('openShiftForm'),
+  physicalEurInput: document.getElementById('physicalEurInput'),
+  physicalRsdInput: document.getElementById('physicalRsdInput'),
   pinInput: document.getElementById('pinInput'),
   refreshCashboxesButton: document.getElementById('refreshCashboxesButton'),
   refreshShiftsButton: document.getElementById('refreshShiftsButton'),
@@ -96,6 +102,7 @@ function renderSession() {
     elements.cashboxMessage.textContent = '';
     elements.shiftList.innerHTML = '';
     elements.shiftMessage.textContent = '';
+    state.activeShifts = [];
     return;
   }
 
@@ -194,6 +201,7 @@ async function loadCashboxes() {
 
 function renderShifts(shifts) {
   const list = elements.shiftList;
+  state.activeShifts = shifts || [];
   list.innerHTML = '';
   shifts.forEach((shift) => {
     const item = document.createElement('li');
@@ -242,7 +250,40 @@ async function openShift(event) {
   }
 }
 
+async function closeShift(event) {
+  event.preventDefault();
+  elements.shiftMessage.textContent = '';
+  const activeShift = state.activeShifts[0];
+  if (!activeShift || !activeShift.shift_id) {
+    elements.shiftMessage.textContent = 'Nema otvorene smene za zatvaranje.';
+    return;
+  }
+
+  elements.closeShiftButton.disabled = true;
+  try {
+    await apiFetch('/api/shifts/close', {
+      method: 'POST',
+      body: JSON.stringify({
+        shift_id: activeShift.shift_id,
+        physical_balance_json: {
+          RSD: Number(elements.physicalRsdInput.value || 0),
+          EUR: Number(elements.physicalEurInput.value || 0)
+        },
+        note: elements.closingNoteInput.value
+      })
+    });
+    elements.closingNoteInput.value = '';
+    await restoreSession();
+    await loadActiveShifts();
+  } catch (error) {
+    elements.shiftMessage.textContent = error.message;
+  } finally {
+    elements.closeShiftButton.disabled = false;
+  }
+}
+
 elements.loginForm.addEventListener('submit', login);
+elements.closeShiftForm.addEventListener('submit', closeShift);
 elements.logoutButton.addEventListener('click', logout);
 elements.openShiftForm.addEventListener('submit', openShift);
 elements.refreshCashboxesButton.addEventListener('click', loadCashboxes);
