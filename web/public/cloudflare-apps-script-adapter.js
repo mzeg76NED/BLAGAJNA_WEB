@@ -296,8 +296,120 @@
         body: JSON.stringify(data || {})
       });
     },
-    apiListRequestsForApproval: async function () { return []; },
-    apiListMyPaymentRequests: async function () { return []; },
+    apiCreatePaymentRequest: async function (data, sessionId) {
+      return apiFetch('/api/payment-requests/create', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
+    },
+    apiSubmitPaymentRequest: async function (requestId, sessionId) {
+      return apiFetch('/api/payment-requests/submit', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ request_id: requestId })
+      });
+    },
+    apiUpdatePaymentRequest: async function (requestId, data, sessionId) {
+      return apiFetch('/api/payment-requests/update', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ request_id: requestId, data: data || {} })
+      });
+    },
+    apiListMyPaymentRequests: async function (sessionId) {
+      var response = await apiFetch('/api/payment-requests/list-mine', { sessionId: sessionId });
+      return response.requests || [];
+    },
+    apiListRequestsForApproval: async function (sessionId) {
+      var response = await apiFetch('/api/payment-requests/list-for-approval', { sessionId: sessionId });
+      return response.requests || [];
+    },
+    apiListPaymentRequests: async function (filters, sessionId) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['status', 'currency', 'preferred_cashbox_id', 'cashbox_id', 'approval_path', 'linked_order_id'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/payment-requests/list?' + query.toString(), { sessionId: sessionId });
+      return response.requests || [];
+    },
+    apiApprovePaymentRequest: async function (requestId, sessionId) {
+      return apiFetch('/api/payment-requests/approve', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ request_id: requestId })
+      });
+    },
+    apiRejectPaymentRequest: async function (requestId, reason, sessionId) {
+      return apiFetch('/api/payment-requests/reject', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ request_id: requestId, reason: reason || '' })
+      });
+    },
+    apiReturnPaymentRequestForCorrection: async function (requestId, note, sessionId) {
+      return apiFetch('/api/payment-requests/return-for-correction', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ request_id: requestId, note: note || '' })
+      });
+    },
+    apiCreateAndIssuePaymentOrderFromRequest: async function (requestId, orderData, sessionId) {
+      return apiFetch('/api/payment-orders/create-from-request', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ request_id: requestId, order_data: orderData || {} })
+      });
+    },
+    apiApproveAndIssuePaymentOrder: async function (requestId, orderData, sessionId) {
+      return apiFetch('/api/payment-orders/approve-and-issue', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ request_id: requestId, order_data: orderData || {} })
+      });
+    },
+    apiCreateDirectPaymentOrder: async function (data, sessionId) {
+      return apiFetch('/api/payment-orders/create-direct', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
+    },
+    apiUpdateDraftPaymentOrder: async function (orderId, data, sessionId) {
+      return apiFetch('/api/payment-orders/update-draft', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ order_id: orderId, data: data || {} })
+      });
+    },
+    apiIssuePaymentOrder: async function (orderId, sessionId) {
+      return apiFetch('/api/payment-orders/issue', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ order_id: orderId })
+      });
+    },
+    apiListPaymentOrders: async function (filters, sessionId) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['status', 'cashbox_id', 'currency', 'order_type', 'source_request_id'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/payment-orders/list?' + query.toString(), { sessionId: sessionId });
+      return response.orders || [];
+    },
+    apiGetPaymentOrderTimeline: async function (orderId, sessionId) {
+      var response = await apiFetch('/api/payment-orders/timeline?order_id=' + encodeURIComponent(orderId || ''), { sessionId: sessionId });
+      return response.events || [];
+    },
+    apiRepairPaymentOrdersCashboxFromRequest: async function (sessionId) {
+      return apiFetch('/api/payment-orders/repair-cashbox', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({})
+      });
+    },
     apiListUsers: async function (filters, sessionId) {
       filters = filters || {};
       var query = new URLSearchParams();
@@ -357,7 +469,12 @@
       var response = await apiFetch('/api/reports/cash-movements?' + query.toString(), {});
       return response.rows || [];
     },
-    apiGetAuditLog: async function () { return []; }
+    apiGetAuditLog: async function () { return []; },
+    apiGetCashbookFilterOptions: async function (cashboxId, sessionId) {
+      var query = new URLSearchParams();
+      if (cashboxId) query.set('cashbox_id', cashboxId);
+      return apiFetch('/api/cashbook/filter-options?' + query.toString(), { sessionId: sessionId });
+    }
   };
 
   function makeResponse(data) {

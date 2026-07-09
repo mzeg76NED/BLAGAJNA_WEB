@@ -327,3 +327,27 @@ Sledeci korak:
 
 - Korisnik radi `git add/commit/push`, Cloudflare Pages build, i manuelno testira ekran "Korisnici i prava" (lista, kreiranje, izmena, reset PIN-a, matrica prava po roli).
 - Nakon toga nastaviti sa "Zahtevi za isplatu" (Payment Requests) modulom.
+
+## FAZA 3c - Zahtevi za isplatu i Nalozi za isplatu (2026-07-09/10, Claude/Cowork sesija)
+
+Status: IN PROGRESS
+
+Sta je uradjeno:
+
+- Popravljen `apiGetCashbookFilterOptions` (nedostajao je posle prve runde) - novi `web/functions/api/cashbook/filter-options.js`.
+- Novi deljeni moduli: `web/functions/_lib/audit.js` (generic `insertAuditLog`), `web/functions/_lib/paymentRequests.js`, `web/functions/_lib/paymentOrders.js` (core poslovna logika, bez GAS/Sheets "misalignment repair" sloja koji u Postgresu nije potreban).
+- Novi Payment Requests endpoint-i: `create`, `submit`, `update`, `list-mine`, `list-for-approval`, `list`, `approve`, `reject`, `return-for-correction` (`web/functions/api/payment-requests/*`).
+- Novi Payment Orders endpoint-i: `create-from-request`, `create-direct`, `update-draft`, `issue`, `list`, `timeline`, `approve-and-issue`, `repair-cashbox` (`web/functions/api/payment-orders/*`).
+- Adapter (`web/public/cloudflare-apps-script-adapter.js`) povezan na sve gornje, plus `apiGetCashbookFilterOptions`.
+- `repair-cashbox` je namerno pojednostavljen (samo prijavljuje naloge sa praznim/`FROM_REQUEST` cashbox_id) jer Postgres ima tipizovane kolone i ne može da ima Sheets-stil "shifted row" korupciju koju je originalna GAS funkcija popravljala.
+
+Sta nije uradjeno:
+
+- `createPaymentOrderFromRequestCore` / `assertNoActiveOrderForRequest` nemaju pravu DB transakciju ni advisory lock (GAS je koristio `LockService`); postoji mali race-condition prozor kod paralelnog kreiranja naloga iz istog zahteva. Prihvatljivo za pilot obim, ali treba SQL RPC funkciju sa transakcijom za pravu zaštitu.
+- `markPaymentOrderClosed`, `cancelPaymentOrder`, `cancelPaymentRequest`, `reverseCashEvent`, dokumenti (Documents.gs), Cash Counts (Presek stanja), Daily Closing, Reports (dashboard/cash-sheet/audit-exceptions/itd.), Audit Log nisu migrirani.
+- Nije runtime testirano preko Cloudflare Pages okruzenja (samo staticka provera koda protiv postojecih endpoint-a i schema constraint-a).
+
+Sledeci korak:
+
+- Korisnik testira ceo tok: kreiranje zahteva → slanje → (auto-nalog ako je u limitu, ili odobravanje pa nalog) → slanje blagajni → izvršenje.
+- Nakon potvrde, nastaviti sa "Presek stanja" (Cash Counts) modulom.
