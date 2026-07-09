@@ -305,3 +305,25 @@ Otvoreni rizici:
 Sledeci korak:
 
 - Rucno testirati otvaranje i zatvaranje smene preko Cloudflare Pages okruzenja, zatim proveriti audit zapis.
+
+## FAZA 3b - Korisnici i prava (2026-07-09, Claude/Cowork sesija)
+
+Status: IN PROGRESS
+
+Sta je uradjeno:
+
+- Popravljen kriticni bag u `src/html/scripts.html`: `refreshBalance_()` se trajno blokirala kad se optimisticki unos ne pomiri sa serverom (`hasPendingOptimisticForSession_()` nije imao TTL). Dodat `__addedAt` timestamp i `OPTIMISTIC_STALE_GUARD_MS` guard.
+- Popravljen race-condition bag "Korisnici i prava" (lazna poruka o nedostatku ovlascenja) u `loadDesktopUsersAdmin_()` - sada ceka da se `uiState.currentUser` popuni pre nego sto proveri privilegije.
+- Implementirani novi backend adapteri: `web/functions/_lib/permissions.js`, `web/functions/_lib/users.js`, `web/functions/api/users/list.js`, `web/functions/api/users/create.js`, `web/functions/api/users/update-permissions.js`, `web/functions/api/users/reset-pin.js`, `web/functions/api/roles/permissions-matrix.js`, `web/functions/api/roles/update-permissions.js`.
+- Dopunjen `_lib/auth.js` sa `hashUserPin` (export), `makeSalt`, `userHasPrivilege`, `userHasAnyPrivilege`.
+- Dopunjen `web/public/cloudflare-apps-script-adapter.js` sa handlerima za `apiListUsers`, `apiCreateUser`, `apiUpdateUserPermissions`, `apiResetUserPin`, `apiGetRolePermissionsMatrix`, `apiUpdateRolePermissions`.
+
+Sta nije uradjeno:
+
+- `apiListRoles`, `apiListPermissions`, `apiPrepareUsersForAppLogin`, `apiGetPermissionsMatrix` nisu migrirani (trenutni frontend ih ne poziva direktno).
+- Nije runtime testirano preko Cloudflare Pages okruzenja (samo staticka provera koda) - build/deploy/git commit ostaje na korisniku u ovoj sesiji (shell u ovoj sesiji vidi zastarelu kopiju repoa).
+
+Sledeci korak:
+
+- Korisnik radi `git add/commit/push`, Cloudflare Pages build, i manuelno testira ekran "Korisnici i prava" (lista, kreiranje, izmena, reset PIN-a, matrica prava po roli).
+- Nakon toga nastaviti sa "Zahtevi za isplatu" (Payment Requests) modulom.

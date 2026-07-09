@@ -55,8 +55,15 @@
     return el ? Number(el.dataset.rawValue || 0) : 0;
   }
 
+  var OPTIMISTIC_STALE_GUARD_MS = OPTIMISTIC_REFRESH_DELAY_MS + 4000;
+
   function hasPendingOptimisticForSession_() {
+    var now = Date.now();
     return PENDING_OPTIMISTIC_EVENTS.some(function(ev) {
+      // Ignore entries that never got reconciled by scheduleKnjigaRefresh_ (network hiccup,
+      // event outside current filter, etc.) so a single stuck entry can't freeze the
+      // displayed balance for the rest of the session. See docs/tasks for the 2026-07-09 bug.
+      if ((now - (ev.__addedAt || 0)) > OPTIMISTIC_STALE_GUARD_MS) return false;
       return ev.cashbox_id === SESSION.cashboxId && ev.currency === SESSION.currency;
     });
   }
@@ -4418,6 +4425,7 @@
   }
 
   function rememberOptimisticEvent_(ev) {
+    ev.__addedAt = ev.__addedAt || Date.now();
     PENDING_OPTIMISTIC_EVENTS = PENDING_OPTIMISTIC_EVENTS.filter(function(item) {
       return item.optimistic_id !== ev.optimistic_id && item.event_id !== ev.event_id;
     });
@@ -5722,8 +5730,18 @@
     if (repairOrderCashbox) repairOrderCashbox.addEventListener('click', confirmRepairPaymentOrderCashboxes_);
   }
 
-  function loadDesktopUsersAdmin_() {
+  function loadDesktopUsersAdmin_(retryCount) {
     bindUsersAdminOverview_();
+    if (!uiState.currentUser) {
+      // Bootstrap (apiGetUiBootstrap) may still be in flight if the user opens this
+      // screen right after login. Wait briefly instead of flashing a false
+      // "Nemate ovlašćenje" message (see IZVESTAJ_TESTIRANJE_2026-07-09.md, tačka 3.3).
+      var attempts = retryCount || 0;
+      if (attempts < 20) {
+        window.setTimeout(function() { loadDesktopUsersAdmin_(attempts + 1); }, 150);
+        return;
+      }
+    }
     if (!canOpenUsersAdmin_()) {
       renderUsersAdminDenied_();
       return;

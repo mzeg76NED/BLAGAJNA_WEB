@@ -298,6 +298,48 @@
     },
     apiListRequestsForApproval: async function () { return []; },
     apiListMyPaymentRequests: async function () { return []; },
+    apiListUsers: async function (filters, sessionId) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      if (filters.role) query.set('role', filters.role);
+      if (filters.active !== undefined && filters.active !== null && filters.active !== '') query.set('active', filters.active);
+      if (filters.query) query.set('query', filters.query);
+      var response = await apiFetch('/api/users/list?' + query.toString(), { sessionId: sessionId });
+      return response.users || [];
+    },
+    apiCreateUser: async function (data, sessionId) {
+      return apiFetch('/api/users/create', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
+    },
+    apiUpdateUserPermissions: async function (userId, data, sessionId) {
+      var payload = Object.assign({}, data || {}, { user_id: userId });
+      return apiFetch('/api/users/update-permissions', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(payload)
+      });
+    },
+    apiResetUserPin: async function (userId, pin, sessionId) {
+      return apiFetch('/api/users/reset-pin', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ user_id: userId, pin: pin })
+      });
+    },
+    apiGetRolePermissionsMatrix: async function (sessionId) {
+      var response = await apiFetch('/api/roles/permissions-matrix', { sessionId: sessionId });
+      return response.matrix || [];
+    },
+    apiUpdateRolePermissions: async function (roleId, permissionIds, sessionId) {
+      return apiFetch('/api/roles/update-permissions', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ role_id: roleId, permission_ids: permissionIds || [] })
+      });
+    },
     apiGetCashboxBalanceReport: async function (filters) {
       filters = filters || {};
       var query = new URLSearchParams();

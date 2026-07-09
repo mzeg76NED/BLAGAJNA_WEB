@@ -62,10 +62,25 @@ function secureCompare(left, right) {
   return diff === 0;
 }
 
-async function hashUserPin(pin, salt) {
+export async function hashUserPin(pin, salt) {
   const data = new TextEncoder().encode(String(pin) + ':' + String(salt));
   const digest = await crypto.subtle.digest('SHA-256', data);
   return bytesToHex(digest);
+}
+
+export function makeSalt() {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+}
+
+export function userHasPrivilege(appUser, privilege) {
+  if (!appUser || !privilege) return false;
+  if (appUser.role === 'ADMIN') return true;
+  const privileges = Array.isArray(appUser.privileges) ? appUser.privileges : [];
+  return privileges.includes(privilege);
+}
+
+export function userHasAnyPrivilege(appUser, privileges) {
+  return (privileges || []).some((privilege) => userHasPrivilege(appUser, privilege));
 }
 
 async function verifyUserPin(pin, hash, salt) {
