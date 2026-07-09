@@ -283,6 +283,37 @@ Ograničenje trenutne migracije:
 - endpoint ne knjiži događaje,
 - stanje blagajne se i dalje računa samo iz knjiženih `cash_events`.
 
+### Payment orders migracioni adapteri
+
+Postojeći desktop frontend sada se mapira na sledeće Cloudflare endpoint-e:
+
+```text
+GET /api/payment-orders/waiting
+POST /api/payment-orders/send-to-cashier
+POST /api/payment-orders/reject
+POST /api/payment-orders/execute-pending
+```
+
+`GET /api/payment-orders/waiting` vraća naloge u statusima:
+
+- `WAITING_PAYMENT`
+- `PARTIALLY_PAID`
+
+`POST /api/payment-orders/send-to-cashier` kreira pending `CASH_OUTFLOW` događaj sa statusom `SUBMITTED`. Ovaj pending događaj ne menja stanje blagajne.
+
+`POST /api/payment-orders/reject` postavlja status naloga na `REJECTED_BY_CASHIER` i upisuje razlog.
+
+`POST /api/payment-orders/execute-pending` izvršava postojeći pending `CASH_OUTFLOW`:
+
+- proverava da je cash event `SUBMITTED`,
+- proverava da je povezan sa payment order-om,
+- proverava da je nalog `WAITING_PAYMENT` ili `PARTIALLY_PAID`,
+- proverava otvorenu smenu za trenutnog korisnika i blagajnu,
+- proverava raspoloživ saldo,
+- tek zatim postavlja cash event u `POSTED`.
+
+Samo `POSTED` cash event menja stanje blagajne kroz `cashbox_balances`.
+
 ## 6. Otvoreno pre implementacije
 
 Za svaku legacy funkciju jos treba dopuniti:

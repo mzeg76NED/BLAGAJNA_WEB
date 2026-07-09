@@ -193,6 +193,7 @@ Sta je uradjeno:
 - Kreiran prvi write adapter za zatvaranje smene: `web/functions/api/shifts/close.js`.
 - Kreiran read-only adapter za stanje blagajne: `web/functions/api/cashbox-balance.js`.
 - Kreirani read-only report adapteri: `web/functions/api/reports/cashbox-balance.js`, `web/functions/api/reports/cash-movements.js`.
+- Kreirani migracioni adapteri za naloge koji čekaju isplatu, slanje blagajniku, odbijanje i izvršenje pending isplate.
 - Kreirani zajednicki adapter helperi u `web/functions/_lib/`.
 - Kreiran `package.json` sa osnovnim build/check skriptama.
 - `package.json` je oznacen sa `"type": "module"` zbog Cloudflare ES module handlera.
@@ -238,6 +239,10 @@ Nove datoteke:
 - `web/functions/api/cashbox-balance.js`
 - `web/functions/api/reports/cashbox-balance.js`
 - `web/functions/api/reports/cash-movements.js`
+- `web/functions/api/payment-orders/waiting.js`
+- `web/functions/api/payment-orders/send-to-cashier.js`
+- `web/functions/api/payment-orders/reject.js`
+- `web/functions/api/payment-orders/execute-pending.js`
 - `web/functions/_lib/api.js`
 - `web/functions/_lib/auth.js`
 - `web/functions/_lib/supabase.js`
@@ -263,6 +268,10 @@ Testovi:
 - `node --check web/functions/api/cashbox-balance.js` je prosao.
 - `node --check web/functions/api/reports/cashbox-balance.js` je prosao.
 - `node --check web/functions/api/reports/cash-movements.js` je prosao.
+- `node --check web/functions/api/payment-orders/waiting.js` je prosao.
+- `node --check web/functions/api/payment-orders/send-to-cashier.js` je prosao.
+- `node --check web/functions/api/payment-orders/reject.js` je prosao.
+- `node --check web/functions/api/payment-orders/execute-pending.js` je prosao.
 - `node --check web/functions/_lib/api.js` je prosao.
 - `node --check web/functions/_lib/auth.js` je prosao.
 - `node --check web/functions/_lib/supabase.js` je prosao.
@@ -281,6 +290,7 @@ Otvoreni rizici:
 - `POST /api/shifts/open` nije runtime testiran automatski jer otvara stvarnu smenu u Supabase bazi.
 - `POST /api/shifts/close` nije runtime testiran automatski jer menja stvarnu smenu u Supabase bazi.
 - `cash movements` report trenutno cita samo `cash_events`; `cash_counts` deo legacy izveštaja ostaje sledeći migracioni korak.
+- Payment order write adapteri nisu automatski runtime testirani jer kreiraju ili knjiže stvarne poslovne zapise.
 - Lokalni Wrangler runtime se ne koristi zbog stabilnosti masine.
 
 Sledeci korak:

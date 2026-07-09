@@ -209,7 +209,45 @@
         balanceByCurrency: balance.balanceByCurrency || {}
       };
     },
-    apiListOrdersWaitingForPayment: async function () { return []; },
+    apiListOrdersWaitingForPayment: async function () {
+      var response = await apiFetch('/api/payment-orders/waiting', {});
+      return response.orders || [];
+    },
+    apiSendPaymentOrderToCashier: async function (orderId, sessionId) {
+      return apiFetch('/api/payment-orders/send-to-cashier', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ order_id: orderId })
+      });
+    },
+    apiRejectPaymentOrderByCashier: async function (orderId, reason, sessionId) {
+      return apiFetch('/api/payment-orders/reject', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({
+          order_id: orderId,
+          reason: reason || ''
+        })
+      });
+    },
+    apiExecutePendingPaymentOrderOutflow: async function (pendingPaymentId, paymentData, sessionId) {
+      return apiFetch('/api/payment-orders/execute-pending', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({
+          pending_payment_id: pendingPaymentId,
+          payment_data: paymentData || {}
+        })
+      });
+    },
+    apiExecutePaymentOrder: async function (orderId, paymentData, sessionId) {
+      var pending = await handlers.apiSendPaymentOrderToCashier(orderId, sessionId);
+      return handlers.apiExecutePendingPaymentOrderOutflow(
+        pending.pendingPayment && pending.pendingPayment.event_id,
+        paymentData || {},
+        sessionId
+      );
+    },
     apiListRequestsForApproval: async function () { return []; },
     apiListMyPaymentRequests: async function () { return []; },
     apiGetCashboxBalanceReport: async function (filters) {
