@@ -292,6 +292,7 @@ GET /api/payment-orders/waiting
 POST /api/payment-orders/send-to-cashier
 POST /api/payment-orders/reject
 POST /api/payment-orders/execute-pending
+GET /api/payment-orders/pending-outflows
 ```
 
 `GET /api/payment-orders/waiting` vraća naloge u statusima:
@@ -313,6 +314,38 @@ POST /api/payment-orders/execute-pending
 - tek zatim postavlja cash event u `POSTED`.
 
 Samo `POSTED` cash event menja stanje blagajne kroz `cashbox_balances`.
+
+### Cash event migracioni adapteri
+
+Postojeći desktop/mobile frontend za direktnu uplatu sada se mapira na:
+
+```text
+POST /api/cash-events/inflow
+POST /api/cash-events/treasury-handover
+```
+
+`POST /api/cash-events/inflow` knjiži `CASH_INFLOW` kao `POSTED` događaj i zato menja stanje blagajne.
+
+Obavezne validacije:
+
+- aktivna aplikativna sesija,
+- privilegija `cash_events:create`,
+- aktivna blagajna,
+- aktivna valuta,
+- iznos veći od nule,
+- opis,
+- otvorena smena trenutnog korisnika za izabranu blagajnu.
+
+`POST /api/cash-events/treasury-handover` knjiži `TREASURY_HANDOVER` kao `POSTED` `OUT` događaj.
+
+Obavezne validacije:
+
+- aktivna aplikativna sesija,
+- privilegija `treasury:create`,
+- otvorena smena trenutnog korisnika,
+- dovoljno raspoloživog salda.
+
+Redovna isplata prema licu ne ide kroz direktni outflow iz quick forme. Ona ostaje kroz `PAYMENT_ORDER -> pending CASH_OUTFLOW -> POSTED CASH_OUTFLOW`.
 
 ## 6. Otvoreno pre implementacije
 

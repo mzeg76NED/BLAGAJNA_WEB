@@ -169,6 +169,22 @@
       });
       return response.shift;
     },
+    apiOpenShiftWithOpeningCount: async function (data, sessionId) {
+      data = data || {};
+      var response = await apiFetch('/api/shifts/open', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({
+          cashbox_id: data.cashbox_id || '',
+          opening_note: data.opening_note || data.note || ''
+        })
+      });
+      return {
+        shift: response.shift,
+        counts: [],
+        countSkipped: true
+      };
+    },
     apiCloseActiveShift: async function (cashboxId, physicalBalance, note, sessionId) {
       var shiftsResponse = await apiFetch('/api/shifts/mine/active', { sessionId: sessionId });
       var shift = (shiftsResponse.shifts || []).filter(function (item) {
@@ -187,6 +203,16 @@
         })
       });
       return closeResponse.shift;
+    },
+    apiCloseShiftWithClosingCount: async function (data, sessionId) {
+      data = data || {};
+      var physical = {};
+      if (data.currency && data.counted_cash_total !== undefined) {
+        physical[data.currency] = Number(data.counted_cash_total || 0);
+      } else if (data.physical_balance_json) {
+        physical = data.physical_balance_json;
+      }
+      return handlers.apiCloseActiveShift(data.cashbox_id || '', physical, data.note || '', sessionId);
     },
     apiCalculateCashboxBalance: async function (cashboxId, currency) {
       return apiFetch('/api/cashbox-balance?cashbox_id=' + encodeURIComponent(cashboxId || '') + '&currency=' + encodeURIComponent(currency || ''), {});
@@ -212,6 +238,14 @@
     apiListOrdersWaitingForPayment: async function () {
       var response = await apiFetch('/api/payment-orders/waiting', {});
       return response.orders || [];
+    },
+    apiListPendingPaymentOrderOutflows: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      if (filters.cashbox_id) query.set('cashbox_id', filters.cashbox_id);
+      if (filters.currency) query.set('currency', filters.currency);
+      var response = await apiFetch('/api/payment-orders/pending-outflows?' + query.toString(), {});
+      return response.pending || response.rows || [];
     },
     apiSendPaymentOrderToCashier: async function (orderId, sessionId) {
       return apiFetch('/api/payment-orders/send-to-cashier', {
@@ -247,6 +281,20 @@
         paymentData || {},
         sessionId
       );
+    },
+    apiCreateCashInflow: async function (data, sessionId) {
+      return apiFetch('/api/cash-events/inflow', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
+    },
+    apiCreateTreasuryHandover: async function (data, sessionId) {
+      return apiFetch('/api/cash-events/treasury-handover', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
     },
     apiListRequestsForApproval: async function () { return []; },
     apiListMyPaymentRequests: async function () { return []; },
