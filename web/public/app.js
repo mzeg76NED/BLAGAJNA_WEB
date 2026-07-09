@@ -18,6 +18,9 @@ const elements = {
   loginMessage: document.getElementById('loginMessage'),
   loginView: document.getElementById('loginView'),
   logoutButton: document.getElementById('logoutButton'),
+  openingNoteInput: document.getElementById('openingNoteInput'),
+  openShiftButton: document.getElementById('openShiftButton'),
+  openShiftForm: document.getElementById('openShiftForm'),
   pinInput: document.getElementById('pinInput'),
   refreshCashboxesButton: document.getElementById('refreshCashboxesButton'),
   refreshShiftsButton: document.getElementById('refreshShiftsButton'),
@@ -217,8 +220,31 @@ async function loadActiveShifts() {
   }
 }
 
+async function openShift(event) {
+  event.preventDefault();
+  elements.shiftMessage.textContent = '';
+  elements.openShiftButton.disabled = true;
+  try {
+    await apiFetch('/api/shifts/open', {
+      method: 'POST',
+      body: JSON.stringify({
+        cashbox_id: state.session ? state.session.cashbox_id : '',
+        opening_note: elements.openingNoteInput.value
+      })
+    });
+    elements.openingNoteInput.value = '';
+    await restoreSession();
+    await loadActiveShifts();
+  } catch (error) {
+    elements.shiftMessage.textContent = error.message;
+  } finally {
+    elements.openShiftButton.disabled = false;
+  }
+}
+
 elements.loginForm.addEventListener('submit', login);
 elements.logoutButton.addEventListener('click', logout);
+elements.openShiftForm.addEventListener('submit', openShift);
 elements.refreshCashboxesButton.addEventListener('click', loadCashboxes);
 elements.refreshShiftsButton.addEventListener('click', loadActiveShifts);
 

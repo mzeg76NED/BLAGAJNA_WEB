@@ -165,6 +165,14 @@ button:disabled {
   min-height: 20px;
 }
 
+.inline-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 14px;
+}
+
 .workspace-grid {
   display: grid;
   gap: 16px;
@@ -287,5 +295,9 @@ dd {
   .topbar-actions {
     align-items: stretch;
     display: grid;
+  }
+
+  .inline-form {
+    grid-template-columns: 1fr;
   }
 }

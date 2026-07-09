@@ -169,6 +169,46 @@ Response:
 
 Endpoint cita samo `OPEN` smene gde je `opened_by` jednak email-u aplikativnog korisnika. Ne otvara, ne zatvara i ne menja smenu.
 
+Prvi write endpoint za smene:
+
+```text
+POST /api/shifts/open
+```
+
+Zahteva aplikativnu sesiju i privilegiju:
+
+```text
+shifts:open
+```
+
+Body:
+
+```json
+{
+  "cashbox_id": "CB_MAIN",
+  "opening_note": "Početak rada"
+}
+```
+
+Ako `cashbox_id` nije poslat, koristi se blagajna iz aktivne sesije ili `default_cashbox_id` aplikativnog korisnika.
+
+Validacije:
+
+- sesija postoji i aktivna je,
+- korisnik ima `shifts:open`,
+- blagajna postoji i aktivna je,
+- `CASHIER` sa `default_cashbox_id` moze otvoriti samo svoju blagajnu,
+- blagajna nema vec otvorenu smenu.
+
+Efekti:
+
+- upisuje red u `shifts` sa statusom `OPEN`,
+- racuna `opening_balance_json` iz `cashbox_balances` za aktivne valute,
+- upisuje `CREATE` u `audit_log`,
+- vezuje `shift_id` na aktivnu `app_sessions` sesiju.
+
+Ovaj endpoint ne menja stanje blagajne. Stanje i dalje proizlazi samo iz `cash_events`.
+
 ## 6. Otvoreno pre implementacije
 
 Za svaku legacy funkciju jos treba dopuniti:

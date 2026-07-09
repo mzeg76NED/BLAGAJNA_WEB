@@ -68,6 +68,13 @@
             <h2>Moje aktivne smene</h2>
             <button id="refreshShiftsButton" class="small-button" type="button">Osveži</button>
           </div>
+          <form id="openShiftForm" class="inline-form">
+            <label>
+              Napomena za otvaranje
+              <input id="openingNoteInput" name="opening_note" type="text" autocomplete="off">
+            </label>
+            <button id="openShiftButton" class="primary-button" type="submit">Otvori smenu</button>
+          </form>
           <ul id="shiftList" class="cashbox-list"></ul>
           <p id="shiftMessage" class="form-message" role="status"></p>
         </article>
@@ -77,7 +84,7 @@
           <ul class="module-list">
             <li><span>Login</span><strong>Aktivno</strong></li>
             <li><span>Blagajne</span><strong>Read-only</strong></li>
-            <li><span>Smene</span><strong>Read-only</strong></li>
+            <li><span>Smene</span><strong>Otvaranje</strong></li>
             <li><span>Nalozi</span><strong>Planirano</strong></li>
             <li><span>Zahtevi</span><strong>Planirano</strong></li>
           </ul>
