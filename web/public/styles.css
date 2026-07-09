@@ -1,0 +1,291 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-strong: #102033;
+  --text: #16202d;
+  --muted: #687384;
+  --line: #d8dee7;
+  --accent: #1d6f5f;
+  --accent-soft: #e4f4ef;
+  --danger: #9b1c31;
+  --danger-soft: #ffe8ec;
+  --warn: #8a5a00;
+  font-family: Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.topbar {
+  align-items: center;
+  background: var(--surface-strong);
+  color: #ffffff;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  min-height: 88px;
+  padding: 18px 20px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+.topbar p {
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 4px;
+}
+
+.topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.status-badge {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  min-width: 112px;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.status-badge.ok {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status-badge.fail {
+  background: #fff4db;
+  border-color: #ffe0a3;
+  color: var(--warn);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.auth-layout {
+  display: grid;
+  min-height: calc(100vh - 160px);
+  place-items: center;
+}
+
+.login-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+  padding: 22px;
+  width: min(100%, 420px);
+}
+
+label {
+  color: var(--muted);
+  display: grid;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+input {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
+}
+
+button {
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 9px 12px;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.primary-button {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.ghost-button,
+.small-button {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.small-button {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+  min-height: 34px;
+}
+
+.form-message {
+  color: var(--danger);
+  font-size: 14px;
+  min-height: 20px;
+}
+
+.workspace-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.panel-header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.panel-header h2 {
+  margin-bottom: 0;
+}
+
+.wide-panel {
+  grid-column: 1 / -1;
+}
+
+.primary-panel {
+  border-left: 4px solid var(--accent);
+}
+
+dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+dd {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 2px 0 0;
+}
+
+.module-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.module-list li {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  min-height: 34px;
+}
+
+.module-list li:last-child {
+  border-bottom: 0;
+}
+
+.module-list strong {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cashbox-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cashbox-list li {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-height: 68px;
+  padding: 12px;
+}
+
+.cashbox-list strong {
+  font-size: 16px;
+}
+
+.cashbox-list span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .topbar,
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .topbar-actions {
+    align-items: stretch;
+    display: grid;
+  }
+}

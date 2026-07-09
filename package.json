@@ -1,0 +1,15 @@
+{
+  "name": "blagajna-web-migration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Migration workspace for BLAGAJNA WEB from Google Apps Script to Cloudflare Pages and Supabase.",
+  "scripts": {
+    "build:web": "node web/build.mjs",
+    "check:web": "node --check web/build.mjs",
+    "check:functions": "node --check web/functions/api/health.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

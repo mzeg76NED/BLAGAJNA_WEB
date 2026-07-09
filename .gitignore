@@ -7,3 +7,14 @@ desktop.ini
 # Temporary files.
 *.tmp
 *.log
+
+# Node / Cloudflare local output.
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.env
+
+# Supabase local runtime.
+supabase/.branches/
+supabase/.temp/

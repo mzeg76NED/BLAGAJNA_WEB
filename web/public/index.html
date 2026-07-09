@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="sr-Latn">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BLAGAJNA WEB</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>BLAGAJNA WEB</h1>
+          <p id="sessionSummary">Niste prijavljeni</p>
+        </div>
+        <div class="topbar-actions">
+          <span id="healthBadge" class="status-badge">Provera...</span>
+          <button id="logoutButton" class="ghost-button hidden" type="button">Odjava</button>
+        </div>
+      </header>
+
+      <section id="loginView" class="auth-layout" aria-label="Prijava">
+        <form id="loginForm" class="login-panel" autocomplete="off">
+          <h2>Prijava u blagajnu</h2>
+          <label>
+            Korisnički kod
+            <input id="userCodeInput" name="user_code" type="text" autocomplete="username" required>
+          </label>
+          <label>
+            PIN
+            <input id="pinInput" name="pin" type="password" inputmode="numeric" autocomplete="current-password" required>
+          </label>
+          <button id="loginButton" class="primary-button" type="submit">Prijavi se</button>
+          <p id="loginMessage" class="form-message" role="status"></p>
+        </form>
+      </section>
+
+      <section id="appView" class="workspace-grid hidden" aria-label="Radni prostor">
+        <article class="panel primary-panel">
+          <h2>Aktivna sesija</h2>
+          <dl>
+            <div>
+              <dt>Korisnik</dt>
+              <dd id="currentUserName">-</dd>
+            </div>
+            <div>
+              <dt>Rola</dt>
+              <dd id="currentUserRole">-</dd>
+            </div>
+            <div>
+              <dt>Blagajna</dt>
+              <dd id="currentCashbox">-</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Blagajne</h2>
+            <button id="refreshCashboxesButton" class="small-button" type="button">Osveži</button>
+          </div>
+          <ul id="cashboxList" class="cashbox-list"></ul>
+          <p id="cashboxMessage" class="form-message" role="status"></p>
+        </article>
+
+        <article class="panel wide-panel">
+          <div class="panel-header">
+            <h2>Moje aktivne smene</h2>
+            <button id="refreshShiftsButton" class="small-button" type="button">Osveži</button>
+          </div>
+          <ul id="shiftList" class="cashbox-list"></ul>
+          <p id="shiftMessage" class="form-message" role="status"></p>
+        </article>
+
+        <article class="panel wide-panel">
+          <h2>Moduli</h2>
+          <ul class="module-list">
+            <li><span>Login</span><strong>Aktivno</strong></li>
+            <li><span>Blagajne</span><strong>Read-only</strong></li>
+            <li><span>Smene</span><strong>Read-only</strong></li>
+            <li><span>Nalozi</span><strong>Planirano</strong></li>
+            <li><span>Zahtevi</span><strong>Planirano</strong></li>
+          </ul>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
