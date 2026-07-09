@@ -90,6 +90,7 @@
     var session = await getCurrentSession(sessionId);
     var cashboxesResponse = await apiFetch('/api/cashboxes', { sessionId: session.session_id });
     var shiftsResponse = await apiFetch('/api/shifts/mine/active', { sessionId: session.session_id });
+    var balanceResponse = await apiFetch('/api/reports/cashbox-balance?cashbox_id=' + encodeURIComponent(session.cashbox_id || ''), { sessionId: session.session_id });
     var cashboxes = cashboxesResponse.cashboxes || [];
     var shifts = shiftsResponse.shifts || [];
     var activeShift = shifts[0] || null;
@@ -99,7 +100,7 @@
       activeShift: activeShift,
       canPostDirectCashEvents: Boolean(activeShift),
       dashboard: {
-        balances: [],
+        balances: balanceResponse.rows || [],
         ordersWaitingPaymentCount: 0,
         requestsForApprovalCount: 0,
         missingDocumentsCount: 0,
@@ -188,12 +189,7 @@
       return closeResponse.shift;
     },
     apiCalculateCashboxBalance: async function (cashboxId, currency) {
-      return {
-        cashbox_id: cashboxId || '',
-        currency: currency || 'RSD',
-        balance: 0,
-        balanceByCurrency: { RSD: 0, EUR: 0 }
-      };
+      return apiFetch('/api/cashbox-balance?cashbox_id=' + encodeURIComponent(cashboxId || '') + '&currency=' + encodeURIComponent(currency || ''), {});
     },
     apiGetActiveShiftState: async function (cashboxId) {
       var response = await apiFetch('/api/shifts/mine/active');
@@ -207,15 +203,32 @@
       };
     },
     apiGetActiveShiftBalance: async function (cashboxId) {
+      var balance = await apiFetch('/api/cashbox-balance?cashbox_id=' + encodeURIComponent(cashboxId || ''), {});
       return {
         cashbox_id: cashboxId || '',
-        balanceByCurrency: { RSD: 0, EUR: 0 }
+        balanceByCurrency: balance.balanceByCurrency || {}
       };
     },
     apiListOrdersWaitingForPayment: async function () { return []; },
     apiListRequestsForApproval: async function () { return []; },
     apiListMyPaymentRequests: async function () { return []; },
-    apiGetCashMovementsReport: async function () { return []; },
+    apiGetCashboxBalanceReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      if (filters.cashbox_id) query.set('cashbox_id', filters.cashbox_id);
+      if (filters.currency) query.set('currency', filters.currency);
+      var response = await apiFetch('/api/reports/cashbox-balance?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetCashMovementsReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'status', 'date_from', 'date_to', 'limit'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/reports/cash-movements?' + query.toString(), {});
+      return response.rows || [];
+    },
     apiGetAuditLog: async function () { return []; }
   };
 

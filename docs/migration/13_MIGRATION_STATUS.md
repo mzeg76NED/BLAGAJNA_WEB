@@ -174,6 +174,9 @@ Sta je uradjeno:
 - Frontend prikazuje i read-only listu mojih aktivnih smena.
 - Frontend ima formu za otvaranje smene.
 - Frontend ima osnovnu formu za zatvaranje aktivne smene za seed valute RSD/EUR.
+- Cloudflare build sada renderuje postojeći Apps Script frontend iz `src/html`.
+- Podrazumevani Cloudflare prikaz je postojeći `desktop`, dok je `desktop-v2` dostupan kao posebna opcija.
+- Dodat je Cloudflare `google.script.run` kompatibilni adapter za postepenu migraciju backend funkcija.
 - Frontend koristi `sessionStorage` kljuc `BLAGAJNA_APP_SESSION_ID`.
 - Frontend salje sesiju kroz `X-App-Session-Id` header.
 - Kreiran Cloudflare Pages Functions health endpoint: `web/functions/api/health.js`.
@@ -188,6 +191,8 @@ Sta je uradjeno:
 - Kreiran prvi read-only adapter za smene: `web/functions/api/shifts/mine/active.js`.
 - Kreiran prvi write adapter za smene: `web/functions/api/shifts/open.js`.
 - Kreiran prvi write adapter za zatvaranje smene: `web/functions/api/shifts/close.js`.
+- Kreiran read-only adapter za stanje blagajne: `web/functions/api/cashbox-balance.js`.
+- Kreirani read-only report adapteri: `web/functions/api/reports/cashbox-balance.js`, `web/functions/api/reports/cash-movements.js`.
 - Kreirani zajednicki adapter helperi u `web/functions/_lib/`.
 - Kreiran `package.json` sa osnovnim build/check skriptama.
 - `package.json` je oznacen sa `"type": "module"` zbog Cloudflare ES module handlera.
@@ -230,6 +235,9 @@ Nove datoteke:
 - `web/functions/api/shifts/open.js`
 - `web/functions/api/shifts/close.js`
 - `web/functions/api/shifts/mine/active.js`
+- `web/functions/api/cashbox-balance.js`
+- `web/functions/api/reports/cashbox-balance.js`
+- `web/functions/api/reports/cash-movements.js`
 - `web/functions/_lib/api.js`
 - `web/functions/_lib/auth.js`
 - `web/functions/_lib/supabase.js`
@@ -252,6 +260,9 @@ Testovi:
 - `node --check web/functions/api/shifts/open.js` je prosao.
 - `node --check web/functions/api/shifts/close.js` je prosao.
 - `node --check web/functions/api/shifts/mine/active.js` je prosao.
+- `node --check web/functions/api/cashbox-balance.js` je prosao.
+- `node --check web/functions/api/reports/cashbox-balance.js` je prosao.
+- `node --check web/functions/api/reports/cash-movements.js` je prosao.
 - `node --check web/functions/_lib/api.js` je prosao.
 - `node --check web/functions/_lib/auth.js` je prosao.
 - `node --check web/functions/_lib/supabase.js` je prosao.
@@ -269,6 +280,7 @@ Otvoreni rizici:
 - Runtime test je potvrdio auth/session, read-only cashboxes adapter i read-only mine active shifts adapter.
 - `POST /api/shifts/open` nije runtime testiran automatski jer otvara stvarnu smenu u Supabase bazi.
 - `POST /api/shifts/close` nije runtime testiran automatski jer menja stvarnu smenu u Supabase bazi.
+- `cash movements` report trenutno cita samo `cash_events`; `cash_counts` deo legacy izveštaja ostaje sledeći migracioni korak.
 - Lokalni Wrangler runtime se ne koristi zbog stabilnosti masine.
 
 Sledeci korak:

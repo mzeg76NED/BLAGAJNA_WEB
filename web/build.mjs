@@ -9,7 +9,7 @@ const distDir = resolve(rootDir, 'dist');
 const sourceHtmlDir = resolve(repoDir, 'src', 'html');
 
 const views = [
-  ['index.html', 'desktop-v2'],
+  ['index.html', 'desktop'],
   ['desktop-v2.html', 'desktop-v2'],
   ['desktop.html', 'desktop'],
   ['mobile.html', 'mobile'],

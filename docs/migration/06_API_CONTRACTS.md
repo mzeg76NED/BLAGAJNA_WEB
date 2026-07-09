@@ -252,6 +252,37 @@ Efekti:
 
 Ovaj endpoint ne menja stanje blagajne i ne kreira korektivne `cash_events`. Korekcije kroz preseke smene ostaju poseban migracioni korak.
 
+### Cashbox balance i cash movements read-only
+
+Backend adapter za postojeći desktop frontend koristi sledeće Cloudflare endpoint-e:
+
+```text
+GET /api/cashbox-balance
+GET /api/reports/cashbox-balance
+GET /api/reports/cash-movements
+```
+
+`GET /api/cashbox-balance` vraća saldo za jednu blagajnu po valutama, izračunat iz PostgreSQL view-a `cashbox_balances`.
+
+`GET /api/reports/cashbox-balance` vraća redove kompatibilne sa legacy `apiGetCashboxBalanceReport` delom:
+
+```json
+{
+  "cashbox_id": "CB_MAIN",
+  "cashbox_name": "Glavna blagajna",
+  "currency": "RSD",
+  "balance": 0
+}
+```
+
+`GET /api/reports/cash-movements` vraća read-only listu `cash_events` redova sa statusima `POSTED` i `LOCKED`.
+
+Ograničenje trenutne migracije:
+
+- `cash_counts` deo legacy cash movement izveštaja još nije prenet,
+- endpoint ne knjiži događaje,
+- stanje blagajne se i dalje računa samo iz knjiženih `cash_events`.
+
 ## 6. Otvoreno pre implementacije
 
 Za svaku legacy funkciju jos treba dopuniti:
