@@ -1,15 +1,15 @@
 import { apiError, apiOk, getSessionId, readJsonBody } from '../../_lib/api.js';
 import { verifySession } from '../../_lib/auth.js';
 import { isSupabaseConfigured, supabaseRest } from '../../_lib/supabase.js';
-import { uploadFileToDrive } from '../../_lib/googleDrive.js';
+import { uploadFileToSupabaseStorage } from '../../_lib/supabaseStorage.js';
 
 function makeId(prefix) {
   return prefix + '-' + crypto.randomUUID();
 }
 
-// FAZA 3s: prilog uz proizvoljnu stavku (cash_event, payment_order, payment_request...)
-// - fajl ide na Google Drive (vidi _lib/googleDrive.js), u documents tabelu se upisuje
-// samo metapodatak + link (file_url), nikad sam sadržaj fajla.
+// FAZA 3s (rev.2): prilog uz proizvoljnu stavku (cash_event, payment_order, payment_request...)
+// - fajl ide u Supabase Storage (vidi _lib/supabaseStorage.js, bucket "documents"),
+// u documents tabelu se upisuje samo metapodatak + link (file_url), nikad sam sadržaj fajla.
 export async function onRequestPost(context) {
   const env = context.env || {};
   if (!isSupabaseConfigured(env)) {
@@ -44,23 +44,26 @@ export async function onRequestPost(context) {
       return apiError('Fajl je prevelik (maksimalno ~5MB).', 413);
     }
 
-    const uploaded = await uploadFileToDrive(env, {
+    const documentId = makeId('DOC');
+    const uploaded = await uploadFileToSupabaseStorage(env, {
       name: fileName,
       mimeType,
       base64Data,
-      folderId: env.GOOGLE_DRIVE_FOLDER_ID
+      entityType,
+      entityId,
+      documentId
     });
 
     const user = sessionResult.session.app_user || {};
     const record = {
-      document_id: makeId('DOC'),
+      document_id: documentId,
       created_at: new Date().toISOString(),
       uploaded_by: user.email || user.user_code || 'system',
       entity_type: entityType,
       entity_id: entityId,
       file_name: uploaded.name || fileName,
-      file_id: uploaded.id,
-      file_url: uploaded.webViewLink || uploaded.webContentLink || '',
+      file_id: uploaded.path,
+      file_url: uploaded.publicUrl,
       mime_type: uploaded.mimeType || mimeType,
       status: 'ACTIVE',
       note: note || null

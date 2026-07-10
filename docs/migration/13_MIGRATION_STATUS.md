@@ -768,9 +768,18 @@ Sledeci korak:
 - Test: storno stavke i uparivanje najave - opis treba da referencira "#N" umesto hash ID-ja.
 - Test: info red iznad Knjige prikazuje kartu "Najave" sa tri broja (Najavljeno/Uplaceno/Preostalo) koja se azurira posle kreiranja/uparivanja najave.
 
-## FAZA 3s - Blagajnicki list redizajn, priznanica, mobilni login/FAB, prilozi preko Google Drive-a (2026-07-10, Claude/Cowork sesija)
+## FAZA 3s - Blagajnicki list redizajn, priznanica, mobilni login/FAB, prilozi preko Supabase Storage-a (2026-07-10, Claude/Cowork sesija)
 
-Status: DONE (implementacija), CEKA Google Cloud service account setup (korisnik) + runtime test
+Status: DONE (implementacija), CEKA jednokratno kreiranje Storage bucket-a (korisnik) + runtime test
+
+Napomena (rev.2, isti dan): prvobitna implementacija je koristila Google Drive (service account
++ JWT). Korisnik je posle zavrsetka trazio zamenu jer ne zeli Google Cloud setup, a ima vec
+Supabase projekat. Istraženo je i da MEGA (mega.nz) NIJE dobra alternativa - nema zvanican
+REST/service-account API, jedina community biblioteka (`megajs`) se loguje email/lozinkom (ne
+scoped kredencijal) i oslanja se na Node `crypto`/`Buffer`/streams kojih nema u Cloudflare
+Workers okruzenju. Korisnik je izabrao Supabase Storage (vec konfigurisan projekat, nema novog
+naloga). `web/functions/_lib/googleDrive.js` je OSTAVLJEN u repou (nekoriscen, mrtav kod) za
+slucaj da se neko vrati na Google Drive - vise nista ne uvozi taj fajl.
 
 Kontekst: Cetiri odvojena zahteva iz iste poruke korisnika, sa dva prilozena PDF-a (screenshot postojeceg Blagajnickog lista i primer stare "Blagajnicki uplatni list" priznanice).
 
@@ -790,31 +799,24 @@ Sta je uradjeno:
    - `src/html/scripts.html` - bootstrap gate promenjen sa `if (isDesktop) {...}` na `if (isDesktop || isMobile) {...}`, koristeci STVARNE `isDesktop`/`isMobile` fleg-ove umesto hardkodovanih `true`/`false`. `submitAppLogin_` (`device_label`) i `bootstrapDesktopAfterLogin_` (poziva se posle USPESNOG login submit-a, ne samo na page-load) su TAKODJE bili hardkodovani na desktop - ispravljeno da citaju stvarni `.m-shell`/`.d-shell` iz DOM-a, inace bi mobilni login "radio" na prvi pogled ali posle submit-a bootstrap-ovao pogresan (desktop) tok.
    - `src/html/mobile.html`/`styles.html`/`scripts.html` - Uplata/Isplata/Trezor(/Najava) dugmad zamenjena JEDNIM okruglim "+" FAB dugmetom (`.m-fab-row`/`.m-fab-btn`/`.m-fab-menu`) koje otvara mali meni - i dalje pravi flex sibling (ne `position:fixed`, isti razlog kao FAZA 3q), meni se siri `position:absolute; bottom:100%` RELATIVNO na red (ne na viewport) pa ne zavisi od visine bilo cega ispod. Najava dugme premesteno iz zasebnog Knjiga toolbar dugmeta (`#m-new-announcement-btn`, uklonjeno) u FAB meni (`#m-fab-najava`), isti `bindAnnouncementButtons_` handler.
    - `src/html/scripts.html` - `updateMobileScale_()` klampovan opseg smanjen sa `[0.85, 1.25]` na `[0.75, 1.12]` - opste smanjenje CELE mobilne skale (umesto gonjenja pojedinacnih dugmadi po tabovima) jer skoro sva mobilna CSS pravila vec koriste `calc(Npx * var(--mobile-scale))`.
-4. **Prilozi (dokumenti) uz uplatu/isplatu preko Google Drive-a** - ranije NIJE postojao stvaran upload backend (istraga je otkrila da `document-form`/`apiAttachDocumentToEntity`/`apiListDocumentsForEntity` iz `scripts.html` referenciraju DOM element i adapter handlere koji NE POSTOJE - potpuno mrtav kod iz GAS ere, "Documents modul" iz FAZA 3 (marka #33) je pokrio samo `getMissingDocumentsReport`, ne stvaran upload).
-   - `web/functions/_lib/googleDrive.js` (novo) - RS256 JWT service-account auth preko Web Crypto API-ja (`crypto.subtle`, Cloudflare Workers nemaju Node `crypto` ni `googleapis` SDK), `uploadFileToDrive()` (multipart upload + automatsko deljenje sa celom Workspace organizacijom preko domain permission-a).
-   - `web/functions/api/documents/upload.js` (novo, POST) i `list.js` (novo, GET) - tanki wrapper-i, upisuju/citaju POSTOJECU `documents` tabelu (nije bila potrebna SQL migracija - kolone `file_id`/`file_url`/`entity_type`/`entity_id` vec postoje od FAZA 3/pocetne seme). Zahtevaju `cash_events:view` privilegiju (bazna pretpostavka - ko vidi Knjigu, moze da prikaci/vidi dokumenta uz nju).
-   - `web/public/cloudflare-apps-script-adapter.js` - `apiUploadDocument`/`apiListDocuments` handleri.
+4. **Prilozi (dokumenti) uz uplatu/isplatu preko Supabase Storage-a** - ranije NIJE postojao stvaran upload backend (istraga je otkrila da `document-form`/`apiAttachDocumentToEntity`/`apiListDocumentsForEntity` iz `scripts.html` referenciraju DOM element i adapter handlere koji NE POSTOJE - potpuno mrtav kod iz GAS ere, "Documents modul" iz FAZA 3 (marka #33) je pokrio samo `getMissingDocumentsReport`, ne stvaran upload).
+   - `web/functions/_lib/supabaseStorage.js` (novo, rev.2) - `uploadFileToSupabaseStorage()` salje sirove bajtove na Supabase Storage REST API (`POST /storage/v1/object/{bucket}/{path}`), koristeci ISTE kredencijale kao `supabaseRest` (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`) - nema novih env varijabli. Putanja je grupisana po stavci (`entity_type/entity_id/document_id-ime.ext`). Public URL se gradi direktno (`/storage/v1/object/public/{bucket}/{path}`), bucket mora biti PUBLIC (vidi uputstvo ispod).
+   - `web/functions/api/documents/upload.js` (izmenjeno, rev.2 - ranije zvalo `uploadFileToDrive`) i `list.js` (nepromenjeno) - upisuju/citaju POSTOJECU `documents` tabelu (nije bila potrebna SQL migracija - kolone `file_id`/`file_url`/`entity_type`/`entity_id` vec postoje od FAZA 3/pocetne seme). Zahtevaju `cash_events:view` privilegiju (bazna pretpostavka - ko vidi Knjigu, moze da prikaci/vidi dokumenta uz nju).
+   - `web/public/cloudflare-apps-script-adapter.js` - `apiUploadDocument`/`apiListDocuments` handleri (nepromenjeno).
    - `src/html/scripts.html` - nov `openDocumentsDialog_(entityType, entityId, label)` dijalog (pregled + upload u jednom, isti `.app-dialog-overlay` obrazac kao Najava dijalog) - dugme "Dokumenti" dodato u detalj panel stavke (desktop `#d-detail-documents`, mobile `#m-detail-documents`), pored Priznanice/Blagajnickog lista.
 
 Sta nije uradjeno:
 
-- **Google Cloud service account JOS NIJE kreiran** - upload ce vracati gresku 503 ("GOOGLE_SERVICE_ACCOUNT_JSON nije podesen") dok korisnik ne uradi jednokratni setup (vidi uputstvo ispod) i doda 2-3 environment varijable u Cloudflare Pages, zatim redeploy.
-- Runtime test sva cetiri dela na produkciji (ni jedan nije automatski testiran - stampa/Drive upload zahtevaju pravi browser/Google nalog).
+- **Supabase Storage bucket JOS NIJE napravljen** - upload ce vracati gresku 503 ("Bucket not found") dok korisnik ne napravi bucket `documents` (vidi uputstvo ispod, jedan klik u Dashboard-u, BEZ novih env varijabli ili redeploy-a).
+- Runtime test sva cetiri dela na produkciji (ni jedan nije automatski testiran - stampa/upload zahtevaju pravi browser).
 - Ostalih 5 `print-*.html` stranica (Zahtev/Nalog/Primopredaja/Zaključak/stariji izvestajni print) i dalje su polomljene - namerno van obima ove sesije (samo cash_event/Blagajnicki list print je bio trazen), UKLONJENI su samo NJIHOVI ulazni buttoni sa Blagajnickog lista (koji vise NISU imali gde drugde da vode ispravno).
 - Nekoliko `bindClick('print-payment-request-btn', ...)` i slicnih poziva u `scripts.html` ostaju kao neskodljiv mrtav kod (elementi na koje se vezuju vise ne postoje u DOM-u, `bindClick` bezbedno preskace ako element ne postoji) - nije cisceno u ovoj sesiji, mala tehnicka dug za kasnije.
-- Deljenje dokumenta sa Workspace domenom je "best effort" (ne rusi upload ako zakaze) - ako Workspace admin ogranici deljenje na nivou domena, fajl ostaje uspesno uploadovan ali NIJE automatski dostupan drugim korisnicima dok se rucno ne podeli na Google Drive-u.
+- Bucket je PUBLIC (bilo ko sa direktnim linkom moze da otvori fajl, bez potpisivanja) - isti bezbednosni nivo kao ranije planirano "anyone in domain can view" na Google Drive-u, ali bez ogranicenja na domen (link sam po sebi je nepogodiv UUID putanja). Ako se kasnije zatrazi strozije (privatan bucket + potpisani, vremenski ograniceni linkovi), `list.js` bi trebalo prosiriti da generise `POST /storage/v1/object/sign/{bucket}/{path}` po zahtevu umesto da vraca trajni `file_url` iz baze.
 
-Sledeci korak (Google Drive jednokratni setup - korisnik):
+Sledeci korak (Supabase Storage jednokratni setup - korisnik):
 
-1. Google Cloud Console → izabrati/kreirati projekat → "IAM & Admin" → "Service Accounts" → "Create Service Account" (ime npr. "blagajna-drive").
-2. Na kreiranom service account-u → "Keys" → "Add key" → "Create new key" → JSON → preuzeti fajl.
-3. Google Cloud Console → "APIs & Services" → "Library" → pronaci "Google Drive API" → Enable (za taj projekat).
-4. Na Google Drive-u (obicnim nalogom, npr. glavni nalog firme) napraviti/izabrati folder za priloge, podeliti ga (Share) sa email adresom iz JSON fajla (polje `client_email`, izgleda kao `blagajna-drive@PROJEKAT.iam.gserviceaccount.com`) sa pravima **Editor**. Kopirati ID foldera iz URL-a (`https://drive.google.com/drive/folders/OVO_JE_ID`).
-5. Cloudflare Pages → projekat → Settings → Environment variables → dodati:
-   - `GOOGLE_SERVICE_ACCOUNT_JSON` = CEO sadrzaj preuzetog JSON fajla (nalepiti kao jedna vrednost, bez izmena).
-   - `GOOGLE_DRIVE_FOLDER_ID` = ID foldera iz koraka 4.
-   - `GOOGLE_WORKSPACE_DOMAIN` (opciono) = `nedeljkovic.co.rs` (podrazumevana vrednost ako se ne postavi).
-6. Redeploy (Cloudflare Pages novi build/deploy da bi Functions videle nove env varijable).
-7. Test: Knjiga → klik na stavku → "Dokumenti" → prikaci fajl → proveriti da se link otvara i da ga vidi drugi korisnik na istom Workspace domenu.
+1. Supabase Dashboard → projekat → Storage → "New bucket" → ime tacno `documents` → ukljuciti "Public bucket" → Save.
+2. Nista drugo - nema novih environment varijabli, nema redeploy-a (backend vec koristi postojeci `SUPABASE_SERVICE_ROLE_KEY`).
+3. Test: Knjiga → klik na stavku → "Dokumenti" → prikaci fajl → proveriti da se link otvara.
 - Test: mobilni telefon (van sesije desktop login-a) → otvoriti app → treba da trazi korisnicki kod/PIN, posle prijave normalno radi (uplata/isplata iza "+" dugmeta, sve manje nego ranije).
 - Test: Blagajnicki list → KPI kartice izgledaju kao na Knjizi, "Korisnik" kolona pokazuje ime umesto CASH_INFLOW/CORRECTION, klik na ikonicu stampaca otvara priznanicu.
