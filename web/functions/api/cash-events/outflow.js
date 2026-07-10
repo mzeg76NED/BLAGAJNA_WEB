@@ -20,10 +20,12 @@ async function exists(env, table, key, value, extra = '') {
   return Boolean(rows && rows.length);
 }
 
-async function findOpenShift(env, cashboxId, userEmail) {
+// A shift belongs to the CASHBOX, not to whoever opened it - see inflow.js for the
+// same fix and rationale (different logged-in users must share one open shift).
+async function findOpenShift(env, cashboxId) {
   const rows = await supabaseRest(
     env,
-    '/shifts?select=shift_id&cashbox_id=' + encodeEq(cashboxId) + '&status=eq.OPEN&opened_by=' + encodeEq(userEmail) + '&limit=1'
+    '/shifts?select=shift_id&cashbox_id=' + encodeEq(cashboxId) + '&status=eq.OPEN&limit=1'
   );
   return rows && rows.length ? rows[0] : null;
 }
@@ -88,9 +90,9 @@ export async function onRequestPost(context) {
     if (!await exists(env, 'currencies', 'currency_code', currency, '&active=eq.true')) return apiError('Valuta nije aktivna.', 400);
 
     const appUser = sessionResult.session.app_user || {};
-    const openShift = await findOpenShift(env, cashboxId, appUser.email || '');
+    const openShift = await findOpenShift(env, cashboxId);
     if (!openShift) {
-      return apiError('Direktna isplata zahteva otvorenu smenu trenutnog korisnika.', 409);
+      return apiError('Direktna isplata zahteva otvorenu smenu na ovoj blagajni.', 409);
     }
 
     const previousBalance = await getBalance(env, cashboxId, currency);

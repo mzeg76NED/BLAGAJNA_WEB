@@ -1470,11 +1470,20 @@
     var isMobileShell = Boolean(document.querySelector('.m-shell'));
     document.documentElement.classList.toggle('mobile-view', isMobileShell);
     if (!isMobileShell) return;
+    // NOTE: the mobile CSS (styles.html) is already sized for touch use assuming
+    // --mobile-scale ~= 1 on a normal ~360-430px-wide phone (e.g. m-header-balance:
+    // 34px, sheet-amount-input: 44px). This used to be floored at a MINIMUM of 1.72x
+    // and capped at 2.25x, which meant every phone - even ones bigger than the 360px
+    // reference width - got forced to at least 172% scale, making the whole UI
+    // massively oversized and mostly unusable (fields overflowing, session-expired
+    // interactions failing because buttons/inputs were off-screen). Clamp to a much
+    // narrower, sane range instead: shrink slightly on small/older phones, grow only
+    // a little on large phones/phablets.
     var screenWidth = window.screen && window.screen.width ? window.screen.width : window.innerWidth;
     var screenHeight = window.screen && window.screen.height ? window.screen.height : window.innerHeight;
     var shortSide = Math.min(screenWidth, screenHeight);
     var scale = shortSide / 360;
-    scale = Math.max(1.72, Math.min(scale, 2.25));
+    scale = Math.max(0.85, Math.min(scale, 1.25));
     document.documentElement.style.setProperty('--mobile-scale', String(scale.toFixed(3)));
   }
 
@@ -2046,6 +2055,20 @@
     return isShiftUserMatch_(shift.opened_by, user);
   }
 
+  // Mirrors backend canCloseShift (web/functions/api/shifts/close.js): the shift
+  // owner OR an elevated role (ADMIN/FINANCE/CASHIER_SUPERVISOR) may close it. A
+  // shift is shared by the whole cashbox (any logged-in user works within it), but
+  // closing stays restricted for accountability - same rule the API already enforces,
+  // just mirrored here so the button isn't disabled for someone the backend would allow.
+  var SHIFT_CLOSE_ELEVATED_ROLES_ = ['ADMIN', 'FINANCE', 'CASHIER_SUPERVISOR'];
+  function canCloseCurrentActiveShift_() {
+    var shift = uiState.activeShift || {};
+    if (!shift.shift_id) return false;
+    if (isCurrentActiveShiftOwner_()) return true;
+    var role = uiState.currentUser && uiState.currentUser.role;
+    return SHIFT_CLOSE_ELEVATED_ROLES_.indexOf(role) !== -1;
+  }
+
   function isShiftUserMatch_(shiftUserValue, user) {
     var shiftText = normalizeUserIdentity_(shiftUserValue);
     if (!shiftText) return false;
@@ -2440,7 +2463,7 @@
 
   function attachShiftDetailActions_(target, shift) {
     var selectedIsActive = Boolean(uiState.activeShift && uiState.activeShift.shift_id && shift && shift.shift_id === uiState.activeShift.shift_id);
-    var owner = selectedIsActive && isCurrentActiveShiftOwner_();
+    var canClose = selectedIsActive && canCloseCurrentActiveShift_();
     var openBtn = target.querySelector('[data-shift-detail-open]');
     var countBtn = target.querySelector('[data-shift-detail-count]');
     var closeBtn = target.querySelector('[data-shift-detail-close]');
@@ -2454,8 +2477,8 @@
       countBtn.addEventListener('click', function() { openCashCountDialog_('desktop'); });
     }
     if (closeBtn) {
-      closeBtn.disabled = !owner;
-      closeBtn.title = owner ? '' : 'Smenu može zatvoriti samo korisnik koji ju je otvorio.';
+      closeBtn.disabled = !canClose;
+      closeBtn.title = canClose ? '' : 'Smenu može zatvoriti samo korisnik koji ju je otvorio, supervizor ili administracija.';
       closeBtn.addEventListener('click', function() { openShiftClosingDialog_('desktop'); });
     }
     if (countViewBtn) countViewBtn.addEventListener('click', function() { openDesktopSection_('presek'); });
@@ -2494,7 +2517,7 @@
       return;
     }
     var isActive = Boolean(uiState.activeShift && uiState.activeShift.shift_id === shift.shift_id);
-    var owner = isActive && isCurrentActiveShiftOwner_();
+    var canClose = isActive && canCloseCurrentActiveShift_();
     var opening = shiftOpeningMap_(shift);
     target.innerHTML =
       '<div class="shift-detail-header">' +
@@ -2518,7 +2541,7 @@
         '<button type="button" data-shift-detail-presek-view><i class="ti ti-list-details" aria-hidden="true"></i> Pregled preseka</button>' +
         (uiState.activeShift && uiState.activeShift.shift_id ? '' : '<button type="button" data-shift-detail-open><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>') +
         '<button class="btn-primary" type="button" data-shift-detail-count' + (!isActive ? ' disabled' : '') + '><i class="ti ti-calculator" aria-hidden="true"></i> Novi presek</button>' +
-        '<button class="btn-out" type="button" data-shift-detail-close' + (!owner ? ' disabled' : '') + '><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
+        '<button class="btn-out" type="button" data-shift-detail-close' + (!canClose ? ' disabled' : '') + '><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
         '<button type="button" data-shift-detail-book><i class="ti ti-book" aria-hidden="true"></i> Knjiga</button>' +
         '<button type="button" data-shift-detail-sheet><i class="ti ti-file-invoice" aria-hidden="true"></i> Blagajnički list</button>' +
       '</div>';
@@ -2542,7 +2565,7 @@
   function renderShiftWorkflowState_() {
     var shift = uiState.activeShift || {};
     var hasShift = Boolean(shift.shift_id);
-    var owner = isCurrentActiveShiftOwner_();
+    var canClose = canCloseCurrentActiveShift_();
     var statusHtml = hasShift
       ? '<div class="table-wrap"><table class="book-table shift-table"><thead><tr><th>Rb.</th><th>Blagajnik</th><th>Otvoreno</th><th>Zatvoreno</th><th>Status</th><th>ID</th></tr></thead><tbody>' +
         shiftRowHtml_(shift, 0) +
@@ -2564,8 +2587,8 @@
       });
     });
     document.querySelectorAll('[data-shift-status-close]').forEach(function(btn) {
-      btn.disabled = !owner;
-      btn.title = owner ? '' : 'Smenu može zatvoriti samo korisnik koji ju je otvorio.';
+      btn.disabled = !canClose;
+      btn.title = canClose ? '' : 'Smenu može zatvoriti samo korisnik koji ju je otvorio, supervizor ili administracija.';
       btn.addEventListener('click', function() {
         openShiftClosingDialog_(btn.closest('#m-shift-status') ? 'mobile' : 'desktop');
       });
@@ -2587,7 +2610,7 @@
     document.querySelectorAll('#d-close-shift-form, #m-close-shift-form').forEach(function(form) {
       var card = form.closest('.card');
       if (card) card.style.display = 'none';
-      setWorkflowFormDisabled_(form, !hasShift || !owner);
+      setWorkflowFormDisabled_(form, !hasShift || !canClose);
     });
     document.querySelectorAll('.optional-handover-card').forEach(function(card) {
       card.style.display = 'none';
@@ -2596,23 +2619,22 @@
       card.setAttribute('hidden', 'hidden');
       card.style.display = 'none';
     });
+    // Direct posting (Uplata/Isplata/Trezor) is allowed for ANY user while the
+    // cashbox has an open shift - the shift is shared, not tied to whoever opened
+    // it (mirrors the backend fix in cash-events/inflow.js, outflow.js,
+    // treasury-handover.js, which no longer require opened_by === acting user).
+    var canPostDirect = canPostDirectCashEvents_();
     ['d-shift-action-in','d-shift-action-out','d-shift-action-treasury','m-shift-action-in','m-shift-action-out','m-shift-action-treasury'].forEach(function(id) {
       var btn = document.getElementById(id);
       if (!btn) return;
-      btn.disabled = !owner;
-      btn.title = owner ? '' : 'Direktno knjiženje može da radi samo glavni blagajnik smene.';
+      btn.disabled = !canPostDirect;
+      btn.title = canPostDirect ? '' : 'Direktno knjiženje zahteva otvorenu smenu na ovoj blagajni.';
     });
     document.querySelectorAll('#d-active-shift-balance-btn, #m-active-shift-balance-btn').forEach(function(btn) {
       btn.disabled = !hasShift;
       btn.title = hasShift ? '' : 'Nema aktivne smene.';
     });
     renderShiftPageKpis_(shift, []);
-    if (hasShift && !owner) {
-      ['d-shift-status','m-shift-status'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.insertAdjacentHTML('beforeend', '<div class="shift-warning">Ovu smenu je otvorio drugi korisnik. Možete raditi preko zahteva, ali ne možete direktno knjižiti.</div>');
-      });
-    }
     updateCountWorkflowVisibility_();
   }
 
@@ -2725,11 +2747,11 @@
     }
     if (permissionText) {
       permissionText.textContent = uiState.activeShift && uiState.activeShift.shift_id
-        ? 'Glavni blagajnik smene je ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '. Direktne uplate, isplate i trezor može da radi samo glavni blagajnik.'
+        ? 'Smenu je otvorio ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '.'
         : 'Nema otvorene smene. Otvorite smenu da biste mogli da knjižite direktne uplate, isplate i predaju u trezor.';
     }
     if (!canPost) {
-      showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i predaju u trezor može knjižiti samo glavni blagajnik aktivne smene.', 'info');
+      showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i predaju u trezor je moguće knjižiti tek kada je smena otvorena.', 'info');
     }
     updateDesktopDirectActionsVisibility_();
     updateMobileDirectActionsVisibility_();
@@ -2755,7 +2777,7 @@
         var note = lockMessage.querySelector('span');
         if (hasShift) {
           if (title) title.innerHTML = '<i class="ti ti-info-circle" aria-hidden="true"></i> Aktivna smena je otvorena';
-          if (note) note.textContent = 'Direktne uplate, isplate i trezor su dostupni samo glavnom blagajniku smene: ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '.';
+          if (note) note.textContent = 'Direktne uplate, isplate i trezor trenutno nisu dostupni. Smenu je otvorio: ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '.';
         } else {
           if (title) title.innerHTML = '<i class="ti ti-alert-triangle" aria-hidden="true"></i> Nema aktivne smene - otvorite smenu za direktan rad';
           if (note) note.textContent = 'Uplata, isplata i trezor su zaključani dok smena nije otvorena.';
@@ -2773,7 +2795,7 @@
       if (!btn) return;
       btn.disabled = !canPost;
       btn.classList.toggle('quick-action-button--locked', !canPost);
-      btn.title = canPost ? '' : 'Dostupno samo glavnom blagajniku otvorene smene.';
+      btn.title = canPost ? '' : 'Dostupno kada je smena otvorena na ovoj blagajni.';
     });
   }
 
@@ -3004,8 +3026,8 @@
       showMessage('Nema aktivne smene za zatvaranje.', 'error');
       return;
     }
-    if (!isCurrentActiveShiftOwner_()) {
-      showMessage('Smenu može zatvoriti samo glavni blagajnik smene.', 'error');
+    if (!canCloseCurrentActiveShift_()) {
+      showMessage('Smenu može zatvoriti samo blagajnik koji ju je otvorio ili supervizor/administracija.', 'error');
       return;
     }
     var overlay = document.createElement('div');
@@ -3081,10 +3103,9 @@
       showMessage('Presek stanja je dostupan tek kada postoji aktivna smena.', 'error');
       return;
     }
-    if (!isCurrentActiveShiftOwner_()) {
-      showMessage('Presek stanja može da proknjiži samo glavni blagajnik aktivne smene.', 'error');
-      return;
-    }
+    // No owner-only restriction here: the shift is shared by whoever is logged in on
+    // this cashbox (backend createCashCountsCore only requires an active shift on the
+    // cashbox + the shifts:count privilege, not shift ownership).
     var overlay = document.createElement('div');
     overlay.className = 'app-dialog-overlay';
     overlay.innerHTML =
@@ -3612,6 +3633,14 @@
   }
 
   function renderPresekApoeniTab_(group) {
+    // Note: we only ever know the ACTUAL counted amount per denomination (what the
+    // user physically entered). There is no per-apoen "expected" breakdown anywhere
+    // in the data model - the calculated/expected balance is a single total per
+    // currency, not split by denomination. Previously this table faked an
+    // "Očekivano"/"Razlika" value per row by just repeating the counted amount and
+    // hardcoding the difference to 0,00, which made it look like every denomination
+    // matched exactly even when the real total didn't. Real Očekivano/Popisano/Razlika
+    // (from the actual cash count record) are shown per currency below the table instead.
     var totalPieces = 0;
     var totalExpected = 0;
     var totalCounted = 0;
@@ -3619,21 +3648,27 @@
     var blocks = group.rows.map(function(count) {
       var currency = count.currency || '';
       var denoms = count.denominations || [];
-      totalExpected += Number(count.calculated_balance_before || 0);
-      totalCounted += Number(count.counted_total || count.counted_cash_total || 0);
-      totalDiff += Number(count.difference || 0);
+      var expected = Number(count.calculated_balance_before || 0);
+      var counted = Number(count.counted_total || count.counted_cash_total || 0);
+      var diff = Number(count.difference || 0);
+      totalExpected += expected;
+      totalCounted += counted;
+      totalDiff += diff;
       var body = denoms.length ? denoms.map(function(row) {
         var pieces = Number(row.quantity || 0);
         var amount = Number(row.denomination || 0) * pieces;
         totalPieces += pieces;
-        return '<tr><td>' + formatAmount_(row.denomination) + '</td><td class="num">' + escapeHtml(pieces) + '</td><td class="num">' + formatAmount_(amount) + '</td><td class="num">' + formatAmount_(amount) + '</td><td class="num">0,00</td></tr>';
-      }).join('') : '<tr><td colspan="5">Nema unetih apoena za ovu valutu.</td></tr>';
-      var diff = Number(count.difference || 0);
+        return '<tr><td>' + formatAmount_(row.denomination) + '</td><td class="num">' + escapeHtml(pieces) + '</td><td class="num">' + formatAmount_(amount) + '</td></tr>';
+      }).join('') : '<tr><td colspan="3">Nema unetih apoena za ovu valutu.</td></tr>';
       return '<section class="presek-currency-block">' +
         '<h3>' + escapeHtml(currency) + '</h3>' +
-        '<table class="presek-detail-table"><thead><tr><th>Apoen</th><th class="num">Komada</th><th class="num">Očekivano</th><th class="num">Popisano</th><th class="num">Razlika</th></tr></thead><tbody>' + body +
-        '<tr class="presek-total-row"><td>UKUPNO ' + escapeHtml(currency) + '</td><td class="num">—</td><td class="num">' + formatAmount_(count.calculated_balance_before) + '</td><td class="num">' + formatAmount_(count.counted_total || count.counted_cash_total) + '</td><td class="num ' + (diff >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(diff) + '</td></tr>' +
+        '<table class="presek-detail-table"><thead><tr><th>Apoen</th><th class="num">Komada</th><th class="num">Iznos</th></tr></thead><tbody>' + body +
+        '<tr class="presek-total-row"><td>UKUPNO POPISANO ' + escapeHtml(currency) + '</td><td class="num">—</td><td class="num">' + formatAmount_(counted) + '</td></tr>' +
         '</tbody></table>' +
+        '<div class="presek-currency-summary">' +
+          '<span>Očekivano (stanje pre popisa): <strong>' + formatAmount_(expected) + '</strong></span>' +
+          '<span>Razlika: <strong class="' + (diff >= 0 ? 'cell-in' : 'cell-out') + '">' + formatAmount_(diff) + '</strong></span>' +
+        '</div>' +
       '</section>';
     }).join('');
     return blocks + '<div class="presek-all-total"><strong>UKUPNO SVE VALUTE</strong><span>Komada: ' + totalPieces + '</span><span>Očekivano: ' + formatAmount_(totalExpected) + '</span><span>Popisano: ' + formatAmount_(totalCounted) + '</span><span class="' + (totalDiff >= 0 ? 'cell-in' : 'cell-out') + '">Razlika: ' + formatAmount_(totalDiff) + '</span></div>';
@@ -4230,7 +4265,7 @@
 
   function executePendingPaymentOrderOutflow_(pendingPaymentId) {
     if (!canPostDirectCashEvents_()) {
-      showDesktopMessage_('Isplatu može izvršiti samo glavni blagajnik aktivne smene.', 'error');
+      showDesktopMessage_('Isplata zahteva otvorenu smenu na ovoj blagajni.', 'error');
       return;
     }
     appConfirm_({
@@ -4762,14 +4797,16 @@
 
   function formatTimeShort_(value) {
     if (!value) return '—';
-    var text = String(value);
-    var match = text.match(/(\d{1,2}):(\d{2})/);
-    if (match) return match[1].padStart(2, '0') + ':' + match[2];
+    // IMPORTANT: never regex-extract the HH:MM digits straight out of the raw
+    // string - server timestamps are ISO UTC (e.g. "2026-07-10T07:42:00.000Z"),
+    // and grabbing the first HH:MM substring displays UTC time unconverted,
+    // which looked like transactions were logged hours in the past. Always
+    // go through Date so the browser's local timezone (Europe/Belgrade) is applied.
     var date = new Date(value);
     if (!isNaN(date.getTime())) {
       return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
     }
-    return text;
+    return String(value);
   }
 
   function shortUserLabel_(value) {
@@ -4816,7 +4853,7 @@
     function requireDirectCashAccess_() {
       var canPost = canPostDirectCashEvents_();
       if (!canPost) {
-        showMessage('Akcija nije dostupna dok ne postoji aktivna smena ili dok niste glavni blagajnik smene.', 'info');
+        showMessage('Akcija nije dostupna dok ne postoji aktivna smena na ovoj blagajni.', 'info');
       }
       return canPost;
     }

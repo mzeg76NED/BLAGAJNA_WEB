@@ -6,10 +6,12 @@ function makeId(prefix) {
   return prefix + '-' + crypto.randomUUID();
 }
 
-async function findOpenShift(env, cashboxId, userEmail) {
+// A shift belongs to the CASHBOX, not to whoever opened it - see inflow.js for the
+// same fix and rationale (different logged-in users must share one open shift).
+async function findOpenShift(env, cashboxId) {
   const rows = await supabaseRest(
     env,
-    '/shifts?select=shift_id&cashbox_id=' + encodeEq(cashboxId) + '&status=eq.OPEN&opened_by=' + encodeEq(userEmail) + '&limit=1'
+    '/shifts?select=shift_id&cashbox_id=' + encodeEq(cashboxId) + '&status=eq.OPEN&limit=1'
   );
   return rows && rows.length ? rows[0] : null;
 }
@@ -69,8 +71,8 @@ export async function onRequestPost(context) {
     if (!(amount > 0)) return apiError('Iznos mora biti veći od nule.', 400);
 
     const appUser = sessionResult.session.app_user || {};
-    const openShift = await findOpenShift(env, cashboxId, appUser.email || '');
-    if (!openShift) return apiError('Predaja u trezor zahteva otvorenu smenu trenutnog korisnika.', 409);
+    const openShift = await findOpenShift(env, cashboxId);
+    if (!openShift) return apiError('Predaja u trezor zahteva otvorenu smenu na ovoj blagajni.', 409);
     const previousBalance = await getBalance(env, cashboxId, currency);
     if (previousBalance < amount) return apiError('Nedovoljno sredstava u blagajni.', 409);
 

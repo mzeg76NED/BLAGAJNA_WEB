@@ -188,11 +188,21 @@ async function createSession(env, user, context = {}) {
   return rows && rows.length ? rows[0] : session;
 }
 
+// Sliding session window: every authenticated request pushes expires_at forward
+// again, instead of the session hard-expiring exactly APP_SESSION_HOURS after LOGIN
+// regardless of activity. Previously expires_at was only ever set once at login time,
+// so an actively-working cashier could get "Sesija je istekla" mid-shift even though
+// they never stopped using the app - this made a busy shift longer than the session
+// window impossible to complete without re-logging in.
 async function touchSession(env, sessionId) {
+  const now = new Date();
   await supabaseRest(env, '/app_sessions?session_id=' + encodeEq(sessionId), {
     method: 'PATCH',
     headers: { prefer: 'return=minimal' },
-    body: JSON.stringify({ last_seen_at: new Date().toISOString() })
+    body: JSON.stringify({
+      last_seen_at: now.toISOString(),
+      expires_at: addHours(now.toISOString(), env.APP_SESSION_HOURS || 12)
+    })
   });
 }
 
