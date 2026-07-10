@@ -3395,45 +3395,53 @@
 
   /* ─── Responsive ──────────────────────────────────────── */
 
+  /* Sizes below assume --mobile-scale ~= 1 already produces a normal, dense mobile
+     web-app UI (44-48px touch targets per platform HIG, not oversized POS-terminal
+     text). Previously these baseline values (34px header balance, 64px-tall buttons,
+     24-26px entry text, 36px tab icons) were themselves too large even before any
+     --mobile-scale multiplier was applied - on a real phone the header alone ate a
+     third of the screen and entry titles had to be ellipsis-truncated because the
+     text didn't fit its own row. Reduced across the board; --mobile-scale now only
+     nudges these up/down slightly for unusually small/large screens. */
   html.mobile-view,
   html.mobile-view body {
-    font-size: calc(16px * var(--mobile-scale));
+    font-size: calc(15px * var(--mobile-scale));
     min-width: 320px;
   }
 
   html.mobile-view button,
   html.mobile-view a.button-link {
-    font-size: calc(14px * var(--mobile-scale));
-    min-height: calc(42px * var(--mobile-scale));
+    font-size: calc(13px * var(--mobile-scale));
+    min-height: calc(44px * var(--mobile-scale));
     padding: calc(8px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
   }
 
   html.mobile-view input,
   html.mobile-view select,
   html.mobile-view textarea {
-    font-size: calc(15px * var(--mobile-scale));
-    min-height: calc(42px * var(--mobile-scale));
+    font-size: calc(14px * var(--mobile-scale));
+    min-height: calc(44px * var(--mobile-scale));
   }
 
   html.mobile-view .m-header {
-    padding: calc(14px * var(--mobile-scale)) calc(16px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
-    padding-top: max(calc(14px * var(--mobile-scale)), env(safe-area-inset-top));
+    padding: calc(12px * var(--mobile-scale)) calc(16px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
+    padding-top: max(calc(12px * var(--mobile-scale)), env(safe-area-inset-top));
   }
 
   html.mobile-view .m-header-balance {
-    font-size: calc(34px * var(--mobile-scale));
+    font-size: calc(24px * var(--mobile-scale));
   }
 
   html.mobile-view .m-header-clock {
     display: flex;
     align-items: baseline;
-    gap: calc(8px * var(--mobile-scale));
+    gap: calc(6px * var(--mobile-scale));
     margin-top: calc(4px * var(--mobile-scale));
   }
 
   html.mobile-view .m-header-clock span,
   html.mobile-view .m-header-clock strong {
-    font-size: calc(34px * var(--mobile-scale));
+    font-size: calc(20px * var(--mobile-scale));
     font-variant-numeric: tabular-nums;
     font-weight: 800;
     line-height: 1;
@@ -3442,89 +3450,89 @@
   html.mobile-view .m-header-meta,
   html.mobile-view .m-chip,
   html.mobile-view .m-chip select {
-    font-size: calc(13px * var(--mobile-scale));
+    font-size: calc(12px * var(--mobile-scale));
   }
 
   html.mobile-view .m-section {
-    gap: calc(14px * var(--mobile-scale));
-    padding: calc(16px * var(--mobile-scale));
-    padding-bottom: calc(126px + env(safe-area-inset-bottom));
+    gap: calc(10px * var(--mobile-scale));
+    padding: calc(14px * var(--mobile-scale));
+    padding-bottom: calc(110px + env(safe-area-inset-bottom));
   }
 
   html.mobile-view .btn-lg {
-    font-size: calc(19px * var(--mobile-scale));
-    min-height: calc(64px * var(--mobile-scale));
+    font-size: calc(15px * var(--mobile-scale));
+    min-height: calc(48px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry {
-    gap: calc(12px * var(--mobile-scale));
-    padding: calc(16px * var(--mobile-scale)) calc(14px * var(--mobile-scale));
+    gap: calc(10px * var(--mobile-scale));
+    padding: calc(12px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-dot {
-    height: calc(12px * var(--mobile-scale));
-    width: calc(12px * var(--mobile-scale));
+    height: calc(9px * var(--mobile-scale));
+    width: calc(9px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-desc {
-    font-size: calc(24px * var(--mobile-scale));
+    font-size: calc(15px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-meta {
-    font-size: calc(19px * var(--mobile-scale));
+    font-size: calc(12px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-amt {
-    font-size: calc(26px * var(--mobile-scale));
+    font-size: calc(16px * var(--mobile-scale));
   }
 
   html.mobile-view .m-tab {
-    font-size: calc(16px * var(--mobile-scale));
-    padding: calc(12px * var(--mobile-scale)) 4px;
+    font-size: calc(11px * var(--mobile-scale));
+    padding: calc(8px * var(--mobile-scale)) 4px;
   }
 
   html.mobile-view .m-tab i {
-    font-size: calc(36px * var(--mobile-scale));
+    font-size: calc(20px * var(--mobile-scale));
   }
 
   html.mobile-view .m-fixed-actions {
-    bottom: calc(126px + env(safe-area-inset-bottom));
-    gap: calc(10px * var(--mobile-scale));
-    padding: calc(12px * var(--mobile-scale)) calc(12px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
+    bottom: calc(110px + env(safe-area-inset-bottom));
+    gap: calc(8px * var(--mobile-scale));
+    padding: calc(10px * var(--mobile-scale)) calc(10px * var(--mobile-scale)) calc(8px * var(--mobile-scale));
   }
 
   html.mobile-view .m-detail-actions {
-    gap: calc(12px * var(--mobile-scale));
+    gap: calc(10px * var(--mobile-scale));
   }
 
   html.mobile-view .m-detail-actions button {
-    font-size: calc(19px * var(--mobile-scale));
-    min-height: calc(64px * var(--mobile-scale));
-    padding: calc(12px * var(--mobile-scale)) calc(14px * var(--mobile-scale));
+    font-size: calc(14px * var(--mobile-scale));
+    min-height: calc(46px * var(--mobile-scale));
+    padding: calc(10px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
   }
 
   html.mobile-view .m-detail-actions button i {
-    font-size: calc(24px * var(--mobile-scale));
+    font-size: calc(18px * var(--mobile-scale));
   }
 
   html.mobile-view .sheet {
     max-width: none;
-    padding: calc(18px * var(--mobile-scale));
-    padding-bottom: max(calc(22px * var(--mobile-scale)), env(safe-area-inset-bottom));
+    padding: calc(16px * var(--mobile-scale));
+    padding-bottom: max(calc(20px * var(--mobile-scale)), env(safe-area-inset-bottom));
   }
 
   html.mobile-view .sheet-amount-input {
-    font-size: calc(44px * var(--mobile-scale)) !important;
+    font-size: calc(32px * var(--mobile-scale)) !important;
   }
 
   html.mobile-view .sheet-title {
-    font-size: calc(28px * var(--mobile-scale));
+    font-size: calc(19px * var(--mobile-scale));
   }
 
   html.mobile-view .sheet input,
   html.mobile-view .sheet textarea,
   html.mobile-view .sheet select {
-    font-size: calc(21px * var(--mobile-scale));
+    font-size: calc(15px * var(--mobile-scale));
   }
 
   .app-dialog-overlay {
@@ -3988,12 +3996,12 @@
   html.mobile-view .empty-state,
   html.mobile-view .record-title,
   html.mobile-view .summary-row {
-    font-size: calc(17px * var(--mobile-scale));
+    font-size: calc(14px * var(--mobile-scale));
   }
 
   html.mobile-view .card-head h3,
   html.mobile-view .m-section h2 {
-    font-size: calc(22px * var(--mobile-scale));
+    font-size: calc(17px * var(--mobile-scale));
   }
 
   html.mobile-view .app-dialog {
@@ -4001,11 +4009,11 @@
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     max-height: 86dvh;
     max-width: none;
-    padding: calc(22px * var(--mobile-scale));
+    padding: calc(16px * var(--mobile-scale));
   }
 
   html.mobile-view .app-dialog h3 {
-    font-size: calc(24px * var(--mobile-scale));
+    font-size: calc(18px * var(--mobile-scale));
   }
 
   html.mobile-view .app-dialog p,
@@ -4014,17 +4022,17 @@
   html.mobile-view .app-dialog select,
   html.mobile-view .count-table,
   html.mobile-view .count-entry-form {
-    font-size: calc(19px * var(--mobile-scale));
+    font-size: calc(14px * var(--mobile-scale));
   }
 
   html.mobile-view .app-dialog button {
-    font-size: calc(19px * var(--mobile-scale));
-    min-height: calc(64px * var(--mobile-scale));
+    font-size: calc(14px * var(--mobile-scale));
+    min-height: calc(46px * var(--mobile-scale));
   }
 
   @media (max-width: 768px) {
     html, body {
-      font-size: calc(16px * var(--mobile-scale));
+      font-size: calc(15px * var(--mobile-scale));
     }
 
     body {
@@ -4032,34 +4040,34 @@
     }
 
     button, a.button-link {
-      font-size: calc(14px * var(--mobile-scale));
-      min-height: calc(42px * var(--mobile-scale));
+      font-size: calc(13px * var(--mobile-scale));
+      min-height: calc(44px * var(--mobile-scale));
       padding: calc(8px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
     }
 
     input, select, textarea {
-      font-size: calc(15px * var(--mobile-scale));
-      min-height: calc(42px * var(--mobile-scale));
+      font-size: calc(14px * var(--mobile-scale));
+      min-height: calc(44px * var(--mobile-scale));
     }
 
     .btn-lg {
-      font-size: calc(19px * var(--mobile-scale));
-      min-height: calc(64px * var(--mobile-scale));
+      font-size: calc(15px * var(--mobile-scale));
+      min-height: calc(48px * var(--mobile-scale));
     }
 
     .m-header {
-      padding: calc(14px * var(--mobile-scale)) calc(16px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
-      padding-top: max(calc(14px * var(--mobile-scale)), env(safe-area-inset-top));
+      padding: calc(12px * var(--mobile-scale)) calc(16px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
+      padding-top: max(calc(12px * var(--mobile-scale)), env(safe-area-inset-top));
     }
 
     .m-header-balance {
-      font-size: calc(34px * var(--mobile-scale));
+      font-size: calc(24px * var(--mobile-scale));
     }
 
     .m-header-meta,
     .m-header-clock span,
     .m-header-clock strong {
-      font-size: calc(22px * var(--mobile-scale));
+      font-size: calc(20px * var(--mobile-scale));
     }
 
     .m-header-chips {
@@ -4069,7 +4077,7 @@
 
     .m-chip,
     .m-chip select {
-      font-size: calc(14px * var(--mobile-scale));
+      font-size: calc(12px * var(--mobile-scale));
     }
 
     .m-chip {
@@ -4077,13 +4085,13 @@
     }
 
     .m-section {
-      gap: calc(14px * var(--mobile-scale));
-      padding: calc(16px * var(--mobile-scale));
-      padding-bottom: calc(126px + env(safe-area-inset-bottom));
+      gap: calc(10px * var(--mobile-scale));
+      padding: calc(14px * var(--mobile-scale));
+      padding-bottom: calc(110px + env(safe-area-inset-bottom));
     }
 
     .m-section-actions {
-      gap: calc(10px * var(--mobile-scale));
+      gap: calc(8px * var(--mobile-scale));
     }
 
     .m-section-label {
@@ -4091,35 +4099,35 @@
     }
 
     .m-entry {
-      gap: calc(10px * var(--mobile-scale));
-      padding: calc(16px * var(--mobile-scale)) calc(14px * var(--mobile-scale));
+      gap: calc(8px * var(--mobile-scale));
+      padding: calc(12px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
     }
 
     .m-entry-dot {
-      height: calc(10px * var(--mobile-scale));
-      width: calc(10px * var(--mobile-scale));
+      height: calc(9px * var(--mobile-scale));
+      width: calc(9px * var(--mobile-scale));
     }
 
     .m-entry-desc {
-      font-size: calc(24px * var(--mobile-scale));
+      font-size: calc(15px * var(--mobile-scale));
     }
 
     .m-entry-meta {
-      font-size: calc(19px * var(--mobile-scale));
+      font-size: calc(12px * var(--mobile-scale));
     }
 
     .m-entry-amt {
-      font-size: calc(26px * var(--mobile-scale));
+      font-size: calc(16px * var(--mobile-scale));
     }
 
     .m-tab {
-      font-size: calc(16px * var(--mobile-scale));
+      font-size: calc(11px * var(--mobile-scale));
       gap: calc(2px * var(--mobile-scale));
-      padding: calc(12px * var(--mobile-scale)) 4px;
+      padding: calc(8px * var(--mobile-scale)) 4px;
     }
 
     .m-tab i {
-      font-size: calc(36px * var(--mobile-scale));
+      font-size: calc(20px * var(--mobile-scale));
     }
 
     .sheet {
@@ -4129,15 +4137,15 @@
     }
 
     .sheet-title {
-      font-size: calc(28px * var(--mobile-scale));
+      font-size: calc(19px * var(--mobile-scale));
     }
 
     .sheet-amount-input {
-      font-size: calc(44px * var(--mobile-scale)) !important;
+      font-size: calc(32px * var(--mobile-scale)) !important;
     }
 
     .cur-btn {
-      font-size: calc(13px * var(--mobile-scale));
+      font-size: calc(12px * var(--mobile-scale));
       min-height: calc(34px * var(--mobile-scale));
     }
 

@@ -546,3 +546,32 @@ Sledeci korak:
 
 - Korisnik push-uje i testira Blagajnički list: otvaranje po datumu (bez smene) i po konkretnoj smeni (dugme "Blagajnički list" u detaljima smene), provera da Očekivano/Fizičko/Razlika i lista dogadjaja odgovaraju stvarnom stanju, i da storno stavke prikazuju suprotan smer u listi.
 - Ovim je migracioni plan iz `13_MIGRATION_STATUS.md` u potpunosti zavrsen za sve identifikovane, zive (ne mrtav-kod) module. Preostali rad je iskljucivo runtime testiranje i eventualni novi zahtevi korisnika.
+
+## FAZA 3l - Mobilni prikaz i dalje prevelik nakon FAZA 3j (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE
+
+Kontekst: Korisnik je poslao snimak ekrana (video, pravi telefon 1080x2340) posle FAZA 3j fixa - dugmad i tekst su i dalje bili prevelik. Analizom snimka (ffmpeg izvlacenje frejmova) potvrdjeno: naslov stanja blagajne zauzima ogroman deo ekrana, UPLATA/ISPLATA/TREZOR dugmad su masivna, a naslovi stavki u Knjizi se seku na "17. Kontrolni pr…" jer font ne staje u red.
+
+Root cause OVOG puta NIJE bio isti kao u FAZA 3j (JS `--mobile-scale` floor bug) - taj fix je i dalje na mestu i radi ispravno (scale je blizu 1.0 na ovom telefonu). Problem je bio da su same BAZNE (ne-skalirane, scale=1) CSS velicine u `styles.html` prevelike za normalan telefonski ekran: `.m-header-balance` 34px, `.btn-lg`/`.app-dialog button`/`.m-detail-actions button` min-height 64px, `.m-entry-desc` 24px (sa `white-space:nowrap`+`ellipsis` po dizajnu - kod tako velikog fonta stane jedva 8-10 karaktera pre sečenja), `.m-tab i` 36px, `.sheet-amount-input` 44px, `.app-dialog` naslovi/padding takodje preveliki. Ove vrednosti izgledaju kao da su dizajnirane za POS terminal sa velikim ekranom na daljinu, ne za gust mobilni web UI.
+
+Sta je uradjeno:
+
+- Smanjene bazne (pre-scale) velicine u DVA mesta u `styles.html` koja su se dupli rala (i.e. `html.mobile-view .selector {}` blok oko linije 3396+ I skoro identican `@media (max-width: 768px) { .selector {} }` blok oko linije 4033+ - oba su morala biti azurirana konzistentno jer definisu iste klase):
+  - `.m-header-balance`/`.m-header-clock`: 34px → 24px/20px
+  - dugmad (`button`, `.btn-lg`, `.m-detail-actions button`, `.app-dialog button`): min-height 42-64px → 44-48px (drzano na platform-standard touch target minimumu 44px, ne ispod), font-size 14-19px → 13-15px
+  - `.m-entry-desc`/`.m-entry-meta`/`.m-entry-amt` (redovi u Knjizi): 24px/19px/26px → 15px/12px/16px - ovo direktno resava sečenje naslova, jer sad staje 60%+ vise karaktera po redu pre ellipsis-a
+  - `.m-tab i` (ikonice donje navigacije): 36px → 20px
+  - `.app-dialog`/`.app-dialog h3`/`.count-entry-form` (popup formulari - otvaranje/zatvaranje smene, presek): padding/naslovi/font smanjeni ~30%
+  - `.sheet-amount-input` (veliko polje za unos iznosa): 44px → 32px - namerno OSTAJE najveci element na formi jer je to glavni, jedini unos na tom ekranu
+  - `.m-section`/`.m-entry`/`.m-fixed-actions` padding/gap: blago stegnuto (14-16px → 10-14px) za gušci raspored
+- JS `updateMobileScale_()` (fix iz FAZA 3j, klampovano 0.85-1.25) NIJE ponovo menjan - taj deo vec radi ispravno, problem je bio iskljucivo u baznim CSS vrednostima koje je taj multiplikator uvecavao.
+
+Sta nije uradjeno:
+
+- Nije runtime testirano na telefonu (korisnik treba da potvrdi da su nove velicine dobre - ovo je subjektivna UX odluka, moze zahtevati jos jedno fino podesavanje).
+
+Sledeci korak:
+
+- Korisnik push-uje i testira mobilni prikaz na telefonu: da li su dugmad/tekst sada normalne velicine, da li se naslovi stavki u Knjizi vise ne seku toliko agresivno.
+- Potvrdjeno (ponovnim diff-om `callApi(...)` poziva iz `scripts.html` protiv adapter handlera) da NEMA preostalih pravih (zivih) API rupa - svi nedostajuci pozivi su iskljucivo u poznatom mrtvom `bindUi()`/`bindDesktop()` bloku. API migracija je kompletna; preostali rad je UI/UX poliranje i korisnicko testiranje.
