@@ -394,7 +394,7 @@ Sledeci korak:
 
 ## FAZA 3f - Presek stanja / Cash Counts (2026-07-10, Claude/Cowork sesija)
 
-Status: IN PROGRESS
+Status: DONE
 
 Sta je uradjeno:
 
@@ -414,3 +414,29 @@ Sledeci korak:
 
 - Korisnik push-uje i testira ceo Presek stanja tok: otvaranje dijaloga → unos apoena → cuvanje preseka → provera da se KOREKCIJA cash event pravilno knjizi kad ima razlike i da se lista preseka ispravno prikazuje i grupise po valutama.
 - Po potvrdi, razmotriti da se shift open/close takodje poveze na pravi apoenski presek (trenutno "countSkipped").
+
+## FAZA 3g - Izveštaji (Reports) + Audit log (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE (osnovni izveštaji), Blagajnički list i dalje nije migriran
+
+Kontekst: "Izveštaji" meni ima 11 razlicitih tipova izvestaja (`loadReport('apiGetXReport', ...)` pozivi u scripts.html) - od toga je pre ove runde bio migriran samo `apiGetCashboxBalanceReport` i `apiGetCashMovementsReport`. `apiGetAuditLog` je bio trajno stubovan da vraca `[]`.
+
+Sta je uradjeno:
+
+- Procitan ceo `src/Reports.gs` (svih ~11 izvestaja + `getManagementDashboardSummary` + `getCashSheetReport`) radi vernog portovanja filtera/polja.
+- Novi modul `web/functions/_lib/reports.js` - jezgro za: `getOpenPaymentRequestsReportCore`, `getRequestsForApprovalReportCore`, `getOrdersWaitingPaymentReportCore`, `getExecutedPaymentsReportCore`, `getDailyClosingReportCore`, `getDifferencesReportCore` (uklucuje i smene sa razlikom iz `difference_json`), `getCorrectionsAndReversalsReportCore`, `getMissingDocumentsReportCore`, `getAuditExceptionsReportCore`, `getAuditLogCore`, `getManagementDashboardSummaryCore`. `scopeCashboxForUser` replicira legacy `normalizeReportFilters_` pravilo da CASHIER moze da vidi izvestaje samo za svoju podrazumevanu blagajnu.
+- Novi endpoint-i: `web/functions/api/reports/{open-payment-requests,requests-for-approval,orders-waiting-payment,executed-payments,daily-closing,differences,corrections-reversals,missing-documents,audit-exceptions,management-dashboard-summary}.js` + `web/functions/api/audit-log.js` (van `reports/`, sopstveni resurs).
+- Adapter dobio handlere za svih 10 novih izvestaja + pravi `apiGetAuditLog` (vise ne vraca prazan niz).
+- Privilegije: iskoriscene POSTOJECE (bez seed migracije) - `payment_requests:view_all`, `payment_orders:view`, `cash_events:view`, `shifts:view`, `documents:view`, `audit:view` - po resursu koji izvestaj cita. Napomena: legacy `REPORT_VIEW_ROLES_` (ADMIN/DIRECTOR/FINANCE/CASHIER_SUPERVISOR/CASHIER) se ne poklapa savrseno ni sa jednom pojedinacnom Postgres privilegijom (npr. DIRECTOR nema `cash_events:view` u seed.sql), pa neki izvestaji mogu biti blazi/strozi po roli nego original za par ivicnih slucajeva - nije dodata nova privilegija da se ne dira seed/rola bez eksplicitnog zahteva.
+
+Sta nije uradjeno:
+
+- `getCashSheetReport` (Blagajnički list) NIJE migriran - najkompleksniji izvestaj (spaja smenu, cash movements, cash counts i "opening/closing balance snapshot" logiku); namerno odlozeno za posebnu rundu.
+- `apiCreateDailyClosing` (kreiranje dnevnog zakljucka) nije migrirano - frontend trenutno nema poziv za kreiranje (samo za pregled), pa `daily_closing` tabela ostaje prazna dok se taj tok ne doda.
+- Documents.gs (upload/attach dokumenata) i dalje nije migriran - `getMissingDocumentsReportCore` ce raditi ispravno, ali "Nedostajuci dokumenti" ce uvek biti prazno dok ne postoji nacin da se document_status='MISSING' uopste postavi kroz UI.
+- Nije runtime testirano preko Cloudflare Pages okruzenja.
+
+Sledeci korak:
+
+- Korisnik push-uje i testira "Izveštaji" meni (svih 10 tabova) i "Audit log" stranicu.
+- Sledeci veci moduli za migraciju: Blagajnički list (`getCashSheetReport`), Dnevni zaključak (kreiranje), Documents (upload/attach), cancel/reverse akcije (`cancelPaymentRequest`, `cancelPaymentOrder`, `reverseCashEvent`, `markPaymentOrderClosed`).

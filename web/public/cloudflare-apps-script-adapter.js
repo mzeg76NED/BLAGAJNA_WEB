@@ -468,6 +468,91 @@
       var response = await apiFetch('/api/reports/cashbox-balance?' + query.toString(), {});
       return response.rows || [];
     },
+    apiGetOpenPaymentRequestsReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      if (filters.cashbox_id) query.set('cashbox_id', filters.cashbox_id);
+      if (filters.currency) query.set('currency', filters.currency);
+      var response = await apiFetch('/api/reports/open-payment-requests?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetRequestsForApprovalReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      if (filters.cashbox_id) query.set('cashbox_id', filters.cashbox_id);
+      if (filters.currency) query.set('currency', filters.currency);
+      var response = await apiFetch('/api/reports/requests-for-approval?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetOrdersWaitingPaymentReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      if (filters.cashbox_id) query.set('cashbox_id', filters.cashbox_id);
+      if (filters.currency) query.set('currency', filters.currency);
+      var response = await apiFetch('/api/reports/orders-waiting-payment?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetExecutedPaymentsReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'date_from', 'date_to', 'pay_to_name', 'partner_name'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/reports/executed-payments?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetDailyClosingReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'status', 'date_from', 'date_to'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/reports/daily-closing?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetDifferencesReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'date_from', 'date_to'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/reports/differences?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetCorrectionsAndReversalsReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'date_from', 'date_to'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/reports/corrections-reversals?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetMissingDocumentsReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      if (filters.cashbox_id) query.set('cashbox_id', filters.cashbox_id);
+      if (filters.currency) query.set('currency', filters.currency);
+      var response = await apiFetch('/api/reports/missing-documents?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetAuditExceptionsReport: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'date_from', 'date_to'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/reports/audit-exceptions?' + query.toString(), {});
+      return response.rows || [];
+    },
+    apiGetManagementDashboardSummary: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'date'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      return apiFetch('/api/reports/management-dashboard-summary?' + query.toString(), {});
+    },
     apiGetCashMovementsReport: async function (filters) {
       filters = filters || {};
       var query = new URLSearchParams();
@@ -477,7 +562,15 @@
       var response = await apiFetch('/api/reports/cash-movements?' + query.toString(), {});
       return response.rows || [];
     },
-    apiGetAuditLog: async function () { return []; },
+    apiGetAuditLog: async function (filters) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['entity_type', 'entity_id', 'date_from', 'date_to', 'limit'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/audit-log?' + query.toString(), {});
+      return response.rows || [];
+    },
     apiCreateCashCounts: async function (data, sessionId) {
       var response = await apiFetch('/api/cash-counts/create', {
         method: 'POST',
