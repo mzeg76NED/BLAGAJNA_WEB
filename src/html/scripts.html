@@ -1191,13 +1191,31 @@
     }, { quiet: true });
   }
 
+  // FAZA 3t (fix): PRVA verzija je ubacivala bar kao position:fixed dete document.body-a
+  // - na mobilnom to preklapa .m-bottom-nav (koji je pravi flex sibling na dnu
+  // .m-shell-a, ne fixed), tacno isti anti-pattern koji je vec ranije identifikovan i
+  // izbegnut kod FAB dugmeta (FAZA 3q/3s napomena). Ispravka: bar se ubacuje KAO PRAVI
+  // flex sibling odmah posle .m-header (mobile) / .d-topbar (desktop), unutar
+  // .m-shell/.d-shell - automatski gura sadrzaj dole (flex layout), nema position:fixed,
+  // nema preklapanja, nema potrebe za rucnim padding-top hakom na body-ju.
   function ensureMandatoryCountBar_() {
     var bar = document.getElementById('mandatory-count-bar');
     if (bar) return bar;
     bar = document.createElement('div');
     bar.id = 'mandatory-count-bar';
     bar.hidden = true;
-    document.body.appendChild(bar);
+
+    var mobileShell = document.querySelector('.m-shell');
+    var desktopShell = document.querySelector('.d-shell');
+    if (mobileShell) {
+      var mHeader = mobileShell.querySelector('.m-header');
+      mobileShell.insertBefore(bar, mHeader ? mHeader.nextSibling : mobileShell.firstChild);
+    } else if (desktopShell) {
+      var dTopbar = desktopShell.querySelector('.d-topbar');
+      desktopShell.insertBefore(bar, dTopbar ? dTopbar.nextSibling : desktopShell.firstChild);
+    } else {
+      document.body.appendChild(bar);
+    }
     return bar;
   }
 
@@ -1218,10 +1236,10 @@
     var locked = cashbox && cashbox.mandatory_count;
 
     applyMandatoryCountUiLock_(Boolean(locked));
-    document.body.classList.toggle('mandatory-count-locked', Boolean(locked));
 
     if (!locked && !isAdmin) {
       bar.hidden = true;
+      bar.className = '';
       bar.innerHTML = '';
       return;
     }
@@ -3494,7 +3512,7 @@
     if (list) {
       list.innerHTML = groups.length ? groups.map(function(group, index) {
         return '<div class="m-entry count" data-count-index="' + index + '">' +
-          '<div class="m-entry-dot" style="background:#d99a00"></div>' +
+          mEntryIconBadge_('ti-calculator', '#d99a00', 'rgba(217,154,0,.15)') +
           '<div class="m-entry-info"><div class="m-entry-desc">' + escapeHtml(cashCountTypeLabel_(group.count_type)) + ' · ' + escapeHtml(group.currencies || '') + ' · ' + escapeHtml(formatDateTimeShort_(group.posted_at)) + '</div>' +
           '<div class="m-entry-meta">Popisano ' + cashCountCurrencySummary_(group.counted_by_currency) + '</div>' +
           '<div class="m-entry-meta">Razlika ' + cashCountDifferenceSummary_(group.difference_by_currency) + '</div></div>' +
@@ -4266,6 +4284,17 @@
   // dijaloga. window.__docActions_ prati isti obrazac kao window.__recordActions
   // (renderActionRecords) - inline onclick sa key lookup-om umesto ugrađivanja
   // document_id direktno u onclick string (izbegava escaping komplikacije).
+  // FAZA 3u: fajl-tip ikonica za bedž (po uzoru na Moj Maxi "Digitalni račun" listu -
+  // obojen zaobljen bedž levo, bold naziv, meta desno).
+  function docFileIcon_(fileName) {
+    var ext = String(fileName || '').split('.').pop().toLowerCase();
+    if (ext === 'pdf') return 'ti-file-type-pdf';
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'].indexOf(ext) !== -1) return 'ti-photo';
+    if (['xls', 'xlsx', 'csv'].indexOf(ext) !== -1) return 'ti-file-spreadsheet';
+    if (['doc', 'docx'].indexOf(ext) !== -1) return 'ti-file-text';
+    return 'ti-file';
+  }
+
   function renderDocumentsListHtml_(docs, onDelete) {
     if (!docs || !docs.length) {
       return '<div class="empty-state" style="padding:8px 0">Nema prikačenih dokumenata.</div>';
@@ -4274,10 +4303,13 @@
     return docs.map(function(d, index) {
       var key = 'doc-' + index + '-' + Date.now();
       window.__docActions_[key] = function() { onDelete(d); };
-      return '<div class="detail-row" style="border-bottom:1px solid var(--color-border-light);padding:7px 0;gap:8px">' +
-        '<a href="' + escapeHtml(d.file_url || '#') + '" target="_blank" rel="noopener" download="' + escapeHtml(d.file_name || '') + '"><i class="ti ti-file-download" aria-hidden="true"></i> ' + escapeHtml(d.file_name || 'Dokument') + '</a>' +
-        '<span style="color:var(--color-text-muted);font-size:11px;text-align:right">' + escapeHtml(shortUserLabel_(d.uploaded_by || '—')) + '<br>' + escapeHtml(formatDateTimeShort_(d.created_at)) + '</span>' +
-        '<button type="button" class="btn-ghost small" title="Obriši prilog" onclick="window.__docActions_[\'' + key + '\']()"><i class="ti ti-trash" aria-hidden="true"></i></button>' +
+      return '<div class="doc-row">' +
+        '<div class="doc-row-icon"><i class="ti ' + docFileIcon_(d.file_name) + '" aria-hidden="true"></i></div>' +
+        '<div class="doc-row-info">' +
+          '<a class="doc-row-name" href="' + escapeHtml(d.file_url || '#') + '" target="_blank" rel="noopener" download="' + escapeHtml(d.file_name || '') + '">' + escapeHtml(d.file_name || 'Dokument') + '</a>' +
+          '<div class="doc-row-meta">' + escapeHtml(shortUserLabel_(d.uploaded_by || '—')) + ' · ' + escapeHtml(formatDateTimeShort_(d.created_at)) + '</div>' +
+        '</div>' +
+        '<button type="button" class="doc-row-delete" title="Obriši prilog" onclick="window.__docActions_[\'' + key + '\']()"><i class="ti ti-trash" aria-hidden="true"></i></button>' +
       '</div>';
     }).join('');
   }
@@ -5586,6 +5618,14 @@
         '</b> / preostalo <b class="cell-out">' + formatAmount_(announcementTotals.remaining) + '</b></span>';
   }
 
+  // FAZA 3u: obojen zaobljen icon-bedž levo od svakog reda (po uzoru na listu
+  // računa u Moj Maxi aplikaciji), umesto male tačke boje. fg/bg koriste iste
+  // --color-in/out(-bg) tokene gde je moguće, pa dark/light rade automatski;
+  // amber (presek/trezor) i sivo (najava) nemaju token pa idu inline.
+  function mEntryIconBadge_(icon, fg, bg) {
+    return '<div class="m-entry-icon" style="color:' + fg + ';background:' + bg + '"><i class="ti ' + icon + '" aria-hidden="true"></i></div>';
+  }
+
   function renderMobileEntry_(ev, index) {
     var isAnnouncement = ev.event_type === 'ANNOUNCEMENT';
     var displayDirection = ev.display_direction || ev.direction;
@@ -5593,8 +5633,12 @@
     var isTreasury = ev.event_type === 'TREASURY_HANDOVER';
     var isIn   = displayDirection === 'IN';
     var isCount = ev.event_type === 'CASH_COUNT' || (ev.event_type === 'CORRECTION' && /presek|popis/i.test(String(ev.description || '')));
-    var dotBg  = isAnnouncement ? '#94a3b8' : isCount || isTreasury ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
     var color  = isAnnouncement ? '#94a3b8' : isCount || isTreasury ? '#d99a00' : isIn ? 'var(--color-in)'  : 'var(--color-out)';
+    var icon = isAnnouncement ? mEntryIconBadge_('ti-bell', '#94a3b8', 'rgba(148,163,184,.16)')
+      : isTreasury ? mEntryIconBadge_('ti-building-bank', '#d99a00', 'rgba(217,154,0,.15)')
+      : isCount ? mEntryIconBadge_('ti-calculator', '#d99a00', 'rgba(217,154,0,.15)')
+      : isIn ? mEntryIconBadge_('ti-arrow-down', 'var(--color-in)', 'var(--color-in-bg)')
+      : mEntryIconBadge_('ti-arrow-up', 'var(--color-out)', 'var(--color-out-bg)');
     var prefix = isAnnouncement || isCount ? '' : isTreasury ? 'Trezor ' : displayAmount < 0 ? '−' : (isIn ? '+' : '−');
     var label  = escapeHtml(cashEventUserLabel_(ev));
     var reason = escapeHtml(cashEventReasonLabel_(ev));
@@ -5608,7 +5652,7 @@
       ? ' <button type="button" class="m-entry-clip" title="Ima prilog" onclick="event.stopPropagation();openDocumentsDialogForEventId_(\'' + escapeHtml(ev.event_id) + '\')"><i class="ti ti-paperclip" aria-hidden="true"></i></button>'
       : '';
     return '<div class="m-entry' + (isCount ? ' count' : '') + (isAnnouncement ? ' announcement' : '') + (ev.optimistic_id ? ' optimistic' : '') + '" ' + idAttr + '>' +
-      '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
+      icon +
       '<div class="m-entry-info">' +
         '<div class="m-entry-desc"><span class="m-entry-no">' + refDisplay + '.</span> ' + label + clipBtn + '</div>' +
         '<div class="m-entry-meta">' + reason + '</div>' +
@@ -6252,11 +6296,10 @@
     var list = document.getElementById('m-knjiga-list');
     if (!list) return;
     var isIn   = direction === 'IN';
-    var dotBg  = isIn ? 'var(--color-in)' : 'var(--color-out)';
     var color  = isIn ? 'var(--color-in)' : 'var(--color-out)';
     var prefix = isIn ? '+' : '−';
     var html = '<div class="m-entry optimistic" data-optimistic-id="' + tempId + '">' +
-      '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
+      (isIn ? mEntryIconBadge_('ti-arrow-down', 'var(--color-in)', 'var(--color-in-bg)') : mEntryIconBadge_('ti-arrow-up', 'var(--color-out)', 'var(--color-out-bg)')) +
       '<div class="m-entry-info">' +
         '<div class="m-entry-desc">' + escapeHtml(label) + '</div>' +
         '<div class="m-entry-meta" style="color:#c2974a"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> Knjiženje...</div>' +
@@ -6778,7 +6821,7 @@
     list.innerHTML = rows.map(function(order) {
       var orderLabel = order.refNo != null ? ('Nalog #' + order.refNo) : escapeHtml(order.id);
       return '<div class="m-entry" data-order-id="' + escapeHtml(order.id) + '">' +
-        '<div class="m-entry-dot" style="background:var(--color-out)"></div>' +
+        mEntryIconBadge_('ti-file-invoice', 'var(--color-out)', 'var(--color-out-bg)') +
         '<div class="m-entry-info">' +
           '<div class="m-entry-desc">' + escapeHtml(order.recipient || '—') + '</div>' +
           '<div class="m-entry-meta">' + orderLabel + ' · ' + formatAmount_(order.remaining || order.amountOrdered) + ' ' + escapeHtml(order.currency || '') + '</div>' +

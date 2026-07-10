@@ -1,6 +1,6 @@
 # Migration Status
 
-Datum poslednjeg azuriranja: 2026-07-09
+Datum poslednjeg azuriranja: 2026-07-10
 
 ## FAZA 0 - tehnicki inventar postojeceg sistema
 
@@ -863,3 +863,28 @@ Sledeci korak (korisnik):
 2. Test: Knjiga → stavka sa prilogom pokazuje spajalicu → klik otvara dijalog → obrisi prilog → spajalica nestaje sa reda.
 3. Test: ulogovan kao ADMIN/DIREKTOR → mala pilula u uglu → "Zadaj obavezan presek" → izabrati blagajnu → potvrditi → probati Uplatu na toj blagajni (mora da vrati gresku "Blagajna je zakljucana...") → uraditi Presek stanja → proveriti da se blagajna automatski otkljuca i Uplata prolazi.
 4. Test: dugmad na Otvori/Zatvori smenu i Zakljuci dan izgledaju kao na Preseku (zeleno, sa "(F5)" u tekstu) i F5 unutar forme submit-uje.
+
+**Ispravka istog dana (posle prve verzije)**: korisnik je prijavio da na mobilnom "dugme za presek stanja" preklapa ostale komande. Uzrok: `#mandatory-count-bar` (i `.locked` crveni banner i `.admin-hint` pilula) je prvobitno bio `position:fixed` dete `document.body`-a - na mobilnom je to preklapalo `.m-bottom-nav` (koji je PRAVI flex sibling na dnu `.m-shell`-a, ne fixed - isti anti-pattern koji je vec ranije resen kod FAB dugmeta, FAZA 3q/3s). Ispravljeno: bar se sada ubacuje kao PRAVI flex sibling odmah posle `.m-header`/`.d-topbar` unutar `.m-shell`/`.d-shell` (`ensureMandatoryCountBar_`) - normalan tok dokumenta, automatski gura sadrzaj dole, bez `position:fixed`/z-index trikova, bez preklapanja. Dodatno ispravljen manji bag: `bar.className` se ranije nije cistio kad se bar sakriva (`hidden=true`), sto bi zbog CSS specificnosti (`#id.class` > `[hidden]`) moglo da ostavi bar vidljivim i posle sakrivanja - sada se `className` eksplicitno resetuje.
+
+## FAZA 3u - Mobilni vizuelni redizajn po uzoru na referentnu aplikaciju "Moj Maxi" (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE (implementacija), CEKA vizuelnu proveru korisnika na uredjaju
+
+Kontekst: korisnik je poslao snimak ekrana svoje "Moj Maxi" aplikacije (Delhaize/Maxi lojalti app) kao referencu za "visual koji mi treba, ali sa prikazom mojih informacija", trazeci analizu kontrola, fontova, velicine prikaza i nacina prikazivanja dokumenata, pa predlog/implementaciju novog mobilnog vizuelnog identiteta uz podrsku i za dark i za light mod (koji vec postoje u kodu preko `:root[data-theme="dark"]` CSS custom property sistema - `--color-bg/surface/text/border/primary/in/out(-bg)`).
+
+Analiza referentne aplikacije (41 frejm izvucen ffmpeg-om iz snimka, `fps=0.5`): tamna pocetna/promo stranica sa krupnim boldovanim naslovima; SVE liste (transakcije/racuni, kuponi, akcije) su kartice zaobljenih uglova sa obojenim kvadratnim icon-bedzom levo, boldovanim naslovom, sivim meta-tekstom ispod i boldovanim iznosom/vrednoscu desno; docked donja navigacija (5 tabova, ikonica+labela, aktivan = crvena boja teksta) sa OKRUGLIM centralnim dugmetom (skener) koje vizuelno "stoji iznad" trake; ekrani detalja (racun/prilog) prikazuju dokument kao karticu sa ikonicom tipa fajla.
+
+Sta je uradjeno (samo mobilni prikaz, koristeci POSTOJECE `--color-*` tokene pa dark/light rade automatski bez dodatnih pravila):
+
+1. **Redovi Knjige, naloga, preseka i optimisticnih stavki** (`.m-entry`) - mala 10px "tacka" boje zamenjena obojenim zaobljenim icon-bedzom (`.m-entry-icon`, 40px, tint pozadina + ikonica po tipu: strelica dole/gore za uplatu/isplatu, kalkulator za presek, banka za trezor, zvono za najavu) - nova `mEntryIconBadge_(icon, fg, bg)` helper funkcija u `scripts.html`, koriscena na sva 4 mesta koja su ranije rucno pravila `.m-entry-dot` (`renderMobileEntry_`, `renderCashCountsMobile_`, `prependMobileOptimistic_`, `renderMobileNalozi_`). Kartica dobija blagu senku i veci radius (14px), iznos boldovaniji (15px/800).
+2. **Dijalog dokumenata** (`renderDocumentsListHtml_`) - red fajla presvucen iz gole linije teksta u karticu (`.doc-row`) sa obojenim icon-bedzom po TIPU fajla (`docFileIcon_()` - pdf/slika/spreadsheet/word/ostalo, razlicita ikonica za svaki), boldovanim nazivom i meta-podacima ispod (uploader · datum), dugme za brisanje kao okrugla ikonica - isti vizuelni jezik kao "Digitalni racun" lista u referentnoj aplikaciji.
+3. **Donja navigacija i FAB** - `.m-bottom-nav` dobija zaobljene gornje uglove (18px) i top-senku umesto tanke linije (utisak "dockovane" trake); aktivan tab dobija diskretnu pilulu pozadine iza ikonice (`--color-primary-bg`); `.m-fab-btn` uvecan 42→54px, centriran (ranije uz desnu ivicu, `.m-fab-row` justify-content flex-end→center) i dobija tanak "prsten" (border u boji pozadine) da vizuelno "izranja" iz trake ispod - po uzoru na centralno okruglo dugme u referentnoj aplikaciji, bez pribegavanja `position:fixed` (i dalje pravi flex sibling, isti anti-pattern izbegnut kao u FAZA 3q/3t). Meni FAB-a (`m-fab-menu`) centriran ispod dugmeta umesto uz desnu ivicu.
+
+Sta NIJE uradjeno:
+
+- Header (`.m-header`, saldo/blagajna/valuta traka) nije menjan u ovoj fazi - vec je kompaktizovan u FAZA 3m/3s, i nije bio deo primarnog vizuelnog nedostatka (liste/nav/dokumenti) identifikovanog analizom.
+- Boja marke NIJE menjana na crvenu (Maxi brend) - zadrzan postojeci plavi `--color-primary`, jer je crvena u ovoj aplikaciji vec semanticki rezervisana za `--color-out` (isplata/negativno); zamena bi napravila konfuziju boja, ne poboljsanje.
+- Desktop prikaz (`renderKnjigaRow_`, tabela) NIJE diran - zahtev je bio eksplicitno o "mobilnoj aplikaciji".
+- Nema automatizovanog vizuelnog testa (screenshot diff) - verifikacija je rucni pregled izmenjenog CSS/JS koda; korisnik treba vizuelno da potvrdi na uredjaju posle deploy-a.
+
+Izmenjeni fajlovi: `src/html/styles.html` (`.m-entry*`, `.doc-row*` novo, `.m-bottom-nav`, `.m-tab`, `.m-fab-btn/.m-fab-row/.m-fab-menu`, oba `--mobile-scale` media-query bloka azurirana da skaliraju `.m-entry-icon` umesto obrisanog `.m-entry-dot`), `src/html/scripts.html` (`mEntryIconBadge_`, `docFileIcon_` nove helper funkcije; `renderMobileEntry_`, `renderCashCountsMobile_`, `prependMobileOptimistic_`, `renderMobileNalozi_`, `renderDocumentsListHtml_` azurirane).

@@ -906,16 +906,20 @@
     text-transform: uppercase;
   }
 
-  /* Mobile entry rows */
+  /* Mobile entry rows - FAZA 3u: kartica sa icon-bedžom po uzoru na Moj Maxi listu
+     računa (obojena zaobljena ikonica levo + bold naslov/iznos + meta), umesto
+     tanke linije sa malom tačkom. Boja bedža koristi iste --color-in/out/bg
+     tokene, pa dark/light rade automatski bez dodatnih pravila. */
   .m-entry {
     align-items: center;
     background: var(--color-surface);
     border: 1px solid var(--color-border-light);
-    border-radius: var(--radius-md);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
     cursor: pointer;
     display: flex;
-    gap: 10px;
-    padding: 10px 12px;
+    gap: 12px;
+    padding: 12px;
   }
   .m-entry.count {
     border-color: #e7bd45;
@@ -924,14 +928,18 @@
     border-color: #6f5720;
   }
 
-  .m-entry:active { background: #f4f6f8; }
+  .m-entry:active { background: #f4f6f8; transform: scale(.99); }
   :root[data-theme="dark"] .m-entry:active { background: #202733; }
 
-  .m-entry-dot {
-    border-radius: 999px;
+  .m-entry-icon {
+    align-items: center;
+    border-radius: 12px;
+    display: flex;
     flex-shrink: 0;
-    height: 10px;
-    width: 10px;
+    font-size: 19px;
+    height: 40px;
+    justify-content: center;
+    width: 40px;
   }
 
   .m-entry-info {
@@ -941,7 +949,7 @@
 
   .m-entry-desc {
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -956,25 +964,29 @@
   .m-entry-meta {
     color: var(--color-text-muted);
     font-size: 11px;
-    margin-top: 1px;
+    margin-top: 2px;
   }
 
   .m-entry-amt {
-    font-size: 14px;
+    font-size: 15px;
     font-variant-numeric: tabular-nums;
-    font-weight: 700;
+    font-weight: 800;
     flex-shrink: 0;
   }
 
-  /* Mobile bottom nav */
+  /* Mobile bottom nav - FAZA 3u: zaobljeni gornji uglovi + top-senka umesto tanke
+     linije (docked-bar utisak), pill pozadina iza aktivne ikonice. */
   .m-bottom-nav {
     background: var(--color-surface);
-    border-top: 1px solid var(--color-border-light);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -3px 12px rgba(15, 23, 42, .07);
     display: grid;
     flex-shrink: 0;
     grid-template-columns: repeat(5, 1fr);
     padding-bottom: max(8px, env(safe-area-inset-bottom));
     padding-top: 6px;
+    position: relative;
+    z-index: 10;
   }
 
   .m-tab {
@@ -987,13 +999,23 @@
     flex-direction: column;
     font-size: 11px;
     font-weight: 700;
-    gap: 2px;
+    gap: 3px;
     min-height: 0;
     padding: 8px 4px;
     position: relative;
   }
 
-  .m-tab i { font-size: 26px; }
+  .m-tab i {
+    border-radius: 10px;
+    font-size: 22px;
+    padding: 2px 12px;
+    transition: background .15s ease, color .15s ease;
+  }
+
+  .m-tab.active i {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+  }
 
   /* Direktne akcije (Uplata/Isplata/Trezor) - normalan flex clan m-shell-a, zalepljen
      direktno iznad donje navigacije (m-bottom-nav). NAMERNO nije position:fixed sa
@@ -1006,12 +1028,16 @@
      komentar - bez position:fixed nagadjanja). Meni se otvara position:absolute
      bottom:100% RELATIVNO na sam red (ne na viewport), pa se automatski naslanja
      tacno iznad dugmeta bez obzira na visinu bilo cega ispod. */
+  /* FAZA 3u: dugme centrirano (umesto uz desnu ivicu) i uvećano - po uzoru na
+     centralno okruglo dugme za skeniranje u Moj Maxi donjoj navigaciji. Meni se
+     i dalje otvara position:absolute bottom:100% RELATIVNO na sam red (ne na
+     viewport), samo sada centriran ispod/iznad dugmeta umesto uz desnu ivicu. */
   .m-fab-row {
     align-items: center;
     display: flex;
     flex-shrink: 0;
-    justify-content: flex-end;
-    padding: 6px 12px;
+    justify-content: center;
+    padding: 8px 12px;
     position: relative;
     z-index: 90;
   }
@@ -1023,16 +1049,16 @@
   .m-fab-btn {
     align-items: center;
     background: var(--color-primary);
-    border: none;
+    border: 3px solid var(--color-bg);
     border-radius: 999px;
-    box-shadow: 0 6px 16px rgba(15, 23, 42, .3);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .32);
     color: #fff;
     display: flex;
-    font-size: 20px;
-    height: 42px;
+    font-size: 24px;
+    height: 54px;
     justify-content: center;
     transition: transform .15s ease;
-    width: 42px;
+    width: 54px;
   }
 
   .m-fab-btn.active {
@@ -1040,13 +1066,15 @@
   }
 
   .m-fab-menu {
+    align-items: center;
     bottom: 100%;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-bottom: 10px;
+    left: 50%;
+    margin-bottom: 12px;
     position: absolute;
-    right: 12px;
+    transform: translateX(-50%);
   }
 
   .m-fab-menu[hidden] {
@@ -1253,29 +1281,93 @@
     vertical-align: middle;
   }
 
-  /* FAZA 3t: obavezan presek stanja - dinamički ubačen div (vidi ensureMandatoryCountBar_
-     u scripts.html), dva stanja: .locked (upadljiv crveni banner na vrhu, blokira rad) i
-     .admin-hint (mala diskretna pilula u uglu, samo ADMIN/DIREKTOR, kad blagajna NIJE
+  /* FAZA 3u: red priloga u dijalogu dokumenata - kartica sa obojenim icon-bedžom po
+     tipu fajla, po uzoru na Moj Maxi "Digitalni račun" listu (umesto gole linije
+     teksta sa linkom). */
+  .doc-row {
+    align-items: center;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    display: flex;
+    gap: 10px;
+    margin-bottom: 6px;
+    padding: 8px 10px;
+  }
+
+  .doc-row-icon {
+    align-items: center;
+    background: var(--color-primary-bg);
+    border-radius: 10px;
+    color: var(--color-primary);
+    display: flex;
+    flex-shrink: 0;
+    font-size: 17px;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+  }
+
+  .doc-row-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .doc-row-name {
+    color: var(--color-text);
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .doc-row-name:hover { text-decoration: underline; }
+
+  .doc-row-meta {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    margin-top: 1px;
+  }
+
+  .doc-row-delete {
+    background: none;
+    border: none;
+    color: var(--color-out);
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 15px;
+    height: 30px;
+    width: 30px;
+  }
+
+  .doc-row-delete:hover { background: var(--color-out-bg); border-radius: 8px; }
+
+  /* FAZA 3t (fix): obavezan presek stanja - dinamički ubačen div (vidi
+     ensureMandatoryCountBar_ u scripts.html). ISPRAVKA: prva verzija je koristila
+     position:fixed preko celog ekrana, što je na mobilnom preklapalo .m-bottom-nav
+     (koji je pravi flex sibling, ne fixed - isti anti-pattern kao ranije rešeni FAB
+     slučaj). Sada je bar pravi flex sibling ODMAH POSLE .m-header/.d-topbar unutar
+     .m-shell/.d-shell - normalan tok dokumenta, gura sadržaj dole, nema preklapanja,
+     nema position:fixed/z-index trikova. Dva stanja: .locked (upadljiv crveni red) i
+     .admin-hint (tanak diskretan red, samo ADMIN/DIREKTOR, kad blagajna NIJE
      zaključana - podsetnik da alat postoji). */
   #mandatory-count-bar.mandatory-count-bar {
     align-items: center;
     display: flex;
+    flex-shrink: 0;
     flex-wrap: wrap;
     font-size: 13px;
     gap: 10px;
     justify-content: space-between;
-    position: fixed;
-    z-index: 9000;
   }
 
   #mandatory-count-bar.locked {
     background: #b91c1c;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
     color: #fff;
-    left: 0;
     padding: 10px 16px;
-    right: 0;
-    top: 0;
   }
 
   #mandatory-count-bar.locked .mandatory-count-bar-text i {
@@ -1294,41 +1386,32 @@
   }
 
   #mandatory-count-bar.admin-hint {
-    bottom: 16px;
-    right: 16px;
+    justify-content: flex-end;
+    padding: 4px 12px;
   }
 
   .mandatory-count-issue-btn {
     align-items: center;
-    background: #1f2937;
-    border: none;
+    background: transparent;
+    border: 1px solid var(--color-border);
     border-radius: 999px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
-    color: #fff;
+    color: var(--color-text-muted);
     cursor: pointer;
     display: inline-flex;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     gap: 6px;
-    padding: 8px 14px;
+    min-height: 26px;
+    padding: 4px 10px;
   }
 
   .mandatory-count-issue-btn:hover {
-    background: #111827;
+    background: var(--color-bg);
+    color: var(--color-text);
   }
 
   body.app-locked #mandatory-count-bar {
     display: none !important;
-  }
-
-  body.mandatory-count-locked {
-    padding-top: 44px;
-  }
-
-  @media (max-width: 640px) {
-    body.mandatory-count-locked {
-      padding-top: 62px;
-    }
   }
 
   @media print {
@@ -3723,9 +3806,10 @@
     padding: calc(12px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
   }
 
-  html.mobile-view .m-entry-dot {
-    height: calc(9px * var(--mobile-scale));
-    width: calc(9px * var(--mobile-scale));
+  html.mobile-view .m-entry-icon {
+    font-size: calc(17px * var(--mobile-scale));
+    height: calc(36px * var(--mobile-scale));
+    width: calc(36px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-desc {
@@ -4415,9 +4499,10 @@
       padding: calc(12px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
     }
 
-    .m-entry-dot {
-      height: calc(9px * var(--mobile-scale));
-      width: calc(9px * var(--mobile-scale));
+    .m-entry-icon {
+      font-size: calc(17px * var(--mobile-scale));
+      height: calc(36px * var(--mobile-scale));
+      width: calc(36px * var(--mobile-scale));
     }
 
     .m-entry-desc {
