@@ -647,6 +647,36 @@
       var query = new URLSearchParams();
       if (cashboxId) query.set('cashbox_id', cashboxId);
       return apiFetch('/api/cashbook/filter-options?' + query.toString(), { sessionId: sessionId });
+    },
+    apiGetShiftHistory: async function (filters, sessionId) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      if (filters.cashbox_id) query.set('cashbox_id', filters.cashbox_id);
+      if (filters.status) query.set('status', filters.status);
+      if (filters.limit) query.set('limit', filters.limit);
+      var response = await apiFetch('/api/shifts/history?' + query.toString(), { sessionId: sessionId });
+      return response.rows || [];
+    },
+    apiPrepareDailyClosing: async function (cashboxId, currency, closingDate, sessionId) {
+      return apiFetch('/api/daily-closing/prepare', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ cashbox_id: cashboxId || '', currency: currency || '', closing_date: closingDate || '' })
+      });
+    },
+    apiCloseDailyCashbox: async function (cashboxId, currency, closingDate, physicalBalance, note, sessionId) {
+      var response = await apiFetch('/api/daily-closing/close', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({
+          cashbox_id: cashboxId || '',
+          currency: currency || '',
+          closing_date: closingDate || '',
+          physical_balance: physicalBalance,
+          note: note || ''
+        })
+      });
+      return response.closing || response;
     }
   };
 

@@ -432,7 +432,7 @@ Sta je uradjeno:
 Sta nije uradjeno:
 
 - `getCashSheetReport` (Blagajnički list) NIJE migriran - najkompleksniji izvestaj (spaja smenu, cash movements, cash counts i "opening/closing balance snapshot" logiku); namerno odlozeno za posebnu rundu.
-- `apiCreateDailyClosing` (kreiranje dnevnog zakljucka) nije migrirano - frontend trenutno nema poziv za kreiranje (samo za pregled), pa `daily_closing` tabela ostaje prazna dok se taj tok ne doda.
+- ~~`apiCreateDailyClosing` (kreiranje dnevnog zakljucka) nije migrirano - frontend trenutno nema poziv za kreiranje (samo za pregled)~~ **ISPRAVKA (FAZA 3i)**: ova tvrdnja je bila pogresna. `d-daily-close-form`/`m-daily-close-form` STVARNO postoje u `desktop.html`/`mobile.html` i pozivaju `apiCloseDailyCashbox` - implementirano u FAZA 3i.
 - Documents.gs (upload/attach dokumenata) i dalje nije migriran - `getMissingDocumentsReportCore` ce raditi ispravno, ali "Nedostajuci dokumenti" ce uvek biti prazno dok ne postoji nacin da se document_status='MISSING' uopste postavi kroz UI.
 - Nije runtime testirano preko Cloudflare Pages okruzenja.
 
@@ -463,3 +463,31 @@ Sledeci korak:
 
 - Korisnik push-uje i OBAVEZNO testira: otvaranje smene sa unetim apoenima, zatvaranje smene sa unetim apoenima (i sa i bez razlike), i storno stavke iz Knjige.
 - Nastaviti sa: Blagajnički list, Dnevni zaključak (kreiranje), Documents (upload/attach).
+
+## FAZA 3i - Zavrsetak "smene" modula: istorija smena + Dnevni zakljucak (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE
+
+Kontekst: Korisnik je eksplicitno trazio da se do kraja zavrse SVI API pozivi za cetiri prioritetna modula (nalozi za isplatu, zahtevi, smene, presek stanja). Nalozi, zahtevi i presek stanja su vec bili potpuno pokriveni (potvrdjeno diff-om adaptera protiv `scripts.html`). Za smene je audit (grep svakog `callApi('apiXxx', ...)` iz `scripts.html` protiv handlera u adapteru, uz proveru da li odgovarajuci HTML formular/dugme STVARNO postoji u `desktop.html`/`mobile.html`) nasao 2 prava, ziva nedostajuca poziva - ostatak (`apiGetShiftBalance`, `apiAttachDocumentToEntity`, `apiListDocumentsForEntity`, `apiListDailyClosings`, `apiGetMyActiveShifts`) je mrtav kod (nema HTML elementa koji ih poziva), a `apiHandoverShift` je namerno sakrivena funkcija (`m-handover-shift-form` je `hidden` i JS ga force-hide-uje) i nije diran.
+
+Sta je uradjeno:
+
+- Novi endpoint `web/functions/api/shifts/history.js` (GET, privilegija `shifts:view`) - port `apiGetShiftHistory` iz `WebApp.gs`: CASHIER (i ostale ne-elevated role) vidi samo smene koje je otvorio ili na koje je izvrsena primopredaja (`handover_to`), dok ADMIN/DIRECTOR/FINANCE/CASHIER_SUPERVISOR vide sve smene za trazenu blagajnu. Napaja "Smene" listu (`loadMyShiftsTo_` → `d-shifts-list`/`m-shifts-list`), koja se osvezava posle svake akcije nad smenom/preseku.
+- Adapter dobio `apiGetShiftHistory` handler.
+- Novi modul `web/functions/_lib/dailyClosing.js` - port `DailyClosing.gs` (`prepareDailyClosing`, `closeDailyCashbox`, `buildDailyClosingPreview_`): dnevni zakljucak NE pravi cash movement niti menja iznose - samo racuna opening/calculated balance za dan (iz POSTED/LOCKED dogadjaja pre datuma + POSTED dogadjaja na dan zatvaranja), racuna razliku prema unetom fizickom stanju, upisuje `daily_closing` red i "zakljucava" (LOCKED) ukljucene POSTED cash evente - isto ponasanje kao Storno-ova LOCKED gejta. Role provera je EKSPLICITNA (ne preko privilegije): pregled dozvoljen CASHIER_SUPERVISOR/FINANCE/DIRECTOR/ADMIN/CASHIER, a stvarno zakljucavanje dana SAMO CASHIER_SUPERVISOR/FINANCE/DIRECTOR/ADMIN (ne CASHIER) - namerno se NE koristi postojeca `shifts:close` privilegija jer je nju CASHIER takodje ima (za svoju smenu), sto bi mu pogresno dozvolilo i zakljucavanje dana.
+- Novi endpoint-i `web/functions/api/daily-closing/prepare.js` (POST, samo pregled, ne upisuje nista) i `web/functions/api/daily-closing/close.js` (POST, upisuje `daily_closing` red i zakljucava dogadjaje). Zatvaranje dana odbija zahtev ako blagajna ima OTVORENU smenu (mora se prvo zatvoriti smena) i ako vec postoji ne-CANCELLED dnevni zakljucak za tu blagajnu/valutu/datum (unique index `daily_closing_active_unique_idx` je bekap na DB nivou).
+- Adapter dobio `apiPrepareDailyClosing`/`apiCloseDailyCashbox` handlere, tacno prema pozicionim potpisima iz `scripts.html` (`[cashbox_id, currency, closing_date]` i `[cashbox_id, currency, closing_date, physical_balance, note]`).
+- Ispravljena pogresna tvrdnja iz FAZA 3g (gore) da dnevni zakljucak nema poziv za kreiranje - forme `d-daily-close-form`/`m-daily-close-form` postoje i sad rade.
+
+Sta nije uradjeno:
+
+- Nema `LockService`-ekvivalentnog mehanizma za konkurentnost (Cloudflare Functions su per-request) - jedina zastita od race-a je DB unique index na `(closing_date, cashbox_id, currency)` gde `status <> 'CANCELLED'`, isto kao sto bi dva istovremena zahteva dobila 409 od Postgres-a ako `findDailyClosing` provera ne stigne prva.
+- `lockDailyClosing`/`cancelDailyClosing` (administrativno zakljucavanje/otkazivanje vec zatvorenog dana) nisu migrirani - nema UI poziva za njih u `scripts.html`.
+- `getCashSheetReport` (Blagajnički list) i dalje nije migriran.
+- Documents.gs (upload/attach) i dalje nije migriran.
+- Nije runtime testirano preko Cloudflare Pages okruzenja.
+
+Sledeci korak:
+
+- Korisnik push-uje i testira: "Smene" listu (da li se popunjava i filtrira ispravno za CASHIER vs elevated role), pregled dnevnog zakljucka (bez upisa), i stvarno zakljucavanje dana (proveriti da CASHIER dobija 403, da se dogadjaji tog dana zakljucaju/LOCKED, i da drugi pokusaj za isti datum/blagajnu/valutu vraca gresku "vec postoji").
+- Sa ovim je "tu završi sve api pozive" zahtev za nalozi/zahtevi/smene/presek stanja zavrsen. Preostali veci moduli: Blagajnički list (`getCashSheetReport`), Documents (upload/attach).
