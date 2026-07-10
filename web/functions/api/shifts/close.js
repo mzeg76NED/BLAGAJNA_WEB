@@ -1,6 +1,7 @@
 import { apiError, apiOk, getSessionId, readJsonBody } from '../../_lib/api.js';
 import { verifySession } from '../../_lib/auth.js';
 import { encodeEq, isSupabaseConfigured, supabaseRest } from '../../_lib/supabase.js';
+import { assertCashboxNotLocked } from '../../_lib/mandatoryCount.js';
 
 function makeId(prefix) {
   return prefix + '-' + crypto.randomUUID();
@@ -150,6 +151,7 @@ export async function onRequestPost(context) {
     if (!canCloseShift(shift, appUser)) {
       return apiError('Nemate ovlašćenje za zatvaranje ove smene.', 403);
     }
+    await assertCashboxNotLocked(env, shift.cashbox_id);
 
     const physicalInput = body.physical_balance_json || body.physicalBalanceByCurrency || body.physical_balance;
     if (!physicalInput || typeof physicalInput !== 'object') {
@@ -191,6 +193,6 @@ export async function onRequestPost(context) {
     if (String(error.message || '').includes('Physical balance must be numeric')) {
       return apiError('Fizičko stanje mora biti numeričko po valutama.', 400);
     }
-    return apiError('Zatvaranje smene nije uspelo.', error.status || 500);
+    return apiError(error.message || 'Zatvaranje smene nije uspelo.', error.status || 500);
   }
 }

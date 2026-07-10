@@ -81,3 +81,24 @@ export async function uploadFileToSupabaseStorage(env, { name, mimeType, base64D
     mimeType: mimeType || 'application/octet-stream'
   };
 }
+
+// FAZA 3t: brisanje fajla iz Storage-a kad se prilog obriše iz "Dokumenti" dijaloga na
+// Knjizi (poziva se posle soft-delete DB reda - vidi api/documents/delete.js). Best
+// effort - 404 (fajl već ne postoji) se ne tretira kao greška.
+export async function deleteFileFromSupabaseStorage(env, path) {
+  const { url, key } = getStorageConfig(env);
+  if (!url || !key || !path) return;
+
+  const bucket = env.SUPABASE_DOCUMENTS_BUCKET || 'documents';
+  const response = await fetch(url + '/storage/v1/object/' + bucket + '/' + path, {
+    method: 'DELETE',
+    headers: {
+      authorization: 'Bearer ' + key,
+      apikey: key
+    }
+  });
+  if (!response.ok && response.status !== 404) {
+    const text = await response.text();
+    throw Object.assign(new Error('Brisanje fajla iz Supabase Storage nije uspelo: ' + text), { status: 502 });
+  }
+}

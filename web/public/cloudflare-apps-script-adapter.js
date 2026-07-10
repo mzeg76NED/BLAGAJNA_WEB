@@ -408,6 +408,45 @@
         sessionId: sessionId
       });
     },
+    // FAZA 3t: brisanje priloga (soft-delete + brisanje fajla iz Supabase Storage).
+    apiDeleteDocument: async function (documentId, sessionId) {
+      return apiFetch('/api/documents/delete', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ document_id: documentId })
+      });
+    },
+    // FAZA 3t: koje stavke (entity_id) iz zadate liste imaju bar jedan aktivan prilog -
+    // koristi se za spajalicu na Knjizi (batch provera, ne po redu).
+    apiGetDocumentsSummary: async function (entityType, entityIds, sessionId) {
+      return apiFetch('/api/documents/summary', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ entity_type: entityType, entity_ids: entityIds || [] })
+      });
+    },
+    // FAZA 3t: lagano osvezavanje liste blagajni (uklj. mandatory_count status) bez
+    // punog bootstrap-a - koristi se za banner "blagajna zakljucana".
+    apiGetCashboxes: async function (sessionId) {
+      var response = await apiFetch('/api/cashboxes', { sessionId: sessionId });
+      return response.cashboxes || [];
+    },
+    // FAZA 3t: obavezan presek stanja - samo ADMIN/DIREKTOR (proverava se i na
+    // backend-u, ovo je samo transport).
+    apiIssueMandatoryCashCount: async function (cashboxId, note, sessionId) {
+      return apiFetch('/api/cashbox-count-orders/create', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ cashbox_id: cashboxId, note: note || '' })
+      });
+    },
+    apiCancelMandatoryCashCount: async function (orderId, sessionId) {
+      return apiFetch('/api/cashbox-count-orders/cancel', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ order_id: orderId })
+      });
+    },
     apiCreatePaymentRequest: async function (data, sessionId) {
       return apiFetch('/api/payment-requests/create', {
         method: 'POST',

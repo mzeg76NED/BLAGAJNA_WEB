@@ -84,6 +84,10 @@
 
   /* ─── Buttons ─────────────────────────────────────────── */
 
+  /* FAZA 3t: opšte smanjenje dugmadi za "profesionalniji" (kompaktniji) izgled -
+     min-height 40→34px, padding 8/14→6/12, font 14→13px. Primenjeno globalno pa se
+     kolorne varijante (.btn-in/.btn-out/.btn-primary/.btn-ghost/.cash-count-action)
+     automatski smanjuju bez posebnih izmena po klasi. */
   button, a.button-link {
     align-items: center;
     background: var(--color-surface);
@@ -93,19 +97,19 @@
     cursor: pointer;
     display: inline-flex;
     font-family: inherit;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     gap: 6px;
     justify-content: center;
-    min-height: 40px;
-    padding: 8px 14px;
+    min-height: 34px;
+    padding: 6px 12px;
     text-align: center;
     text-decoration: none;
     transition: background 0.12s, opacity 0.12s;
   }
 
   button i, a.button-link i {
-    font-size: 17px;
+    font-size: 15px;
     flex-shrink: 0;
   }
 
@@ -152,9 +156,9 @@
   }
 
   button.small {
-    font-size: 12px;
-    min-height: 32px;
-    padding: 5px 10px;
+    font-size: 11px;
+    min-height: 27px;
+    padding: 4px 9px;
   }
 
   .btn-in {
@@ -1212,6 +1216,125 @@
     justify-content: center;
     min-height: 28px;
     padding: 4px 8px;
+  }
+
+  /* FAZA 3t: spajalica na Knjizi - vidljiva SAMO na redovima koji imaju prilog (vidi
+     KNJIGA_DOCS_WITH_FILES_ u scripts.html), klik otvara Dokumenti dijalog bez da
+     otvori i detalj panel (stopPropagation u inline onclick-u). */
+  .cashbook-row-clip {
+    align-items: center;
+    background: rgba(59, 130, 246, .12);
+    border: none;
+    border-radius: 999px;
+    color: var(--color-primary, #3b82f6);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 12px;
+    height: 20px;
+    justify-content: center;
+    margin-left: 6px;
+    padding: 0;
+    vertical-align: middle;
+    width: 20px;
+  }
+
+  .cashbook-row-clip:hover {
+    background: rgba(59, 130, 246, .22);
+  }
+
+  .m-entry-clip {
+    background: none;
+    border: none;
+    color: var(--color-primary, #3b82f6);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 12px;
+    padding: 0 0 0 4px;
+    vertical-align: middle;
+  }
+
+  /* FAZA 3t: obavezan presek stanja - dinamički ubačen div (vidi ensureMandatoryCountBar_
+     u scripts.html), dva stanja: .locked (upadljiv crveni banner na vrhu, blokira rad) i
+     .admin-hint (mala diskretna pilula u uglu, samo ADMIN/DIREKTOR, kad blagajna NIJE
+     zaključana - podsetnik da alat postoji). */
+  #mandatory-count-bar.mandatory-count-bar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 13px;
+    gap: 10px;
+    justify-content: space-between;
+    position: fixed;
+    z-index: 9000;
+  }
+
+  #mandatory-count-bar.locked {
+    background: #b91c1c;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
+    color: #fff;
+    left: 0;
+    padding: 10px 16px;
+    right: 0;
+    top: 0;
+  }
+
+  #mandatory-count-bar.locked .mandatory-count-bar-text i {
+    margin-right: 4px;
+  }
+
+  #mandatory-count-bar.locked .mandatory-count-bar-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  #mandatory-count-bar.locked .mandatory-count-bar-actions .btn-ghost {
+    background: rgba(255, 255, 255, .15);
+    border-color: rgba(255, 255, 255, .4);
+    color: #fff;
+  }
+
+  #mandatory-count-bar.admin-hint {
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .mandatory-count-issue-btn {
+    align-items: center;
+    background: #1f2937;
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 700;
+    gap: 6px;
+    padding: 8px 14px;
+  }
+
+  .mandatory-count-issue-btn:hover {
+    background: #111827;
+  }
+
+  body.app-locked #mandatory-count-bar {
+    display: none !important;
+  }
+
+  body.mandatory-count-locked {
+    padding-top: 44px;
+  }
+
+  @media (max-width: 640px) {
+    body.mandatory-count-locked {
+      padding-top: 62px;
+    }
+  }
+
+  @media print {
+    #mandatory-count-bar {
+      display: none !important;
+    }
   }
 
   #d-section-presek .count-page-layout {
@@ -6070,6 +6193,11 @@
     }
 
     #d-section-blagajnicki-list .cashsheet-row-print-btn {
+      display: none !important;
+    }
+
+    .cashbook-row-clip,
+    .m-entry-clip {
       display: none !important;
     }
 

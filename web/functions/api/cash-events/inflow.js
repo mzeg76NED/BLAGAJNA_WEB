@@ -1,6 +1,7 @@
 import { apiError, apiOk, getSessionId, readJsonBody } from '../../_lib/api.js';
 import { verifySession } from '../../_lib/auth.js';
 import { encodeEq, isSupabaseConfigured, supabaseRest } from '../../_lib/supabase.js';
+import { assertCashboxNotLocked } from '../../_lib/mandatoryCount.js';
 
 function makeId(prefix) {
   return prefix + '-' + crypto.randomUUID();
@@ -73,6 +74,7 @@ export async function onRequestPost(context) {
     if (!description) return apiError('Opis je obavezan.', 400);
     if (!await exists(env, 'cashboxes', 'cashbox_id', cashboxId, '&active=eq.true')) return apiError('Blagajna nije aktivna.', 400);
     if (!await exists(env, 'currencies', 'currency_code', currency, '&active=eq.true')) return apiError('Valuta nije aktivna.', 400);
+    await assertCashboxNotLocked(env, cashboxId);
 
     const appUser = sessionResult.session.app_user || {};
     const openShift = await findOpenShift(env, cashboxId);
@@ -114,6 +116,6 @@ export async function onRequestPost(context) {
     await insertAuditLog(env, created, appUser, sessionResult.session || {});
     return apiOk(created);
   } catch (error) {
-    return apiError('Knjiženje uplate nije uspelo.', error.status || 500);
+    return apiError(error.message || 'Knjiženje uplate nije uspelo.', error.status || 500);
   }
 }

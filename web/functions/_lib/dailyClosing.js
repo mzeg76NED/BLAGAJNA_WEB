@@ -1,5 +1,6 @@
 import { encodeEq, supabaseRest } from './supabase.js';
 import { cashEventDelta } from './cashEventMath.js';
+import { assertCashboxNotLocked } from './mandatoryCount.js';
 
 // Daily closing workflow, ported from src/DailyClosing.gs. Daily closing records the
 // calculated vs. physical balance for one cashbox/currency/date; it does not create cash
@@ -186,6 +187,7 @@ export async function closeDailyCashboxCore(env, user, session, data) {
     throw new BusinessError('Nemate ovlašćenje za zaključavanje dana.', 403);
   }
   const context = await buildContext(env, data.cashbox_id, data.currency, data.closing_date);
+  await assertCashboxNotLocked(env, context.cashboxId);
   const physicalBalance = Number(data.physical_balance);
   if (!Number.isFinite(physicalBalance) || physicalBalance < 0) {
     throw new BusinessError('Fizičko stanje mora biti nenegativan broj.', 400);

@@ -27,6 +27,10 @@
   var OPTIMISTIC_REFRESH_DELAY_MS = 4200;
   var LAST_KNJIGA_EVENTS = [];
   var LAST_CASHSHEET_EVENTS = [];
+  // FAZA 3t: { event_id: true, ... } - koje stavke iz trenutno učitane Knjige imaju bar
+  // jedan aktivan prilog (spajalica). Puni se preko apiGetDocumentsSummary posle svakog
+  // učitavanja Knjige - vidi refreshKnjigaDocsSummary_().
+  var KNJIGA_DOCS_WITH_FILES_ = {};
   var REPORT_CACHE = {};
   var CASH_COUNT_UI = {
     rawRows: [],
@@ -466,6 +470,7 @@
     SESSION.cashboxName = cashbox.name || cashbox.cashbox_id;
     SESSION.currency = config.defaultCurrency || (config.currencies && config.currencies[0]) || 'RSD';
     updateContextDisplay_();
+    renderMandatoryCountBar_();
   }
 
   function updateContextDisplay_() {
@@ -488,6 +493,7 @@
           applyDefaultCashboxFields();
           refreshActiveShiftState_({ enforce: false });
           refreshBalance_();
+          renderMandatoryCountBar_();
           if (typeof loadKnjiga_ === 'function') {
             loadKnjiga_(true);
           }
@@ -1062,6 +1068,7 @@
         if (!response || response.ok !== true) {
           var message = response && response.error ? response.error.message : 'poziv nije uspeo.';
           handleApiErrorForAppSession_(message);
+          handleMandatoryCountErrorIfAny_(message);
           // Quiet calls are background/prefetch refreshes (Knjiga polling, balance
           // refresh, pending-payments badge, itd.) that a role may legitimately not
           // have access to (e.g. ANNOUNCER/ASSISTANT_CASHIER lack cash_events:view) -
@@ -1094,6 +1101,7 @@
         }
         var message = error && error.message ? error.message : 'tehnički problem.';
         handleApiErrorForAppSession_(message);
+        handleMandatoryCountErrorIfAny_(message);
         if (!options.quiet) {
           showMessage('Greška: ' + humanizeError_(message), 'error');
         } else if (window.console && console.warn) {
@@ -1133,6 +1141,166 @@
     if (document.getElementById('app-login-lock')) {
       showAppLogin_('Sesija je istekla. Prijavite se ponovo.');
     }
+  }
+
+  // FAZA 3t: F5 = submit forme (isti obrazac kao Presek stanja dijalog - vidi
+  // bindCashCountPageForm_ koja ima punu F5/F9/ESC + Enter-chain logiku specifičnu za
+  // unos apoena). Ova verzija je namerno minimalna (SAMO F5) - primenjena na proste
+  // "jedno dugme" forme (Otvori/Zatvori smenu, Sačuvaj presek, Zaključak) koje nemaju
+  // draft/cancel korak niti lanac polja za unos.
+  function bindPrimaryFormShortcuts_(form) {
+    if (!form || form.dataset.primaryShortcutsBound === '1') return;
+    form.dataset.primaryShortcutsBound = '1';
+    form.addEventListener('keydown', function(event) {
+      if (event.key !== 'F5') return;
+      event.preventDefault();
+      if (form.requestSubmit) form.requestSubmit();
+      else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    });
+  }
+
+  /* ─── FAZA 3t: obavezan presek stanja ("zaključana blagajna") ───
+     ADMIN/DIREKTOR mogu da zadaju obavezan presek za konkretnu blagajnu preko
+     mandatory-count-bar (dinamički ubačen div, isti obrazac kao print-overlay) - dok je
+     nalog OPEN, backend odbija sve akcije koje pomeraju gotovinu na toj blagajni (vidi
+     _lib/mandatoryCount.js), a "Presek stanja" forma ga automatski zatvara. Frontend
+     lock ovde je SAMO UX signal (disable par ključnih dugmadi + banner) - stvarna
+     zabrana je na backend-u, tako da čak i propušteno dugme ovde ne probija zaštitu. */
+
+  function isCurrentUserAdminOrDirector_() {
+    var role = uiState.currentUser && uiState.currentUser.role;
+    return role === 'ADMIN' || role === 'DIRECTOR';
+  }
+
+  function findCashboxConfig_(cashboxId) {
+    return (uiState.config.cashboxes || []).filter(function(c) { return c.cashbox_id === cashboxId; })[0] || null;
+  }
+
+  function handleMandatoryCountErrorIfAny_(message) {
+    if (!/zaključana.*presek stanja/i.test(String(message || ''))) return;
+    refreshCashboxesMandatoryStatus_();
+  }
+
+  function refreshCashboxesMandatoryStatus_() {
+    if (!APP_SESSION.active) return;
+    callApi('apiGetCashboxes', [], function(cashboxes) {
+      if (Array.isArray(cashboxes) && cashboxes.length) {
+        uiState.config.cashboxes = cashboxes;
+      }
+      renderMandatoryCountBar_();
+    }, { quiet: true });
+  }
+
+  function ensureMandatoryCountBar_() {
+    var bar = document.getElementById('mandatory-count-bar');
+    if (bar) return bar;
+    bar = document.createElement('div');
+    bar.id = 'mandatory-count-bar';
+    bar.hidden = true;
+    document.body.appendChild(bar);
+    return bar;
+  }
+
+  function applyMandatoryCountUiLock_(locked) {
+    ['d-btn-uplata', 'd-btn-isplata', 'd-btn-trezor', 'm-fab-btn',
+      'd-shift-action-in', 'd-shift-action-out', 'd-shift-action-treasury', 'd-shift-action-close'
+    ].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = Boolean(locked);
+    });
+  }
+
+  function renderMandatoryCountBar_() {
+    if (!APP_SESSION.active) return;
+    var bar = ensureMandatoryCountBar_();
+    var cashbox = findCashboxConfig_(SESSION.cashboxId);
+    var isAdmin = isCurrentUserAdminOrDirector_();
+    var locked = cashbox && cashbox.mandatory_count;
+
+    applyMandatoryCountUiLock_(Boolean(locked));
+    document.body.classList.toggle('mandatory-count-locked', Boolean(locked));
+
+    if (!locked && !isAdmin) {
+      bar.hidden = true;
+      bar.innerHTML = '';
+      return;
+    }
+
+    bar.hidden = false;
+
+    if (locked) {
+      bar.className = 'mandatory-count-bar locked';
+      bar.innerHTML =
+        '<div class="mandatory-count-bar-text"><i class="ti ti-lock" aria-hidden="true"></i> ' +
+          '<strong>Blagajna „' + escapeHtml(cashbox.name || SESSION.cashboxName || cashbox.cashbox_id) + '” je zaključana</strong> — obavezan presek stanja' +
+          (cashbox.mandatory_count.requested_by ? ' (naložio: ' + escapeHtml(shortUserLabel_(cashbox.mandatory_count.requested_by)) + ')' : '') +
+          (cashbox.mandatory_count.note ? ' · ' + escapeHtml(cashbox.mandatory_count.note) : '') +
+        '</div>' +
+        '<div class="mandatory-count-bar-actions">' +
+          '<button type="button" class="btn-primary small" data-mc-goto-presek>Uradi presek</button>' +
+          (isAdmin ? '<button type="button" class="btn-ghost small" data-mc-cancel>Otkaži nalog</button>' : '') +
+        '</div>';
+      bar.querySelector('[data-mc-goto-presek]').addEventListener('click', function() {
+        var mobile = Boolean(document.querySelector('.m-shell'));
+        if (mobile) { if (typeof openMobileSection_ === 'function') openMobileSection_('m-section-presek'); }
+        else if (typeof openDesktopSection_ === 'function') openDesktopSection_('presek');
+      });
+      var cancelBtn = bar.querySelector('[data-mc-cancel]');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+          if (!confirm('Otkazati obavezan presek stanja BEZ izvršenog preseka?')) return;
+          callApi('apiCancelMandatoryCashCount', [cashbox.mandatory_count.order_id], function() {
+            refreshCashboxesMandatoryStatus_();
+          }, { successMessage: 'Nalog za obavezan presek je otkazan.' });
+        });
+      }
+    } else {
+      bar.className = 'mandatory-count-bar admin-hint';
+      bar.innerHTML =
+        '<button type="button" class="mandatory-count-issue-btn" data-mc-issue title="Zadaj obavezan presek stanja (Admin/Direktor)">' +
+          '<i class="ti ti-shield-lock" aria-hidden="true"></i> Obavezan presek' +
+        '</button>';
+      bar.querySelector('[data-mc-issue]').addEventListener('click', openMandatoryCountIssueDialog_);
+    }
+  }
+
+  function openMandatoryCountIssueDialog_() {
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    var cashboxes = uiState.config.cashboxes || [];
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>Zadaj obavezan presek stanja</h3>' +
+        '<p style="color:var(--color-text-muted);font-size:12px;margin:0 0 10px">Blagajna se zaključava - uplate, isplate, trezor, storno i zatvaranje smene se odbijaju dok se ne uradi presek stanja po standardnoj proceduri.</p>' +
+        '<form id="mandatory-count-issue-form" class="form-grid">' +
+          '<label>Blagajna <select name="cashbox_id">' +
+            cashboxes.map(function(c) {
+              return '<option value="' + escapeHtml(c.cashbox_id) + '"' + (c.cashbox_id === SESSION.cashboxId ? ' selected' : '') + '>' +
+                escapeHtml(c.name || c.cashbox_id) + (c.mandatory_count ? ' (već zaključana)' : '') + '</option>';
+            }).join('') +
+          '</select></label>' +
+          '<label>Napomena <input type="text" name="note" placeholder="opciono - razlog naloga"></label>' +
+          '<div class="m-detail-actions">' +
+            '<button type="button" class="cash-count-action cancel" id="mc-issue-cancel">Otkaži (ESC)</button>' +
+            '<button type="submit" class="cash-count-action save">Zaključaj blagajnu (F5)</button>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('#mc-issue-cancel').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+    bindPrimaryFormShortcuts_(overlay.querySelector('#mandatory-count-issue-form'));
+    overlay.querySelector('#mandatory-count-issue-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var data = serializeFormElement_(e.target);
+      if (!confirm('Zaista zaključati ovu blagajnu dok se ne uradi presek stanja?')) return;
+      callApi('apiIssueMandatoryCashCount', [data.cashbox_id, data.note || ''], function() {
+        close();
+        refreshCashboxesMandatoryStatus_();
+      }, { successMessage: 'Obavezan presek stanja je zadat - blagajna je zaključana.' });
+    });
   }
 
   function appLoginCallApi_(functionName, args, onSuccess, onError) {
@@ -3176,6 +3344,7 @@
         renderDenominationInputs_();
         refreshBalance_();
         loadCashCounts_();
+        refreshCashboxesMandatoryStatus_();
         close();
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
@@ -4092,24 +4261,33 @@
      nalog, zahtev...) - koristi već postojeću documents tabelu (entity_type/entity_id),
      samo prvi put ima stvaran upload backend (_lib/googleDrive.js). */
 
-  function renderDocumentsListHtml_(docs) {
+  // FAZA 3t: dodat "Obriši" (i eksplicitan "Preuzmi" link) - ranije je dijalog imao
+  // SAMO prikaz+upload, korisnik je eksplicitno tražio "dodaj, briši, skini" iz istog
+  // dijaloga. window.__docActions_ prati isti obrazac kao window.__recordActions
+  // (renderActionRecords) - inline onclick sa key lookup-om umesto ugrađivanja
+  // document_id direktno u onclick string (izbegava escaping komplikacije).
+  function renderDocumentsListHtml_(docs, onDelete) {
     if (!docs || !docs.length) {
       return '<div class="empty-state" style="padding:8px 0">Nema prikačenih dokumenata.</div>';
     }
-    return docs.map(function(d) {
-      return '<div class="detail-row" style="border-bottom:1px solid var(--color-border-light);padding:7px 0">' +
-        '<a href="' + escapeHtml(d.file_url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(d.file_name || 'Dokument') + '</a>' +
+    window.__docActions_ = window.__docActions_ || {};
+    return docs.map(function(d, index) {
+      var key = 'doc-' + index + '-' + Date.now();
+      window.__docActions_[key] = function() { onDelete(d); };
+      return '<div class="detail-row" style="border-bottom:1px solid var(--color-border-light);padding:7px 0;gap:8px">' +
+        '<a href="' + escapeHtml(d.file_url || '#') + '" target="_blank" rel="noopener" download="' + escapeHtml(d.file_name || '') + '"><i class="ti ti-file-download" aria-hidden="true"></i> ' + escapeHtml(d.file_name || 'Dokument') + '</a>' +
         '<span style="color:var(--color-text-muted);font-size:11px;text-align:right">' + escapeHtml(shortUserLabel_(d.uploaded_by || '—')) + '<br>' + escapeHtml(formatDateTimeShort_(d.created_at)) + '</span>' +
+        '<button type="button" class="btn-ghost small" title="Obriši prilog" onclick="window.__docActions_[\'' + key + '\']()"><i class="ti ti-trash" aria-hidden="true"></i></button>' +
       '</div>';
     }).join('');
   }
 
-  function loadAndRenderDocumentsFor_(entityType, entityId, targetId) {
+  function loadAndRenderDocumentsFor_(entityType, entityId, targetId, onDelete) {
     var target = document.getElementById(targetId);
     if (!target) return;
     target.innerHTML = '<div class="empty-state" style="padding:8px 0">Učitavanje...</div>';
     callApi('apiListDocuments', [entityType, entityId], function(docs) {
-      target.innerHTML = renderDocumentsListHtml_(docs);
+      target.innerHTML = renderDocumentsListHtml_(docs, onDelete);
     }, { quiet: true, onComplete: function() {
       if (target.innerHTML.indexOf('Učitavanje') !== -1) {
         target.innerHTML = '<div class="empty-state" style="padding:8px 0">Nije moguće učitati dokumenta.</div>';
@@ -4129,8 +4307,8 @@
           '<label>Prikači novi fajl <input type="file" name="file" required></label>' +
           '<label>Napomena <input type="text" name="note" placeholder="opciono"></label>' +
           '<div class="m-detail-actions">' +
-            '<button type="button" class="btn-ghost" id="documents-dialog-close">Zatvori</button>' +
-            '<button type="submit" class="btn-primary" id="documents-dialog-upload">Prikači</button>' +
+            '<button type="button" class="cash-count-action cancel" id="documents-dialog-close">Zatvori (ESC)</button>' +
+            '<button type="submit" class="cash-count-action save" id="documents-dialog-upload">Prikači (F5)</button>' +
           '</div>' +
         '</form>' +
       '</div>';
@@ -4138,7 +4316,18 @@
     var close = function() { overlay.remove(); };
     overlay.querySelector('#documents-dialog-close').addEventListener('click', close);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
-    var refresh = function() { loadAndRenderDocumentsFor_(entityType, entityId, 'documents-dialog-list'); };
+    overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+    bindPrimaryFormShortcuts_(overlay.querySelector('#documents-dialog-form'));
+    var handleDelete = function(doc) {
+      if (!confirm('Obrisati prilog "' + (doc.file_name || 'dokument') + '"?')) return;
+      callApi('apiDeleteDocument', [doc.document_id], function() {
+        refresh();
+      }, { successMessage: 'Prilog je obrisan.' });
+    };
+    var refresh = function() {
+      loadAndRenderDocumentsFor_(entityType, entityId, 'documents-dialog-list', handleDelete);
+      refreshKnjigaDocsSummary_();
+    };
     refresh();
     overlay.querySelector('#documents-dialog-form').addEventListener('submit', function(e) {
       e.preventDefault();
@@ -4163,6 +4352,17 @@
         showMessage('Greška: ' + error.message, 'error');
       });
     });
+  }
+
+  // FAZA 3t: klik na spajalicu u Knjizi - nalazi stavku po event_id u već učitanoj listi
+  // (isti obrazac kao printReceiptForEventId_) i otvara dijalog dokumenata za nju.
+  function openDocumentsDialogForEventId_(eventId) {
+    var found = (LAST_KNJIGA_EVENTS || []).find(function(e) { return e.event_id === eventId; });
+    if (!found) {
+      showMessage('Stavka nije pronađena u trenutno učitanoj listi.', 'error');
+      return;
+    }
+    openDocumentsDialog_('CASH_EVENT', found.event_id, 'stavka ' + (found.ref_no != null ? '#' + found.ref_no : found.event_id));
   }
 
   // Nalazi učitanu stavku po event_id (Knjiga ili Blagajnički list već imaju ceo
@@ -4689,6 +4889,27 @@
       loadPendingPaymentOrderOutflows_(true);
       refreshBalance_();
       if (canViewPaymentAnnouncements_()) loadKnjigaAnnouncements_();
+      refreshKnjigaDocsSummary_();
+    }, { quiet: true });
+  }
+
+  // FAZA 3t: batch provera priloga za spajalicu - jedan poziv za CEO trenutno učitanu
+  // Knjigu, ne po redu. Ne blokira prvobitni render (radi se posle, pa se tabela samo
+  // ponovo iscrta kad stigne odgovor - blagi "flicker" spajalica koje se pojave koji
+  // trenutak kasnije je prihvatljiv, prvobitni render ne čeka na ovo).
+  function refreshKnjigaDocsSummary_() {
+    var ids = (LAST_KNJIGA_EVENTS || [])
+      .filter(function(e) { return e.event_type !== 'ANNOUNCEMENT' && e.event_id; })
+      .map(function(e) { return e.event_id; });
+    if (!ids.length) {
+      KNJIGA_DOCS_WITH_FILES_ = {};
+      return;
+    }
+    callApi('apiGetDocumentsSummary', ['CASH_EVENT', ids], function(idsWithDocs) {
+      var map = {};
+      (idsWithDocs || []).forEach(function(id) { map[id] = true; });
+      KNJIGA_DOCS_WITH_FILES_ = map;
+      renderKnjigaTable_(LAST_KNJIGA_EVENTS);
     }, { quiet: true });
   }
 
@@ -5308,10 +5529,13 @@
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     var idAttr = isAnnouncement ? 'data-announcement-id="' + escapeHtml(ev.__announcement.announcement_id) + '"' : 'data-event-id="' + escapeHtml(ev.event_id) + '"';
     var refDisplay = ev.ref_no != null ? ev.ref_no : '…';
+    var clipBtn = (!isAnnouncement && KNJIGA_DOCS_WITH_FILES_[ev.event_id])
+      ? ' <button type="button" class="cashbook-row-clip" title="Ima prilog - klikni za pregled" onclick="event.stopPropagation();openDocumentsDialogForEventId_(\'' + escapeHtml(ev.event_id) + '\')"><i class="ti ti-paperclip" aria-hidden="true"></i></button>'
+      : '';
     return '<tr class="' + rowClass + ' cashbook-row" ' + idAttr + '>' +
       '<td><span class="cashbook-rb">' + refDisplay + '</span></td>' +
       '<td><span class="cashbook-row-date">' + dateStr + '</span><strong class="cashbook-row-time">' + timeStr + '</strong></td>' +
-      '<td><div class="desc-main">' + label + '</div><div class="desc-reason">' + reason + '</div><div class="desc-sub">' + createdBy + trace + statusHint + '</div></td>' +
+      '<td><div class="desc-main">' + label + clipBtn + '</div><div class="desc-reason">' + reason + '</div><div class="desc-sub">' + createdBy + trace + statusHint + '</div></td>' +
       '<td class="' + (isIn  ? 'cell-in'   : 'cell-dash') + '">' + (isIn  ? '<span class="amount-pill in">' + amtFmt + '</span>' : isAnnouncement ? '<span class="amount-pill" style="background:rgba(148,163,184,.18);color:#94a3b8">' + amtFmt + '</span>' : '—') + '</td>' +
       '<td class="' + (isOut ? 'cell-out'  : 'cell-dash') + '">' + (isOut ? '<span class="amount-pill out">' + amtFmt + '</span>' : '—') + '</td>' +
       '<td class="cell-bal">' + balFmt + '</td>' +
@@ -5380,10 +5604,13 @@
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     var idAttr = isAnnouncement ? 'data-announcement-id="' + escapeHtml(ev.__announcement.announcement_id) + '"' : 'data-event-id="' + escapeHtml(ev.event_id) + '"';
     var refDisplay = ev.ref_no != null ? ev.ref_no : '…';
+    var clipBtn = (!isAnnouncement && KNJIGA_DOCS_WITH_FILES_[ev.event_id])
+      ? ' <button type="button" class="m-entry-clip" title="Ima prilog" onclick="event.stopPropagation();openDocumentsDialogForEventId_(\'' + escapeHtml(ev.event_id) + '\')"><i class="ti ti-paperclip" aria-hidden="true"></i></button>'
+      : '';
     return '<div class="m-entry' + (isCount ? ' count' : '') + (isAnnouncement ? ' announcement' : '') + (ev.optimistic_id ? ' optimistic' : '') + '" ' + idAttr + '>' +
       '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
       '<div class="m-entry-info">' +
-        '<div class="m-entry-desc"><span class="m-entry-no">' + refDisplay + '.</span> ' + label + '</div>' +
+        '<div class="m-entry-desc"><span class="m-entry-no">' + refDisplay + '.</span> ' + label + clipBtn + '</div>' +
         '<div class="m-entry-meta">' + reason + '</div>' +
         '<div class="m-entry-meta">' + meta + statusHint + '</div>' +
       '</div>' +
@@ -6326,6 +6553,7 @@
         renderDenominationInputs_();
         refreshBalance_();
         loadCashCounts_();
+        refreshCashboxesMandatoryStatus_();
         loadMyShiftsTo_('d-shifts-list');
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
@@ -6340,6 +6568,7 @@
         renderDenominationInputs_();
         refreshBalance_();
         loadCashCounts_();
+        refreshCashboxesMandatoryStatus_();
         loadMyShiftsTo_('m-shifts-list');
       }, { successMessage: 'Presek blagajne je sačuvan.' });
     });
@@ -6380,6 +6609,19 @@
           refreshBalance_();
         }, { successMessage: 'Dnevni zaključak je kreiran.' });
       });
+    });
+
+    // FAZA 3t: F5 = sačuvaj (isti obrazac kao Presek stanja dijalog, vidi
+    // bindCashCountPageForm_) na glavnim formama koje ranije nisu imale prečicu -
+    // static (ne-dijalog) Otvori/Zatvori smenu, Sačuvaj presek, Zaključak forme.
+    [
+      'd-opening-count-form', 'm-opening-count-form',
+      'd-close-shift-form', 'm-close-shift-form',
+      'd-cash-count-form', 'm-cash-count-form',
+      'd-daily-preview-form', 'm-daily-preview-form',
+      'd-daily-close-form', 'm-daily-close-form'
+    ].forEach(function(id) {
+      bindPrimaryFormShortcuts_(document.getElementById(id));
     });
   }
 
@@ -9861,6 +10103,7 @@
       refreshActiveShiftState_({ enforce: false, refreshKnjiga: false });
       refreshBalance_();
       loadKnjiga_(true);
+      refreshCashboxesMandatoryStatus_();
       if (isMobile) loadMobileNalozi_();
       if (isDesktop) loadDesktopNavBadges_();
     }, 15000);

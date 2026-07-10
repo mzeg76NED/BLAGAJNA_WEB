@@ -1,6 +1,7 @@
 import { apiError, apiOk, getSessionId, readJsonBody } from '../../_lib/api.js';
 import { verifySession } from '../../_lib/auth.js';
 import { encodeEq, isSupabaseConfigured, supabaseRest } from '../../_lib/supabase.js';
+import { assertCashboxNotLocked } from '../../_lib/mandatoryCount.js';
 
 function makeId(prefix) {
   return prefix + '-' + crypto.randomUUID();
@@ -69,6 +70,8 @@ export async function onRequestPost(context) {
     if (!cashboxId) return apiError('Blagajna je obavezna.', 400);
     if (!currency) return apiError('Valuta je obavezna.', 400);
     if (!(amount > 0)) return apiError('Iznos mora biti veći od nule.', 400);
+
+    await assertCashboxNotLocked(env, cashboxId);
 
     const appUser = sessionResult.session.app_user || {};
     const openShift = await findOpenShift(env, cashboxId);

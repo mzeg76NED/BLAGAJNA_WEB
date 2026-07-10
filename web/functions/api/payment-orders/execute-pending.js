@@ -1,6 +1,7 @@
 import { apiError, apiOk, getSessionId, readJsonBody } from '../../_lib/api.js';
 import { verifySession } from '../../_lib/auth.js';
 import { encodeEq, isSupabaseConfigured, supabaseRest } from '../../_lib/supabase.js';
+import { assertCashboxNotLocked } from '../../_lib/mandatoryCount.js';
 
 function makeId(prefix) {
   return prefix + '-' + crypto.randomUUID();
@@ -96,6 +97,7 @@ export async function onRequestPost(context) {
     if (paymentAmount > remainingAmount) return apiError('Iznos isplate prelazi preostali iznos naloga.', 400);
     if (paymentCurrency !== orderBefore.currency) return apiError('Valuta isplate mora odgovarati nalogu.', 400);
     if (paymentCashboxId !== orderBefore.cashbox_id) return apiError('Blagajna isplate mora odgovarati nalogu.', 400);
+    await assertCashboxNotLocked(env, paymentCashboxId);
 
     const appUser = sessionResult.session.app_user || {};
     const openShift = await findOpenShift(env, paymentCashboxId);

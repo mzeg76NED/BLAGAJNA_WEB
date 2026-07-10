@@ -1,4 +1,5 @@
 import { encodeEq, supabaseRest } from './supabase.js';
+import { resolveMandatoryCountsForCashbox } from './mandatoryCount.js';
 
 // Cash counts ("Presek stanja") are controlled physical inventory records. They are
 // audit evidence and do not change cash event history by themselves - EXCEPT that a
@@ -230,6 +231,14 @@ export async function createCashCountsCore(env, data, actor, session) {
       counted_total: countedCashTotal,
       denominations
     });
+  }
+
+  // FAZA 3t: bilo koji presek stanja proknjizen ovde (bez obzira na count_type -
+  // standalone "Novi presek", ili presek pri otvaranju/zatvaranju smene) automatski
+  // razresava obavezan presek nalog za ovu blagajnu, ako postoji. Poziva se JEDNOM po
+  // batch-u (sve valute u ovom pozivu dele isti cashboxId).
+  if (created.length) {
+    await resolveMandatoryCountsForCashbox(env, cashboxId, created[0].count_id, actor);
   }
 
   return created;

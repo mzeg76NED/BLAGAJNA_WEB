@@ -488,3 +488,28 @@ select setval('payment_requests_ref_no_seq', coalesce((select max(ref_no) from p
 alter table payment_requests alter column ref_no set default nextval('payment_requests_ref_no_seq');
 alter table payment_requests alter column ref_no set not null;
 create unique index if not exists payment_requests_ref_no_idx on payment_requests(ref_no);
+
+-- FAZA 3t: obavezan presek stanja - ADMIN/DIREKTOR mogu da "zakljucaju" konkretnu
+-- blagajnu tako da se sve akcije koje pomeraju gotovinu (uplata/isplata/trezor/storno/
+-- izvrsenje naloga/zatvaranje smene/zakljucenje dana) na TOJ blagajni odbijaju dok se
+-- ne uradi presek stanja po standardnoj proceduri (bilo koji zapis u cash_counts za tu
+-- blagajnu - vidi _lib/cashCounts.js createCashCountsCore) - tada se nalog AUTOMATSKI
+-- zatvara (status DONE). Samo JEDAN OPEN nalog po blagajni u isto vreme (partial unique
+-- index) - ako admin pozove izdavanje dok je vec OPEN, backend vraca postojeci nalog
+-- (idempotentno) umesto duplikata.
+create table if not exists mandatory_cash_counts (
+  order_id text primary key,
+  cashbox_id text not null references cashboxes(cashbox_id),
+  status text not null default 'OPEN' check (status in ('OPEN','DONE','CANCELLED')),
+  requested_by text not null,
+  requested_at timestamptz not null default now(),
+  note text,
+  resolved_by text,
+  resolved_at timestamptz,
+  resolved_count_id text references cash_counts(count_id)
+);
+
+create unique index if not exists mandatory_cash_counts_one_open_per_cashbox_idx
+  on mandatory_cash_counts(cashbox_id) where status = 'OPEN';
+create index if not exists mandatory_cash_counts_cashbox_idx
+  on mandatory_cash_counts(cashbox_id, requested_at desc);

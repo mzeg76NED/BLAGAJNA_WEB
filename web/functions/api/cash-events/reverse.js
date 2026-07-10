@@ -1,6 +1,7 @@
 import { apiError, apiOk, getSessionId, readJsonBody } from '../../_lib/api.js';
 import { verifySession } from '../../_lib/auth.js';
 import { encodeEq, isSupabaseConfigured, supabaseRest } from '../../_lib/supabase.js';
+import { assertCashboxNotLocked } from '../../_lib/mandatoryCount.js';
 
 // "Storno" - reverses a POSTED/LOCKED cash event by posting a NEW event on the SAME
 // side (same `direction` as the original, e.g. a storno of an "uplata" is itself also
@@ -105,6 +106,8 @@ export async function onRequestPost(context) {
 
     const existingReversal = await findExistingReversal(env, eventId);
     if (existingReversal) return apiError('Stavka je već stornirana: ' + eventId, 409);
+
+    await assertCashboxNotLocked(env, originalBefore.cashbox_id);
 
     const appUser = sessionResult.session.app_user || {};
     if (originalBefore.status === 'LOCKED' && !LOCKED_REVERSAL_ROLES.includes(appUser.role) && appUser.role !== 'ADMIN') {
