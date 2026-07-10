@@ -2237,7 +2237,7 @@
   .cashbook-kpis {
     display: grid;
     gap: 12px;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   }
 
   .cashbook-kpi-card {
@@ -2297,6 +2297,39 @@
   .kpi-red { background: rgba(239, 68, 68, 0.16); color: var(--color-out); }
   .kpi-cyan { background: rgba(56, 189, 248, 0.16); color: #38bdf8; }
   .kpi-gold { background: rgba(245, 158, 11, 0.16); color: #fbbf24; }
+  .kpi-purple { background: rgba(168, 85, 247, 0.16); color: #c084fc; }
+
+  .cashbook-kpi-card-multi {
+    align-items: center;
+  }
+
+  .cashbook-kpi-multi-body {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .cashbook-kpi-multi-row {
+    align-items: baseline;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    margin-top: 3px;
+  }
+
+  .cashbook-kpi-multi-row small {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    margin-top: 0;
+    white-space: nowrap;
+  }
+
+  .cashbook-kpi-multi-row strong {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    margin-top: 0;
+    text-align: right;
+    white-space: nowrap;
+  }
 
   .cashbook-layout {
     align-items: start;

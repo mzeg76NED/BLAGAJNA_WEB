@@ -138,6 +138,7 @@ function buildEventRow(event, index, runningBalance) {
   return {
     event_date: event.event_date || event.created_at || '',
     event_id: event.event_id || '',
+    ref_no: event.ref_no || null,
     entry_number: index + 1,
     event_type: event.event_type || '',
     direction: event.direction || '',

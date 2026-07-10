@@ -13,7 +13,9 @@ async function sanitizePending(env, event) {
   return {
     pending_payment_id: event.event_id || '',
     event_id: event.event_id || '',
+    ref_no: event.ref_no || null,
     order_id: event.linked_order_id || '',
+    order_ref_no: order && order.ref_no || null,
     linked_order_id: event.linked_order_id || '',
     cashbox_id: event.cashbox_id || '',
     currency: event.currency || '',

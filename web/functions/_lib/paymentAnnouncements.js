@@ -149,7 +149,7 @@ export async function listAnnouncementsCore(env, user, filters) {
   return (await supabaseRest(env, path)) || [];
 }
 
-function buildCorrectionEvent(cashboxId, currency, difference, userEmail, now, announcementId) {
+function buildCorrectionEvent(cashboxId, currency, difference, userEmail, now, announcementRef) {
   const numericDifference = Number(difference || 0);
   if (Math.abs(numericDifference) <= 0.000001) return null;
   const direction = numericDifference > 0 ? 'IN' : 'OUT';
@@ -168,7 +168,7 @@ function buildCorrectionEvent(cashboxId, currency, difference, userEmail, now, a
     linked_request_id: null,
     linked_order_id: null,
     partner_name: 'Najava uplate',
-    description: 'NAJAVA UPLATE - KOREKCIJA - ' + label + ' po najavi ' + announcementId + '. Razlika: ' + numericDifference + ' ' + currency,
+    description: 'NAJAVA UPLATE - KOREKCIJA - ' + label + ' po najavi ' + announcementRef + '. Razlika: ' + numericDifference + ' ' + currency,
     document_status: 'NONE',
     status: 'POSTED',
     posted_by: userEmail,
@@ -196,6 +196,7 @@ export async function matchAnnouncementCore(env, announcementId, data, actor, se
   const now = new Date().toISOString();
   const userEmail = actor.email || actor.user_code || '';
   const note = String(data.note || '').trim();
+  const announcementRef = announcement.ref_no ? ('#' + announcement.ref_no) : announcementId;
 
   const mainEvent = {
     event_id: makeId('CEV'),
@@ -210,7 +211,7 @@ export async function matchAnnouncementCore(env, announcementId, data, actor, se
     linked_request_id: null,
     linked_order_id: null,
     partner_name: announcement.partner_name,
-    description: 'UPLATA PO NAJAVI ' + announcementId + (announcement.purpose ? ' - ' + announcement.purpose : '') + (note ? '. Napomena: ' + note : ''),
+    description: 'UPLATA PO NAJAVI ' + announcementRef + (announcement.purpose ? ' - ' + announcement.purpose : '') + (note ? '. Napomena: ' + note : ''),
     document_status: 'NONE',
     status: 'POSTED',
     posted_by: userEmail,
@@ -230,7 +231,7 @@ export async function matchAnnouncementCore(env, announcementId, data, actor, se
   await insertAuditLog(env, 'POST', mainCreated.event_id, null, mainCreated, 'PAYMENT_ANNOUNCEMENT_MATCH_INFLOW', actor, session, announcement.cashbox_id);
 
   const difference = actualAmount - safeNumber(announcement.announced_amount);
-  const correctionEvent = buildCorrectionEvent(announcement.cashbox_id, announcement.currency, difference, userEmail, now, announcementId);
+  const correctionEvent = buildCorrectionEvent(announcement.cashbox_id, announcement.currency, difference, userEmail, now, announcementRef);
   let correctionCreated = null;
   if (correctionEvent) {
     const correctionRows = await supabaseRest(env, '/cash_events', {

@@ -417,3 +417,74 @@ create index payment_announcements_cashbox_idx on payment_announcements(cashbox_
 create index payment_announcements_status_idx on payment_announcements(status);
 
 create trigger payment_announcements_set_updated_at before update on payment_announcements for each row execute function set_updated_at();
+
+-- FAZA 3r: citljivi redni brojevi (ref_no) umesto UUID-tail hash ID-jeva u interfejsu.
+-- event_id/announcement_id ("CEV-...", "ANN-...") ostaju kao interni primarni kljucevi
+-- (linkovi, reference iz drugih tabela) - ref_no je CISTO za prikaz korisniku i za
+-- rucno pominjanje/trazenje stavke ("stavka br. 42", "storno stavke br. 42"), stabilan
+-- broj koji se NE menja kad se lista filtrira/paginira (za razliku od pozicionog "Rb."
+-- koji je ranije prikazivan u Knjizi).
+alter table cash_events add column if not exists ref_no integer;
+alter table payment_announcements add column if not exists ref_no integer;
+alter table payment_orders add column if not exists ref_no integer;
+alter table payment_requests add column if not exists ref_no integer;
+
+with numbered as (
+  select event_id, row_number() over (order by created_at, event_id) as rn
+  from cash_events
+  where ref_no is null
+)
+update cash_events e set ref_no = numbered.rn
+from numbered
+where numbered.event_id = e.event_id;
+
+with numbered as (
+  select announcement_id, row_number() over (order by created_at, announcement_id) as rn
+  from payment_announcements
+  where ref_no is null
+)
+update payment_announcements a set ref_no = numbered.rn
+from numbered
+where numbered.announcement_id = a.announcement_id;
+
+with numbered as (
+  select order_id, row_number() over (order by created_at, order_id) as rn
+  from payment_orders
+  where ref_no is null
+)
+update payment_orders o set ref_no = numbered.rn
+from numbered
+where numbered.order_id = o.order_id;
+
+with numbered as (
+  select request_id, row_number() over (order by created_at, request_id) as rn
+  from payment_requests
+  where ref_no is null
+)
+update payment_requests r set ref_no = numbered.rn
+from numbered
+where numbered.request_id = r.request_id;
+
+create sequence if not exists cash_events_ref_no_seq owned by cash_events.ref_no;
+select setval('cash_events_ref_no_seq', coalesce((select max(ref_no) from cash_events), 0) + 1, false);
+alter table cash_events alter column ref_no set default nextval('cash_events_ref_no_seq');
+alter table cash_events alter column ref_no set not null;
+create unique index if not exists cash_events_ref_no_idx on cash_events(ref_no);
+
+create sequence if not exists payment_announcements_ref_no_seq owned by payment_announcements.ref_no;
+select setval('payment_announcements_ref_no_seq', coalesce((select max(ref_no) from payment_announcements), 0) + 1, false);
+alter table payment_announcements alter column ref_no set default nextval('payment_announcements_ref_no_seq');
+alter table payment_announcements alter column ref_no set not null;
+create unique index if not exists payment_announcements_ref_no_idx on payment_announcements(ref_no);
+
+create sequence if not exists payment_orders_ref_no_seq owned by payment_orders.ref_no;
+select setval('payment_orders_ref_no_seq', coalesce((select max(ref_no) from payment_orders), 0) + 1, false);
+alter table payment_orders alter column ref_no set default nextval('payment_orders_ref_no_seq');
+alter table payment_orders alter column ref_no set not null;
+create unique index if not exists payment_orders_ref_no_idx on payment_orders(ref_no);
+
+create sequence if not exists payment_requests_ref_no_seq owned by payment_requests.ref_no;
+select setval('payment_requests_ref_no_seq', coalesce((select max(ref_no) from payment_requests), 0) + 1, false);
+alter table payment_requests alter column ref_no set default nextval('payment_requests_ref_no_seq');
+alter table payment_requests alter column ref_no set not null;
+create unique index if not exists payment_requests_ref_no_idx on payment_requests(ref_no);

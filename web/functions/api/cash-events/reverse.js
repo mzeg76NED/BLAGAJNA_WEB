@@ -23,7 +23,8 @@ function makeId(prefix) {
 
 function buildReversalDescription(originalEvent, reason) {
   const prefix = originalEvent.status === 'LOCKED' ? 'POST_CLOSING_CORRECTION. ' : '';
-  return prefix + 'STORNO stavke ' + originalEvent.event_id + '. Razlog: ' + reason;
+  const ref = originalEvent.ref_no ? ('#' + originalEvent.ref_no) : originalEvent.event_id;
+  return prefix + 'STORNO stavke ' + ref + '. Razlog: ' + reason;
 }
 
 function buildReversalPartnerName(originalEvent) {

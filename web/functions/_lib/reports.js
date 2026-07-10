@@ -44,7 +44,7 @@ export async function getOpenPaymentRequestsReportCore(env, user, filters) {
   // tied to a cashbox until they become an order) - scopeCashboxForUser is called only
   // for its CASHIER-role access-check side effect, mirroring normalizeReportFilters_.
   scopeCashboxForUser(user, filters.cashbox_id);
-  let path = "/payment_requests?select=request_id,created_at,created_by,requested_for_name,amount,currency,purpose,priority,status,document_status&status=in.(DRAFT,SUBMITTED,IN_REVIEW,APPROVED)";
+  let path = "/payment_requests?select=request_id,ref_no,created_at,created_by,requested_for_name,amount,currency,purpose,priority,status,document_status&status=in.(DRAFT,SUBMITTED,IN_REVIEW,APPROVED)";
   if (filters.currency) path += '&currency=' + encodeEq(filters.currency);
   path += '&order=created_at.desc&limit=500';
   const rows = await supabaseRest(env, path);
@@ -53,7 +53,7 @@ export async function getOpenPaymentRequestsReportCore(env, user, filters) {
 
 export async function getRequestsForApprovalReportCore(env, user, filters) {
   scopeCashboxForUser(user, filters.cashbox_id);
-  let path = "/payment_requests?select=request_id,created_at,created_by,requested_for_name,amount,currency,purpose,priority,status,document_status&status=in.(SUBMITTED,IN_REVIEW)";
+  let path = "/payment_requests?select=request_id,ref_no,created_at,created_by,requested_for_name,amount,currency,purpose,priority,status,document_status&status=in.(SUBMITTED,IN_REVIEW)";
   if (filters.currency) path += '&currency=' + encodeEq(filters.currency);
   path += '&order=created_at.desc&limit=500';
   const rows = await supabaseRest(env, path);
@@ -62,13 +62,14 @@ export async function getRequestsForApprovalReportCore(env, user, filters) {
 
 export async function getOrdersWaitingPaymentReportCore(env, user, filters) {
   const cashboxId = scopeCashboxForUser(user, filters.cashbox_id);
-  let path = "/payment_orders?select=order_id,source_request_id,cashbox_id,pay_to_name,amount_ordered,amount_paid,currency,purpose,due_date,priority,status,document_status&status=in.(WAITING_PAYMENT,PARTIALLY_PAID)";
+  let path = "/payment_orders?select=order_id,ref_no,source_request_id,cashbox_id,pay_to_name,amount_ordered,amount_paid,currency,purpose,due_date,priority,status,document_status&status=in.(WAITING_PAYMENT,PARTIALLY_PAID)";
   if (cashboxId) path += '&cashbox_id=' + encodeEq(cashboxId);
   if (filters.currency) path += '&currency=' + encodeEq(filters.currency);
   path += '&order=created_at.desc&limit=500';
   const rows = await supabaseRest(env, path);
   const mapped = (rows || []).map((order) => ({
     order_id: order.order_id,
+    ref_no: order.ref_no || null,
     source_request_id: order.source_request_id,
     cashbox_id: order.cashbox_id,
     pay_to_name: order.pay_to_name,

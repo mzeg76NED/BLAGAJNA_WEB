@@ -119,9 +119,9 @@
   };
 
   var FIELD_LABEL_MAP = {
-    request_id: 'ID zahteva',
-    order_id: 'ID naloga',
-    event_id: 'ID događaja',
+    request_id: 'Br. zahteva',
+    order_id: 'Br. naloga',
+    event_id: 'Br. stavke',
     shift_id: 'ID smene',
     closing_id: 'ID zaključka',
     created_at: 'Kreirano',
@@ -3801,7 +3801,7 @@
       var displayName = cashEventUserLabel_(ev);
       var displayReason = cashEventReasonLabel_(ev);
       return '<tr class="' + rowClass + '">' +
-        '<td>' + (events.length - idx) + '</td>' +
+        '<td>' + (ev.ref_no != null ? ev.ref_no : '—') + '</td>' +
         '<td>' + escapeHtml(formatTimeShort_(ev.event_date || ev.created_at)) + '</td>' +
         '<td>' + escapeHtml(ev.event_type || '') + '</td>' +
         '<td><div class="desc-main">' + escapeHtml(displayName || '—') + '</div><div class="desc-reason">' + escapeHtml(displayReason || '') + '</div></td>' +
@@ -3859,7 +3859,7 @@
       var displayName = cashEventUserLabel_(ev);
       var displayReason = cashEventReasonLabel_(ev);
       return '<tr>' +
-        '<td>' + (events.length - idx) + '</td>' +
+        '<td>' + (ev.ref_no != null ? ev.ref_no : '—') + '</td>' +
         '<td>' + escapeHtml(formatTimeShort_(ev.event_date || ev.created_at)) + '</td>' +
         '<td>' + escapeHtml(ev.event_type || '') + '</td>' +
         '<td>' + escapeHtml(displayName || '—') + (displayReason ? ' — ' + escapeHtml(displayReason) : '') + '</td>' +
@@ -3973,7 +3973,7 @@
       return '<button class="small ' + escapeHtml(action.kind || '') + '" onclick="window.__recordActions[\'' + key + '\']()">' + escapeHtml(action.label) + '</button>';
     }).join('');
     body.innerHTML = [
-      detailRow_('ID zahteva', record.request_id),
+      detailRow_('Br. zahteva', record.ref_no != null ? record.ref_no : record.request_id),
       detailRow_('Primalac', record.requested_for_name),
       detailRow_('Iznos', amountWithCurrency(record.amount, record.currency), true),
       detailRow_('Svrha', record.purpose),
@@ -4004,16 +4004,16 @@
     var head = fields.map(function(field) { return '<th>' + escapeHtml(labelForField_(field)) + '</th>'; }).join('');
     var rows = records.map(function(record) {
       return '<tr>' + fields.map(function(field) {
-        return '<td>' + formatCellHtml_(field, record[field]) + '</td>';
+        return '<td>' + formatCellHtml_(field, displayFieldValue_(record, field)) + '</td>';
       }).join('') + '</tr>';
     }).join('');
     renderHtml(targetId, '<div class="table-wrap"><table><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>');
   }
 
   function recordHtml(record, fields, extraHtml) {
-    var title = fields.length ? formatValue(record[fields[0]]) : 'Zapis';
+    var title = fields.length ? formatValue(displayFieldValue_(record, fields[0])) : 'Zapis';
     var body = fields.slice(1).map(function(field) {
-      return '<div><span class="badge">' + escapeHtml(labelForField_(field)) + '</span> ' + formatCellHtml_(field, record[field]) + '</div>';
+      return '<div><span class="badge">' + escapeHtml(labelForField_(field)) + '</span> ' + formatCellHtml_(field, displayFieldValue_(record, field)) + '</div>';
     }).join('');
     var priority = renderPriorityBadge(record.priority);
     return '<div class="record"><div class="record-title">' + escapeHtml(title) + (priority ? ' ' + priority : '') + '</div>' + body + (extraHtml || []).join('') + '</div>';
@@ -4036,6 +4036,15 @@
 
   function labelForField_(field) {
     return FIELD_LABEL_MAP[field] || field;
+  }
+
+  var REF_NO_FALLBACK_FIELDS_ = { request_id: 1, order_id: 1, event_id: 1 };
+
+  function displayFieldValue_(record, field) {
+    if (REF_NO_FALLBACK_FIELDS_[field] && record && record.ref_no != null) {
+      return record.ref_no;
+    }
+    return record ? record[field] : undefined;
   }
 
   function formatCellHtml_(field, value) {
@@ -4078,7 +4087,7 @@
 
   function renderPaymentRequestSummary(targetId, request, title) {
     renderSummaryCard(targetId, title || 'Zahtev za isplatu', [
-      ['ID zahteva', request && request.request_id],
+      ['Br. zahteva', request && (request.ref_no != null ? request.ref_no : request.request_id)],
       ['Za isplatu', request && request.requested_for_name],
       ['Iznos', amountWithCurrency(request && request.amount, request && request.currency)],
       ['Svrha', request && request.purpose],
@@ -4088,7 +4097,7 @@
 
   function renderOrderSummary(targetId, order, title) {
     renderSummaryCard(targetId, title || 'Nalog za isplatu', [
-      ['ID naloga', order && order.order_id],
+      ['Br. naloga', order && (order.ref_no != null ? order.ref_no : order.order_id)],
       ['Primaoc', order && order.pay_to_name],
       ['Iznos', amountWithCurrency(order && (order.amount_ordered || order.amount), order && order.currency)],
       ['Status', order && order.status]
@@ -4099,8 +4108,8 @@
     var event = (result && (result.cashEvent || result.cash_event || result.event)) || {};
     var order = (result && (result.order || result.paymentOrder || result.payment_order)) || {};
     renderSummaryCard(targetId, 'Isplata je proknjižena', [
-      ['ID događaja', event.event_id],
-      ['ID naloga', event.linked_order_id || order.order_id],
+      ['Br. stavke', event.ref_no != null ? event.ref_no : event.event_id],
+      ['Br. naloga', order.ref_no != null ? order.ref_no : (event.linked_order_id || order.order_id)],
       ['Iznos', amountWithCurrency(event.amount || order.amount_paid || order.amount_ordered, event.currency || order.currency)],
       ['Status', event.status || order.status]
     ]);
@@ -4108,7 +4117,7 @@
 
   function renderCashInflowSummary(targetId, event) {
     renderSummaryCard(targetId, 'Uplata je proknjižena', [
-      ['ID događaja', event && event.event_id],
+      ['Br. stavke', event && (event.ref_no != null ? event.ref_no : event.event_id)],
       ['Iznos', amountWithCurrency(event && event.amount, event && event.currency)],
       ['Opis', event && event.description],
       ['Status', event && event.status]
@@ -4360,13 +4369,14 @@
       return;
     }
     target.innerHTML = '<table class="po-table"><thead><tr>' +
-      '<th>Datum</th><th>Uplatilac</th><th>Najavljeno</th><th>Status</th><th>Stvarna uplata</th><th>Razlika</th>' +
+      '<th>Br.</th><th>Datum</th><th>Uplatilac</th><th>Najavljeno</th><th>Status</th><th>Stvarna uplata</th><th>Razlika</th>' +
       '</tr></thead><tbody>' +
       rows.map(function(a) {
         var statusLabel = a.status === 'MATCHED' ? 'Uparena' : a.status === 'CANCELLED' ? 'Otkazana' : 'Čeka uplatu';
         var statusClass = a.status === 'MATCHED' ? 'po-status-paid' : a.status === 'CANCELLED' ? 'po-status-cancelled' : 'po-status-waiting';
         var diff = a.difference == null ? '—' : (Number(a.difference) > 0 ? 'VIŠAK ' : Number(a.difference) < 0 ? 'MANJAK ' : '') + formatAmount_(Math.abs(a.difference || 0));
         return '<tr data-announcement-id="' + escapeHtml(a.announcement_id) + '">' +
+          '<td>' + (a.ref_no != null ? a.ref_no : '—') + '</td>' +
           '<td>' + escapeHtml(formatDateTimeShort_(a.created_at)) + '</td>' +
           '<td>' + escapeHtml(a.partner_name || '—') + '</td>' +
           '<td>' + formatAmount_(a.announced_amount) + ' ' + escapeHtml(a.currency || '') + '</td>' +
@@ -4454,6 +4464,7 @@
   function announcementToKnjigaRow_(a) {
     return {
       event_id: 'najava:' + a.announcement_id,
+      ref_no: a.ref_no || null,
       event_date: a.matched_at || a.created_at,
       created_at: a.created_at,
       event_type: 'ANNOUNCEMENT',
@@ -4562,7 +4573,7 @@
     }
     overlay.innerHTML =
       '<div class="app-dialog" role="dialog" aria-modal="true">' +
-        '<div class="po-detail-head"><h3>Najava uplate</h3><span class="po-status ' + (a.status === 'MATCHED' ? 'po-status-paid' : a.status === 'CANCELLED' ? 'po-status-cancelled' : 'po-status-waiting') + '">' + escapeHtml(statusLabel) + '</span></div>' +
+        '<div class="po-detail-head"><h3>Najava uplate' + (a.ref_no != null ? ' #' + a.ref_no : '') + '</h3><span class="po-status ' + (a.status === 'MATCHED' ? 'po-status-paid' : a.status === 'CANCELLED' ? 'po-status-cancelled' : 'po-status-waiting') + '">' + escapeHtml(statusLabel) + '</span></div>' +
         '<div class="po-detail-grid">' + rows.map(function(r) { return renderPaymentOrderField_(r[0], r[1]); }).join('') + '</div>' +
         '<div class="m-detail-actions">' +
           (canMatch ? '<button type="button" class="cash-count-action save" id="announcement-match-btn"><i class="ti ti-cash" aria-hidden="true"></i> UPLATA</button>' : '') +
@@ -4660,7 +4671,7 @@
       var disabled = canExecute ? '' : ' disabled';
       var title = canExecute ? '' : ' title="Potrebna je aktivna smena glavnog blagajnika."';
       return '<div class="pending-payment-row" data-pending-payment-id="' + escapeHtml(row.pending_payment_id || row.event_id || '') + '">' +
-        '<div><strong>' + escapeHtml(row.order_id || row.linked_order_id || '—') + '</strong>' +
+        '<div><strong>Nalog ' + (row.order_ref_no != null ? '#' + row.order_ref_no : escapeHtml(row.order_id || row.linked_order_id || '—')) + '</strong>' +
           '<span>' + escapeHtml(row.pay_to_name || row.partner_name || '—') + '</span>' +
           '<small>' + escapeHtml(row.purpose || row.description || '—') + '</small></div>' +
         '<div class="pending-payment-amount">' + escapeHtml(formatAmount_(row.amount)) + ' ' + escapeHtml(row.currency || '') + '</div>' +
@@ -4745,8 +4756,13 @@
       var isTreasury = ev.event_type === 'TREASURY_HANDOVER';
       if (displayDirection === 'IN')  totalIn  += displayAmount;
       if (displayDirection === 'OUT' && !isTreasury) totalOut += displayAmount;
+      // Rb. kolona: prikazuje STABILAN ref_no (permanentan broj dodeljen pri kreiranju,
+      // ne menja se filtriranjem/paginacijom - koristi se i za reference "Storno stavke
+      // #N"/"po najavi #N"), ne poziciju u trenutno ucitanoj listi. Optimisticne stavke
+      // (tek poslate, server jos nije potvrdio) i dalje nemaju ref_no - za njih se
+      // privremeno prikazuje "…" dok se ne osvezi sa servera.
       var rowNumber = events.length - idx;
-      ev.__displayIndex = rowNumber;
+      ev.__displayIndex = ev.ref_no != null ? ev.ref_no : '…';
       ev.__balanceAfter = Number(ev.running_balance || 0);
       ev.__balanceBefore = ev.__balanceAfter - (displayDirection === 'IN' ? displayAmount : displayDirection === 'OUT' ? -displayAmount : 0);
       if (!isMobile) {
@@ -4848,6 +4864,30 @@
       net.classList.toggle('amount-negative', netChange < 0);
       net.classList.toggle('amount-neutral', netChange === 0);
     }
+    if (document.getElementById('d-kpi-announced-total')) {
+      var announcementTotals = computeAnnouncementTotals_();
+      setText_('d-kpi-announced-total', formatAmount_(announcementTotals.total) + ' ' + currency);
+      setText_('d-kpi-announced-paid', formatAmount_(announcementTotals.paid) + ' ' + currency);
+      setText_('d-kpi-announced-remaining', formatAmount_(announcementTotals.remaining) + ' ' + currency);
+    }
+  }
+
+  // Najave ne menjaju stanje blagajne pa se ne mogu izvesti iz cash_events - ovo je
+  // agregacija nad već učitanim LAST_KNJIGA_ANNOUNCEMENTS (isti izvor koji se koristi za
+  // spajanje najava u Knjigu, vidi mergeAnnouncementsIntoEvents_), bez novog endpoint-a.
+  function computeAnnouncementTotals_() {
+    var total = 0, paid = 0, remaining = 0;
+    (LAST_KNJIGA_ANNOUNCEMENTS || []).forEach(function(a) {
+      if (a.status === 'CANCELLED') return;
+      var announced = Number(a.announced_amount || 0);
+      total += announced;
+      if (a.status === 'MATCHED') {
+        paid += Number(a.matched_amount != null ? a.matched_amount : announced);
+      } else {
+        remaining += announced;
+      }
+    });
+    return { total: total, paid: paid, remaining: remaining };
   }
 
   function formatDateLong_(value) {
@@ -4960,6 +5000,16 @@
     return (LAST_KNJIGA_EVENTS || []).some(function(e) { return e.reversal_of_event_id === eventId; });
   }
 
+  // Resolves an internal hash event_id (e.g. "CEV-a1b2...") to its human-readable
+  // ref_no, using whatever's currently loaded in the Knjiga. Falls back to the raw
+  // id if the referenced event isn't in the loaded window (e.g. outside the current
+  // date filter) - better than showing nothing.
+  function refNoForEventId_(eventId) {
+    if (!eventId) return '';
+    var found = (LAST_KNJIGA_EVENTS || []).find(function(e) { return e.event_id === eventId; });
+    return found && found.ref_no != null ? ('#' + found.ref_no) : eventId;
+  }
+
   function cashEventReasonLabel_(ev) {
     if (ev.event_type === 'ANNOUNCEMENT') {
       var statusLabel = ev.status === 'MATCHED' ? 'Uparena' : ev.status === 'CANCELLED' ? 'Otkazana' : 'Čeka uplatu';
@@ -4986,12 +5036,13 @@
     var reason  = escapeHtml(cashEventReasonLabel_(ev));
     var createdBy = escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—'));
     var timeStr = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date));
-    var trace = ev.reversal_of_event_id ? ' · Storno stavke ' + escapeHtml(ev.reversal_of_event_id)
+    var trace = ev.reversal_of_event_id ? ' · Storno stavke ' + escapeHtml(refNoForEventId_(ev.reversal_of_event_id))
       : isEventAlreadyReversed_(ev.event_id) ? ' · Stornirano' : '';
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     var idAttr = isAnnouncement ? 'data-announcement-id="' + escapeHtml(ev.__announcement.announcement_id) + '"' : 'data-event-id="' + escapeHtml(ev.event_id) + '"';
+    var refDisplay = ev.ref_no != null ? ev.ref_no : '…';
     return '<tr class="' + rowClass + ' cashbook-row" ' + idAttr + '>' +
-      '<td><span class="cashbook-rb">' + index + '</span></td>' +
+      '<td><span class="cashbook-rb">' + refDisplay + '</span></td>' +
       '<td><span class="cashbook-row-date">' + dateStr + '</span><strong class="cashbook-row-time">' + timeStr + '</strong></td>' +
       '<td><div class="desc-main">' + label + '</div><div class="desc-reason">' + reason + '</div><div class="desc-sub">' + createdBy + trace + statusHint + '</div></td>' +
       '<td class="' + (isIn  ? 'cell-in'   : 'cell-dash') + '">' + (isIn  ? '<span class="amount-pill in">' + amtFmt + '</span>' : isAnnouncement ? '<span class="amount-pill" style="background:rgba(148,163,184,.18);color:#94a3b8">' + amtFmt + '</span>' : '—') + '</td>' +
@@ -5036,8 +5087,12 @@
   function renderMobileTrafficSummary_() {
     var box = document.getElementById('m-traffic-summary');
     if (!box) return;
+    var announcementTotals = computeAnnouncementTotals_();
     box.innerHTML = renderKnjigaTotalsHtml_(LAST_KNJIGA_TOTALS.totalIn, LAST_KNJIGA_TOTALS.totalOut, LAST_KNJIGA_TOTALS.finalBalance) +
-      '<span><strong>Stavki</strong> <b>' + LAST_KNJIGA_TOTALS.count + '</b></span>';
+      '<span><strong>Stavki</strong> <b>' + LAST_KNJIGA_TOTALS.count + '</b></span>' +
+      '<span><strong>Najave</strong> <b>' + formatAmount_(announcementTotals.total) +
+        '</b> / uplaćeno <b class="cell-in">' + formatAmount_(announcementTotals.paid) +
+        '</b> / preostalo <b class="cell-out">' + formatAmount_(announcementTotals.remaining) + '</b></span>';
   }
 
   function renderMobileEntry_(ev, index) {
@@ -5054,13 +5109,14 @@
     var reason = escapeHtml(cashEventReasonLabel_(ev));
     var meta   = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) +
       ' · ' + escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—')) +
-      (ev.reversal_of_event_id ? ' · Storno stavke' : isEventAlreadyReversed_(ev.event_id) ? ' · Stornirano' : '');
+      (ev.reversal_of_event_id ? ' · Storno stavke ' + escapeHtml(refNoForEventId_(ev.reversal_of_event_id)) : isEventAlreadyReversed_(ev.event_id) ? ' · Stornirano' : '');
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     var idAttr = isAnnouncement ? 'data-announcement-id="' + escapeHtml(ev.__announcement.announcement_id) + '"' : 'data-event-id="' + escapeHtml(ev.event_id) + '"';
+    var refDisplay = ev.ref_no != null ? ev.ref_no : '…';
     return '<div class="m-entry' + (isCount ? ' count' : '') + (isAnnouncement ? ' announcement' : '') + (ev.optimistic_id ? ' optimistic' : '') + '" ' + idAttr + '>' +
       '<div class="m-entry-dot" style="background:' + dotBg + '"></div>' +
       '<div class="m-entry-info">' +
-        '<div class="m-entry-desc"><span class="m-entry-no">' + index + '.</span> ' + label + '</div>' +
+        '<div class="m-entry-desc"><span class="m-entry-no">' + refDisplay + '.</span> ' + label + '</div>' +
         '<div class="m-entry-meta">' + reason + '</div>' +
         '<div class="m-entry-meta">' + meta + statusHint + '</div>' +
       '</div>' +
@@ -5109,7 +5165,7 @@
       ['Smena', escapeHtml(ev.shift_id || '—')],
       ['Napomena', escapeHtml(ev.note || ev.comment || '—')],
       ['Način evidentiranja', ev.optimistic_id ? 'U toku knjiženja' : 'Ručno'],
-      ['Referenca', escapeHtml(ev.reversal_of_event_id || ev.source_id || ev.payment_order_id || '—')]
+      ['Referenca', ev.reversal_of_event_id ? escapeHtml('Storno stavke ' + refNoForEventId_(ev.reversal_of_event_id)) : escapeHtml(ev.source_id || ev.payment_order_id || '—')]
     ];
 
     body.innerHTML =
@@ -5206,7 +5262,7 @@
       ['Uneo', escapeHtml(ev.posted_by || ev.created_by || '—')]
     ];
     if (ev.reversal_of_event_id) {
-      rows.push(['Veza storna', escapeHtml(ev.reversal_of_event_id)]);
+      rows.push(['Veza storna', escapeHtml(refNoForEventId_(ev.reversal_of_event_id))]);
     }
     body.innerHTML = rows.map(function(r) {
       return '<div class="detail-row" style="border-bottom:1px solid var(--color-border-light);padding:9px 0">' +
@@ -6156,11 +6212,12 @@
     }
     var actionable = rows.filter(function(o) { return o.status === 'DRAFT' || o.status === 'WAITING_PAYMENT' || o.status === 'PARTIALLY_PAID'; });
     list.innerHTML = rows.map(function(order) {
+      var orderLabel = order.refNo != null ? ('Nalog #' + order.refNo) : escapeHtml(order.id);
       return '<div class="m-entry" data-order-id="' + escapeHtml(order.id) + '">' +
         '<div class="m-entry-dot" style="background:var(--color-out)"></div>' +
         '<div class="m-entry-info">' +
           '<div class="m-entry-desc">' + escapeHtml(order.recipient || '—') + '</div>' +
-          '<div class="m-entry-meta">' + escapeHtml(order.id) + ' · ' + formatAmount_(order.remaining || order.amountOrdered) + ' ' + escapeHtml(order.currency || '') + '</div>' +
+          '<div class="m-entry-meta">' + orderLabel + ' · ' + formatAmount_(order.remaining || order.amountOrdered) + ' ' + escapeHtml(order.currency || '') + '</div>' +
         '</div>' +
         '<span class="po-status ' + paymentOrderStatusClass_(order.status) + '">' + escapeHtml(paymentOrderStatusLabel_(order.status)) + '</span>' +
       '</div>';
@@ -6187,7 +6244,7 @@
     overlay.className = 'app-dialog-overlay';
     overlay.innerHTML =
       '<div class="app-dialog" role="dialog" aria-modal="true">' +
-        '<div class="po-detail-head"><h3>' + escapeHtml(order.id) + '</h3><span class="po-status ' + paymentOrderStatusClass_(order.status) + '">' + escapeHtml(paymentOrderStatusLabel_(order.status)) + '</span></div>' +
+        '<div class="po-detail-head"><h3>' + (order.refNo != null ? 'Nalog #' + order.refNo : escapeHtml(order.id)) + '</h3><span class="po-status ' + paymentOrderStatusClass_(order.status) + '">' + escapeHtml(paymentOrderStatusLabel_(order.status)) + '</span></div>' +
         '<div class="po-detail-grid">' +
           renderPaymentOrderField_('Primalac', order.recipient) +
           renderPaymentOrderField_('Blagajna', order.cashbox) +
@@ -7366,6 +7423,7 @@
     return {
       raw: order,
       id: order.order_id || order.id || '',
+      refNo: order.ref_no != null ? order.ref_no : null,
       date: order.issued_at || order.created_at || order.updated_at || '',
       createdAt: order.created_at || '',
       issuedAt: order.issued_at || '',

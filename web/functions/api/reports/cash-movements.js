@@ -24,6 +24,7 @@ function sanitizeEvent(event, index, runningBalance) {
   return {
     event_date: event.event_date || event.created_at || '',
     event_id: event.event_id || '',
+    ref_no: event.ref_no || null,
     entry_number: index + 1,
     event_type: event.event_type || '',
     direction: event.direction || '',
@@ -95,7 +96,7 @@ export async function onRequestGet(context) {
       return apiError('Nemate pristup izabranoj blagajni.', 403);
     }
 
-    let path = '/cash_events?select=event_id,created_at,created_by,event_date,event_type,cashbox_id,currency,direction,amount,linked_order_id,partner_name,description,document_status,status,posted_by,posted_at,reversal_of_event_id';
+    let path = '/cash_events?select=event_id,ref_no,created_at,created_by,event_date,event_type,cashbox_id,currency,direction,amount,linked_order_id,partner_name,description,document_status,status,posted_by,posted_at,reversal_of_event_id';
     if (cashboxId) path += '&cashbox_id=' + encodeEq(cashboxId);
     if (currency) path += '&currency=' + encodeEq(currency);
     if (status) path += '&status=' + encodeEq(status);

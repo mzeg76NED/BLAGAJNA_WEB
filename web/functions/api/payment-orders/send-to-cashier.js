@@ -94,7 +94,7 @@ export async function onRequestPost(context) {
       linked_request_id: order.linked_request_id || order.source_request_id || null,
       linked_order_id: order.order_id,
       partner_name: order.pay_to_name,
-      description: (order.purpose || '') + '\nPending ISPLATA po nalogu ' + order.order_id,
+      description: (order.purpose || '') + '\nPending ISPLATA po nalogu ' + (order.ref_no ? ('#' + order.ref_no) : order.order_id),
       document_status: 'MISSING',
       status: 'SUBMITTED',
       posted_by: null,
