@@ -1265,6 +1265,14 @@
     renderAppSessionHeader_();
     applyActiveShiftFields_();
     applyDirectCashPermission_();
+    bindAnnouncementButtons_();
+    // Pomoćni blagajnik nema cash_events:view (namerno - vidi samo najave), pa bi
+    // podrazumevani Knjiga ekran za njih samo prikazao grešku 403. Umesto toga ih
+    // vodimo pravo na njihov jedini radni ekran.
+    if (isDesktop && uiState.currentUser && uiState.currentUser.role === 'ASSISTANT_CASHIER') {
+      openDesktopSection_('najave');
+      loadDesktopAnnouncements_();
+    }
     loadCashbookFilterOptions_();
     bindBalanceOverviewButtons_();
     bindShiftWorkActions_();
@@ -4213,7 +4221,76 @@
 
   /* ─── Knjiga: učitaj i renderuj ──────────────────────────────── */
 
+  function bindAnnouncementButtons_() {
+    var canCreate = canCreatePaymentAnnouncement_();
+    var canView = canViewPaymentAnnouncements_();
+    ['d-new-announcement-btn', 'm-new-announcement-btn', 'd-najave-add-btn'].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.hidden = !canCreate;
+      if (!btn.dataset.bound) {
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', function() { openCreateAnnouncementDialog_(); });
+      }
+    });
+    var navNajave = document.getElementById('d-nav-najave');
+    if (navNajave) navNajave.hidden = !canView;
+    var refreshBtn = document.getElementById('d-najave-refresh-btn');
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+      refreshBtn.dataset.bound = '1';
+      refreshBtn.addEventListener('click', loadDesktopAnnouncements_);
+    }
+  }
+
+  function loadDesktopAnnouncements_() {
+    bindAnnouncementButtons_();
+    var target = document.getElementById('d-najave-list');
+    if (!target) return;
+    if (!canViewPaymentAnnouncements_()) {
+      target.innerHTML = '<div class="empty-state"><i class="ti ti-lock" aria-hidden="true"></i><p>Nemate ovlašćenje za pregled najava.</p></div>';
+      return;
+    }
+    target.innerHTML = '<div class="empty-state compact"><p>Učitavam najave...</p></div>';
+    callApi('apiListPaymentAnnouncements', [withUiDefaults({ cashbox_id: SESSION.cashboxId, currency: SESSION.currency })], function(rows) {
+      renderDesktopAnnouncementsList_(rows || []);
+    }, { quiet: true });
+  }
+
+  function renderDesktopAnnouncementsList_(rows) {
+    var target = document.getElementById('d-najave-list');
+    if (!target) return;
+    if (!rows.length) {
+      target.innerHTML = '<div class="empty-state"><i class="ti ti-bell-off" aria-hidden="true"></i><p>Nema najava uplate.</p></div>';
+      return;
+    }
+    target.innerHTML = '<table class="po-table"><thead><tr>' +
+      '<th>Datum</th><th>Uplatilac</th><th>Najavljeno</th><th>Status</th><th>Stvarna uplata</th><th>Razlika</th>' +
+      '</tr></thead><tbody>' +
+      rows.map(function(a) {
+        var statusLabel = a.status === 'MATCHED' ? 'Uparena' : a.status === 'CANCELLED' ? 'Otkazana' : 'Čeka uplatu';
+        var statusClass = a.status === 'MATCHED' ? 'po-status-paid' : a.status === 'CANCELLED' ? 'po-status-cancelled' : 'po-status-waiting';
+        var diff = a.difference == null ? '—' : (Number(a.difference) > 0 ? 'VIŠAK ' : Number(a.difference) < 0 ? 'MANJAK ' : '') + formatAmount_(Math.abs(a.difference || 0));
+        return '<tr data-announcement-id="' + escapeHtml(a.announcement_id) + '">' +
+          '<td>' + escapeHtml(formatDateTimeShort_(a.created_at)) + '</td>' +
+          '<td>' + escapeHtml(a.partner_name || '—') + '</td>' +
+          '<td>' + formatAmount_(a.announced_amount) + ' ' + escapeHtml(a.currency || '') + '</td>' +
+          '<td><span class="po-status ' + statusClass + '">' + statusLabel + '</span></td>' +
+          '<td>' + (a.matched_amount == null ? '—' : formatAmount_(a.matched_amount) + ' ' + escapeHtml(a.currency || '')) + '</td>' +
+          '<td>' + diff + '</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table>';
+    target.querySelectorAll('[data-announcement-id]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var id = row.getAttribute('data-announcement-id');
+        var announcement = rows.find(function(a) { return a.announcement_id === id; });
+        if (announcement) openAnnouncementDetail_(announcement);
+      });
+    });
+  }
+
   function loadKnjiga_(isBackground) {
+    bindAnnouncementButtons_();
     var dateFrom = (document.getElementById('d-date-from') || {}).value || '';
     var dateTo   = (document.getElementById('d-date-to')   || {}).value || '';
     var userFilter = (document.getElementById('d-user-filter') || {}).value || '';
@@ -4301,6 +4378,154 @@
       .map(announcementToKnjigaRow_);
     return rows.concat(events).sort(function(a, b) {
       return new Date(b.event_date || 0).getTime() - new Date(a.event_date || 0).getTime();
+    });
+  }
+
+  function openCreateAnnouncementDialog_() {
+    var cashboxes = uiState.config.cashboxes || [{ cashbox_id: SESSION.cashboxId || 'CB_MAIN', name: SESSION.cashboxName || 'Glavna blagajna' }];
+    var currencies = uiState.config.currencies || [SESSION.currency || 'RSD'];
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>Najava uplate</h3>' +
+        '<p style="color:var(--color-text-muted);font-size:12px;margin-top:-6px">Najava ne menja stanje blagajne - vidljiva je u Knjizi kao informativna stavka dok se ne uparí sa stvarnom uplatom.</p>' +
+        '<form id="announcement-form" class="form-grid">' +
+          '<label>Blagajna <select name="cashbox_id">' + cashboxes.map(function(item) {
+            return '<option value="' + escapeHtml(item.cashbox_id) + '"' + (item.cashbox_id === SESSION.cashboxId ? ' selected' : '') + '>' + escapeHtml(item.name || item.cashbox_id) + '</option>';
+          }).join('') + '</select></label>' +
+          '<label>Valuta <select name="currency">' + currencies.map(function(code) {
+            return '<option value="' + escapeHtml(code) + '"' + (code === SESSION.currency ? ' selected' : '') + '>' + escapeHtml(code) + '</option>';
+          }).join('') + '</select></label>' +
+          '<label>Uplatilac <input name="partner_name" type="text" required></label>' +
+          '<label>Najavljeni iznos <input name="announced_amount" type="text" inputmode="decimal" required></label>' +
+          '<label>Osnov <input name="purpose" type="text"></label>' +
+          '<label>Napomena <textarea name="note"></textarea></label>' +
+          '<div class="m-detail-actions">' +
+            '<button type="button" class="btn-ghost" id="announcement-form-cancel">Otkaži</button>' +
+            '<button type="submit" class="btn-primary" id="announcement-form-save">Sačuvaj najavu</button>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    var form = overlay.querySelector('#announcement-form');
+    var cancelBtn = overlay.querySelector('#announcement-form-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', close);
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+      var data = {
+        cashbox_id: form.elements.cashbox_id.value,
+        currency: form.elements.currency.value,
+        partner_name: form.elements.partner_name.value.trim(),
+        announced_amount: parseAmountInput_(form.elements.announced_amount.value),
+        purpose: form.elements.purpose.value.trim(),
+        note: form.elements.note.value.trim()
+      };
+      if (!data.partner_name) { showMessage('Unesite uplatioca.', 'error'); return; }
+      if (!(data.announced_amount > 0)) { showMessage('Unesite iznos veći od nule.', 'error'); return; }
+      callApi('apiCreatePaymentAnnouncement', [data], function() {
+        showMessage('Najava uplate je sačuvana.', 'success');
+        close();
+        if (canViewPaymentAnnouncements_()) loadKnjigaAnnouncements_();
+      }, { successMessage: 'Najava uplate je sačuvana.' });
+    });
+  }
+
+  function openAnnouncementDetail_(a) {
+    var isOpen = a.status === 'OPEN';
+    var canMatch = isOpen && canMatchPaymentAnnouncements_();
+    var canCancel = isOpen && (canCreatePaymentAnnouncement_() || canMatchPaymentAnnouncements_());
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    var statusLabel = a.status === 'MATCHED' ? 'Uparena' : a.status === 'CANCELLED' ? 'Otkazana' : 'Čeka uplatu';
+    var rows = [
+      ['Uplatilac', a.partner_name || '—'],
+      ['Blagajna', a.cashbox_id || '—'],
+      ['Valuta', a.currency || '—'],
+      ['Najavljeni iznos', formatAmount_(a.announced_amount) + ' ' + escapeHtml(a.currency || '')],
+      ['Osnov', a.purpose || '—'],
+      ['Napomena', a.note || '—'],
+      ['Kreirao', shortUserLabel_(a.created_by || '—')],
+      ['Status', statusLabel]
+    ];
+    if (a.status === 'MATCHED') {
+      rows.push(['Stvarna uplata', formatAmount_(a.matched_amount) + ' ' + escapeHtml(a.currency || '')]);
+      rows.push(['Razlika', (a.difference == null ? '—' : (Number(a.difference) > 0 ? 'VIŠAK ' : Number(a.difference) < 0 ? 'MANJAK ' : '') + formatAmount_(Math.abs(a.difference || 0)) + ' ' + escapeHtml(a.currency || ''))]);
+      rows.push(['Uparila', shortUserLabel_(a.matched_by || '—')]);
+    }
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<div class="po-detail-head"><h3>Najava uplate</h3><span class="po-status ' + (a.status === 'MATCHED' ? 'po-status-paid' : a.status === 'CANCELLED' ? 'po-status-cancelled' : 'po-status-waiting') + '">' + escapeHtml(statusLabel) + '</span></div>' +
+        '<div class="po-detail-grid">' + rows.map(function(r) { return renderPaymentOrderField_(r[0], r[1]); }).join('') + '</div>' +
+        '<div class="m-detail-actions">' +
+          (canMatch ? '<button type="button" class="cash-count-action save" id="announcement-match-btn"><i class="ti ti-cash" aria-hidden="true"></i> UPLATA</button>' : '') +
+          (canCancel ? '<button type="button" class="cash-count-action cancel" id="announcement-cancel-btn"><i class="ti ti-circle-x" aria-hidden="true"></i> Otkaži najavu</button>' : '') +
+        '</div>' +
+        '<button type="button" class="btn-ghost btn-full" id="announcement-detail-close">Zatvori</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    var closeBtn = overlay.querySelector('#announcement-detail-close');
+    if (closeBtn) closeBtn.addEventListener('click', close);
+    var matchBtn = overlay.querySelector('#announcement-match-btn');
+    if (matchBtn) matchBtn.addEventListener('click', function() { close(); openMatchAnnouncementDialog_(a); });
+    var cancelBtn = overlay.querySelector('#announcement-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', function() {
+      appPrompt_({
+        title: 'Otkazivanje najave',
+        message: 'Unesite razlog otkazivanja najave (opciono).',
+        confirmText: 'Otkaži najavu',
+        placeholder: 'Razlog (opciono)'
+      }, function(reason) {
+        callApi('apiCancelPaymentAnnouncement', [a.announcement_id, reason || ''], function() {
+          showMessage('Najava je otkazana.', 'success');
+          close();
+          if (canViewPaymentAnnouncements_()) loadKnjigaAnnouncements_();
+        });
+      });
+    });
+  }
+
+  function openMatchAnnouncementDialog_(a) {
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>UPLATA po najavi</h3>' +
+        '<p style="color:var(--color-text-muted);font-size:12px;margin-top:-6px">Najavljeno: ' + formatAmount_(a.announced_amount) + ' ' + escapeHtml(a.currency || '') + ' od ' + escapeHtml(a.partner_name || '') + '. Unesite STVARNI primljeni iznos - knjiži se kao normalna uplata; eventualna razlika u odnosu na najavu automatski se evidentira kao VIŠAK/MANJAK.</p>' +
+        '<form id="announcement-match-form" class="form-grid">' +
+          '<label>Stvarni iznos uplate <input name="actual_amount" type="text" inputmode="decimal" value="' + escapeHtml(String(a.announced_amount || '')) + '" required></label>' +
+          '<label>Napomena <textarea name="note"></textarea></label>' +
+          '<div class="m-detail-actions">' +
+            '<button type="button" class="btn-ghost" id="announcement-match-cancel">Otkaži</button>' +
+            '<button type="submit" class="btn-primary" id="announcement-match-save">Knjiži uplatu</button>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    var form = overlay.querySelector('#announcement-match-form');
+    var cancelBtn = overlay.querySelector('#announcement-match-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', close);
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+      var actualAmount = parseAmountInput_(form.elements.actual_amount.value);
+      if (!(actualAmount > 0)) { showMessage('Unesite iznos veći od nule.', 'error'); return; }
+      var data = { actual_amount: actualAmount, note: form.elements.note.value.trim() };
+      callApi('apiMatchPaymentAnnouncement', [a.announcement_id, data], function(result) {
+        var diff = result && result.announcement ? Number(result.announcement.difference || 0) : 0;
+        var diffMsg = Math.abs(diff) > 0.000001
+          ? (diff > 0 ? ' Zabeležen je VIŠAK od ' : ' Zabeležen je MANJAK od ') + formatAmount_(Math.abs(diff)) + ' ' + escapeHtml(a.currency || '') + '.'
+          : '';
+        showMessage('Uplata po najavi je proknjižena.' + diffMsg, 'success');
+        close();
+        loadKnjiga_(true);
+        refreshBalance_();
+      }, { successMessage: 'Uplata je proknjižena.' });
     });
   }
 
@@ -4431,7 +4656,11 @@
 
     container.innerHTML = rows.join('');
     if (tfoot) tfoot.innerHTML = '';
-    var finalBalance = events.length ? Number(events[0].running_balance || 0) : 0;
+    // events[0] might be a merged ANNOUNCEMENT row (running_balance: null, since najave
+    // ne menjaju stanje) - uzimamo running_balance najnovijeg STVARNOG cash_event-a, ne
+    // prvog reda po datumu, da završno stanje/KPI ne skoči na 0 kad je najava najnovija.
+    var latestRealEvent = events.find(function(e) { return e.event_type !== 'ANNOUNCEMENT'; });
+    var finalBalance = latestRealEvent ? Number(latestRealEvent.running_balance || 0) : 0;
     var netChange = totalIn - totalOut;
     var openingBalance = finalBalance - netChange;
     updateKnjigaTotals_(totalIn, totalOut, finalBalance, events.length);
@@ -5373,6 +5602,7 @@
         if (target === 'zahtevi') { loadDesktopPaymentRequests_(); }
         if (target === 'users-admin') { loadDesktopUsersAdmin_(); }
         if (target === 'valute') { loadDesktopCurrencies_(); }
+        if (target === 'najave') { loadDesktopAnnouncements_(); }
         if (target === 'smena')    { loadMyShiftsTo_('d-shifts-list'); }
         if (target === 'presek')  { loadCashCounts_(); }
         if (target === 'blagajnicki-list') { loadCashSheet_(); }

@@ -633,3 +633,34 @@ Sledeci korak:
 - Korisnik push-uje i testira: Valute ekran (dodavanje/izmena/apoeni), i "Blagajnicki list" dugme u Knjizi (treba da vodi na ispravan izvestaj sa opcijom stampe).
 - Odluciti da li i kada popraviti preostalih 5 print-*.html stranica (odvojen posao, nije deo trenutnog zahteva).
 - Nastaviti sa Najave (najava uplate) feature-om - poslednja preostala stavka iz odobrenog zahteva.
+
+## FAZA 3o - Najave uplate (payment announcements) - pun feature (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE (implementacija), CEKA SQL primenu na live bazi + runtime test
+
+Kontekst: Poslednja stavka iz korisnikovog velikog potvrdjenog zahteva. Spec (potvrdjen od korisnika): nova rola ANNOUNCER koja SAMO kreira najavu uplate (bez pristupa knjizi/blagajni); glavni CASHIER takodje moze da kreira i dalje postupa sa najavama; nova rola ASSISTANT_CASHIER koja vidi ogranicenu "knjigu" - samo najave i uplate po njima; UPLATA akcija knjizi stvarnu uplatu kao normalan cash_event, a razliku u odnosu na najavu beleze kao poseban VISAK/MANJAK CORRECTION cash_event (eksplicitna instrukcija korisnika, isti pattern kao Presek stanja razlike).
+
+Sta je uradjeno:
+
+1. **Sema** (`supabase/migrations/202607090001_initial_schema.sql`) - dodata `payment_announcements` tabela (status OPEN/MATCHED/CANCELLED, pamti matched_cash_event_id + matched_correction_event_id + matched_amount + difference) i INLINE prosiren `users_role_check` constraint sa ANNOUNCER/ASSISTANT_CASHIER. Posto `users` tabela vec postoji na live bazi, na kraju fajla je DODAT eksplicitan `alter table users drop/add constraint` blok (idempotentan preko `drop constraint if exists`) koji korisnik treba da pokrene protiv Supabase-a - sam CREATE TABLE payment_announcements je bezbedan da se doda direktno.
+2. **Permisije** (`supabase/seed.sql`) - nove role ANNOUNCER/ASSISTANT_CASHIER u `roles`; nove permisije `payment_announcements:create/view/match`; grant-ovi: ANNOUNCER samo `create`, ASSISTANT_CASHIER samo `view`, CASHIER sve tri (create+view+match, po specu "glavni blagajnik moze i da postupa sa njom"), CASHIER_SUPERVISOR/FINANCE `view`+`match` (nadzor), ADMIN sve.
+3. **Backend jezgro** (`web/functions/_lib/paymentAnnouncements.js`, novo) - `createAnnouncementCore`, `listAnnouncementsCore` (skopiran po cashbox-u za CASHIER/ANNOUNCER/ASSISTANT_CASHIER, isti princip kao `scopeCashboxForUser` u reports.js ali prosiren na sve 3 cashbox-vezane role), `matchAnnouncementCore` (UPLATA akcija - postuje CASH_INFLOW za stvarni iznos + opciono CORRECTION za VISAK/MANJAK razliku, tacno kopirano iz `cashCounts.js buildCorrectionEvent` pattern-a), `cancelAnnouncementCore`.
+4. **API rute** (`web/functions/api/payment-announcements/{create,list,match,cancel}.js`, novo) - tanki wrapper-i, isti obrazac kao `daily-closing/prepare.js`. `list.js` namerno NE prihvata `payment_announcements:create` kao dovoljnu privilegiju (samo `view`/`match`) - ANNOUNCER sme da kreira ali ne i da pregleda tudje najave, tacno po specu "moze SAMO da uradi najavu".
+5. **Adapter** (`cloudflare-apps-script-adapter.js`) - `apiCreatePaymentAnnouncement`, `apiListPaymentAnnouncements`, `apiMatchPaymentAnnouncement`, `apiCancelPaymentAnnouncement`.
+6. **Role wiring** - `_lib/permissions.js USER_ROLES` prosiren (koristi ga `users/create.js` za validaciju role pri kreiranju korisnika); `scripts.html roleLabel_()` mapa + 2 hardkodovana role-array fallback-a azurirani sa novim rolama.
+7. **Knjiga integracija (frontend merge, bez diranja cash-movements.js)** - `loadKnjiga_()` po ucitavanju STVARNIH cash_events-a, AKO korisnik ima `payment_announcements:view` ili `:match`, dodatno ucitava najave (`loadKnjigaAnnouncements_`) i re-renderuje. `renderKnjigaTable_()` sad zove `mergeAnnouncementsIntoEvents_()` koja pretvara svaku ne-otkazanu najavu u sintetican "red" (event_type ANNOUNCEMENT, display_direction 'INFO' - namerno ne pogadja IN/OUT totale/balans) i ubacuje ga hronoloski medju prave dogadjaje. `cashEventUserLabel_`/`cashEventReasonLabel_`/`renderKnjigaRow_`/`renderMobileEntry_` prosireni sa ANNOUNCEMENT granom (siva boja, status chip, bez prikaza balansa na tom redu - polje "Zavrsno stanje" bi inace pogresno pokazalo 0 ako je najava najnoviji red po datumu, ISPRAVLJENO u `renderKnjigaTable_` da trazi poslednji STVARNI cash_event za finalBalance). Klik na najavu red (`data-announcement-id`, odvojeno od `data-event-id`) otvara `openAnnouncementDetail_`.
+8. **UI akcije** - `openCreateAnnouncementDialog_` (dugme "Najava uplate" u Knjiga toolbar-u, desktop `#d-new-announcement-btn` + mobile `#m-new-announcement-btn`, vidljivo samo sa `payment_announcements:create`), `openAnnouncementDetail_` (detalji + dugmad uslovljena statusom/privilegijom: UPLATA samo OPEN+match, Otkazi OPEN+create-ili-match), `openMatchAnnouncementDialog_` (unos stvarnog iznosa, poziva `apiMatchPaymentAnnouncement`, prikazuje VISAK/MANJAK poruku ako se razlikuje od najave).
+9. **Ogranicen ekran za Pomocnog blagajnika** (`d-section-najave`, desktop) - nov nav item "Najave uplate" (`#d-nav-najave`), vidljiv svakom ko ima `payment_announcements:view`/`:match` (ne samo ASSISTANT_CASHIER - CASHIER/nadzor takodje dobijaju prakticnu preglednu tabelu). Koristi ISKLJUCIVO `apiListPaymentAnnouncements` (privilegija koju ASSISTANT_CASHIER ima) - namerno NE zahteva `cash_events:view` (koji ASSISTANT_CASHIER nema, po specu "vidi SAMO najave"), pa je ovo zaista "jos jedna knjiga" nezavisna od prave Knjige. Login bootstrap (`bootstrapShellAfterAppSession_`) automatski navigira ASSISTANT_CASHIER pravo na ovaj ekran (default Knjiga ekran bi im inace vratio 403 jer nemaju cash_events:view).
+
+Sta nije uradjeno:
+
+- SQL nije pusten na live Supabase bazu - korisnik treba da pokrene `alter table users .../create table payment_announcements` blok sa kraja `202607090001_initial_schema.sql`.
+- Mobilni ekran za Pomocnog blagajnika NIJE napravljen (samo desktop `d-section-najave`) - mobile.html ima fiksne tabove (Knjiga/Nalozi/Smena/Presek/Zakljucak) pa bi dodavanje novog taba bilo veci zahvat; ASSISTANT_CASHIER trenutno mora da koristi desktop prikaz. Mobilni "Najava uplate" dugme u Knjiga toolbar-u i sam merge u m-knjiga-list RADE (deljen kod sa desktop-om), samo namenski poseban ASSISTANT_CASHIER tab ne postoji na telefonu.
+- Runtime test celog toka (kreiranje najave → UPLATA → provera VISAK/MANJAK cash_event-a u Knjizi → ASSISTANT_CASHIER prijava i provera ogranicenog ekrana).
+- Nije dodato dugme/tok za "editovanje" OPEN najave (samo kreiranje/otkazivanje/uparivanje) - ako zatreba izmena iznosa/napomene pre uparivanja, trenutno se mora otkazati i kreirati nova.
+
+Sledeci korak:
+
+- Korisnik pokreće SQL blok na Supabase-u (nove role + payment_announcements tabela), zatim push/deploy.
+- Kreirati bar jednog test korisnika sa rolom ANNOUNCER i jednog sa ASSISTANT_CASHIER da se potvrdi ceo tok end-to-end.
+- Po potrebi, dodati mobilni ekran za Pomocnog blagajnika (van obima ove sesije).

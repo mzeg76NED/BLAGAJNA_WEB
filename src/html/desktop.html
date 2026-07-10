@@ -91,6 +91,9 @@
         <button class="nav-item" data-d-nav="valute" type="button">
           <i class="ti ti-coins" aria-hidden="true"></i> Valute
         </button>
+        <button class="nav-item" data-d-nav="najave" type="button" id="d-nav-najave" hidden>
+          <i class="ti ti-bell-plus" aria-hidden="true"></i> Najave uplate
+        </button>
 
         <div class="nav-bottom">
           <a class="button-link" href="?view=mobile" style="width:100%;font-size:12px;min-height:32px">
@@ -184,6 +187,9 @@
                   </label>
                   <button class="cashbook-refresh" id="d-knjiga-refresh" type="button" title="Osveži">
                     <i class="ti ti-refresh" aria-hidden="true"></i>
+                  </button>
+                  <button class="po-primary-btn cash-count-action save" id="d-new-announcement-btn" type="button" hidden>
+                    <i class="ti ti-bell-plus" aria-hidden="true"></i> Najava uplate
                   </button>
                 </div>
               </div>
@@ -1155,6 +1161,27 @@
               <div id="d-currencies-content">
                 <div id="d-currencies-list" class="po-table-wrap"></div>
               </div>
+            </div>
+          </section>
+
+          <!-- NAJAVE (i ogranicen ekran za Pomocnog blagajnika) -->
+          <section id="d-section-najave" class="d-section">
+            <div class="users-admin-page">
+              <div class="po-page-head">
+                <div>
+                  <h2>Najave uplate</h2>
+                  <p>Najave ne menjaju stanje blagajne dok se ne uparé sa stvarnom uplatom (UPLATA akcija). Ovo je ista lista koja se prikazuje i kao informativni red u Knjizi.</p>
+                </div>
+                <div class="po-head-actions">
+                  <button id="d-najave-add-btn" class="po-primary-btn cash-count-action save" type="button" hidden>
+                    <i class="ti ti-bell-plus" aria-hidden="true"></i> Najava uplate
+                  </button>
+                  <button id="d-najave-refresh-btn" class="po-secondary-btn cash-count-action draft" type="button">
+                    <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
+                  </button>
+                </div>
+              </div>
+              <div id="d-najave-list" class="po-table-wrap"></div>
             </div>
           </section>
 
