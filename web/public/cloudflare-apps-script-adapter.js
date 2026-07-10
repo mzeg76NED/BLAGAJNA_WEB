@@ -478,6 +478,23 @@
       return response.rows || [];
     },
     apiGetAuditLog: async function () { return []; },
+    apiCreateCashCounts: async function (data, sessionId) {
+      var response = await apiFetch('/api/cash-counts/create', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
+      return Array.isArray(response) ? response : [response];
+    },
+    apiGetCashCountsReport: async function (filters, sessionId) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'shift_id', 'date_from', 'date_to'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/cash-counts/list?' + query.toString(), { sessionId: sessionId });
+      return response.rows || [];
+    },
     apiGetCashbookFilterOptions: async function (cashboxId, sessionId) {
       var query = new URLSearchParams();
       if (cashboxId) query.set('cashbox_id', cashboxId);

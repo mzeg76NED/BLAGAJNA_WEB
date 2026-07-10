@@ -375,3 +375,42 @@ Sledeci korak:
 
 - Korisnik testira direktnu isplatu na live sajtu (Knjiga → Isplata, i "Nova isplata" na strani smene) i potvrdjuje da se saldo ispravno umanjuje i da se audit log zapis pravi.
 - Nastaviti sa "Presek stanja" (Cash Counts) modulom.
+
+## FAZA 3e - Ispravka prikaza stanja blagajne (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE
+
+Kontekst: Korisnik je slikom prijavio da "Stanje blagajne" (gornji realtime iznos) i kolona "Stanje" u Knjizi uvek pokazuju 0,00, bez obzira na promet, sto je i blokiralo direktnu isplatu (klijentska provera protiv raspolozivog stanja je uvek videla 0).
+
+Sta je uradjeno:
+
+- `web/functions/api/reports/cash-movements.js` - `running_balance` je bio hardkodiran na `null` za svaki red (nikad izracunat). Dodata `fetchRunningBalances()` koja povlaci celu istoriju POSTED/LOCKED dogadjaja za blagajnu+valutu, racuna kumulativni saldo hronoloski i mapira ga nazad na redove u odgovoru. Takodje popravljeno da se `limit` primenjuje POSLE filtriranja po datumu (ranije je mogao da odseče stavke unutar opsega ako blagajna ima vise dogadjaja od `limit`).
+- `web/public/cloudflare-apps-script-adapter.js` - `apiCalculateCashboxBalance` je vracao ceo objekat sa servera (`{balance, balanceByCurrency, ...}`) umesto broja, pa je `Number(objekat)` u `scripts.html` uvek davalo `NaN → 0`. Sada vraca `response.balance`.
+- Dodat `web/public/_headers` sa `Cache-Control: no-cache, no-store, must-revalidate` za sve fajlove - koreni uzrok zasto se `cloudflare-apps-script-adapter.js` ponasao kao da promene nisu deploy-ovane (HTML se osvezavao, odvojeni `.js` fajl je ostajao keširan u browseru/CDN-u bez cache-busting mehanizma).
+
+Sledeci korak:
+
+- Korisnik potvrdjuje (posle hard refresh-a) da se "Stanje blagajne" i kolona "Stanje" ispravno azuriraju.
+
+## FAZA 3f - Presek stanja / Cash Counts (2026-07-10, Claude/Cowork sesija)
+
+Status: IN PROGRESS
+
+Sta je uradjeno:
+
+- Procitana legacy logika `src/CashCounts.gs` (`createCashCounts`, `createCashCountRecord_`, `getCashCountsReport`) i postojeca Postgres sema (`cash_counts` tabela, vec definisana u `202607090001_initial_schema.sql`).
+- Novi modul `web/functions/_lib/cashCounts.js` (core poslovna logika, bez GAS/Sheets "misalignment repair" sloja):
+  - `createCashCountsCore` - grupise apoene po valuti (`include_all_currencies` dodaje sve aktivne valute i za valute bez unetih apoena), zahteva aktivnu smenu za blagajnu (izuzev `SHIFT_OPENING` tipa), snapshot-uje stanje SVIH valuta pre nego sto se bilo koja korekcija proknjizi (kao i legacy `calculateCashboxBalances`), i za svaku valutu: racuna `counted_cash_total`, `difference` (popisano - zivo stanje), i ako je razlika != 0 automatski knjizi CORRECTION cash event (VISAK/MANJAK, isti opis format kao legacy) pre nego sto upise `cash_counts` red sa `adjustment_event_id`.
+  - `getCashCountsReportCore` - flat lista cash_counts redova (frontend `groupCashCounts_` u `scripts.html` vec grupise klijentski po vremenu+korisniku+tipu+smeni+napomeni - nije menjano).
+- Novi endpoint-i: `web/functions/api/cash-counts/create.js` (POST), `web/functions/api/cash-counts/list.js` (GET) - koriste vec postojecu privilegiju `shifts:count` (vec dodeljena ADMIN/FINANCE/CASHIER_SUPERVISOR/CASHIER u seed.sql, tacno isti skup rola kao legacy `CASH_COUNT_ROLES_`).
+- Adapter (`cloudflare-apps-script-adapter.js`) - dodati `apiCreateCashCounts` i `apiGetCashCountsReport` handleri.
+
+Sta nije uradjeno:
+
+- `apiOpenShiftWithOpeningCount` i `apiCloseShiftWithClosingCount` u adapteru i dalje NE kreiraju pravi apoenski `cash_counts` zapis (opening je markiran `countSkipped: true`, closing samo salje `physical_balance_json` bez denominacija) - namerno ostavljeno netaknuto u ovoj rundi da se ne rizikuje vec ispravan tok otvaranja/zatvaranja smene. Sledeci korak (ako se zeli) je da se ove dve funkcije provuku kroz `createCashCountsCore` sa `count_type: 'SHIFT_OPENING'`/`'SHIFT_CLOSING'` PRE nego sto se smena zatvori (mora pre, jer posle zatvaranja vise nema aktivne smene za validaciju).
+- Nije runtime testirano preko Cloudflare Pages okruzenja.
+
+Sledeci korak:
+
+- Korisnik push-uje i testira ceo Presek stanja tok: otvaranje dijaloga → unos apoena → cuvanje preseka → provera da se KOREKCIJA cash event pravilno knjizi kad ima razlike i da se lista preseka ispravno prikazuje i grupise po valutama.
+- Po potvrdi, razmotriti da se shift open/close takodje poveze na pravi apoenski presek (trenutno "countSkipped").
