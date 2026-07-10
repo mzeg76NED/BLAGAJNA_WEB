@@ -854,7 +854,10 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: calc(180px + env(safe-area-inset-bottom));
+    /* .m-fixed-actions and .m-bottom-nav are real flex siblings below this element now
+       (not a position:fixed overlay), so this only needs a little scroll breathing
+       room at the end of the list, not a large guess at "how tall is the stuff below". */
+    padding-bottom: 16px;
   }
 
   .m-section {
@@ -988,25 +991,42 @@
 
   .m-tab i { font-size: 26px; }
 
+  /* Direktne akcije (Uplata/Isplata/Trezor) - normalan flex clan m-shell-a, zalepljen
+     direktno iznad donje navigacije (m-bottom-nav). NAMERNO nije position:fixed sa
+     nagadjanjem "bottom" ofseta (ranije: 92px/110px pretpostavka visine trake ispod,
+     koja je vremenom izasla iz sinhronizacije sa stvarnom visinom trake i pravila da
+     dugmad "lebde" pogresno pozicionirana). Kao pravi flex sibling automatski sedi
+     tacno iznad trake, bez obzira na buduce promene velicine fonta/ikonica u traci. */
   .m-fixed-actions {
-    background: linear-gradient(180deg, rgba(244, 246, 248, 0), var(--color-bg) 20%);
-    bottom: calc(92px + env(safe-area-inset-bottom));
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border-light);
     display: grid;
-    gap: 10px;
+    flex-shrink: 0;
+    gap: 8px;
     grid-template-columns: repeat(3, 1fr);
-    left: 0;
-    padding: 12px 12px 10px;
-    position: fixed;
-    right: 0;
+    padding: 8px 10px;
     z-index: 90;
-  }
-
-  :root[data-theme="dark"] .m-fixed-actions {
-    background: linear-gradient(180deg, rgba(15, 19, 25, 0), var(--color-bg) 20%);
   }
 
   .m-fixed-actions[hidden] {
     display: none;
+  }
+
+  .m-fixed-actions button {
+    align-items: center;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    font-size: 11px;
+    font-weight: 800;
+    gap: 3px;
+    justify-content: center;
+    min-height: 46px;
+    padding: 6px 4px;
+  }
+
+  .m-fixed-actions button i {
+    font-size: 18px;
   }
 
   .m-detail-overlay {
@@ -3481,7 +3501,7 @@
   html.mobile-view .m-section {
     gap: calc(10px * var(--mobile-scale));
     padding: calc(14px * var(--mobile-scale));
-    padding-bottom: calc(110px + env(safe-area-inset-bottom));
+    padding-bottom: max(calc(14px * var(--mobile-scale)), env(safe-area-inset-bottom));
   }
 
   html.mobile-view .btn-lg {
@@ -3521,23 +3541,19 @@
   }
 
   html.mobile-view .m-fixed-actions {
-    bottom: calc(110px + env(safe-area-inset-bottom));
     gap: calc(6px * var(--mobile-scale));
-    padding: calc(8px * var(--mobile-scale)) calc(8px * var(--mobile-scale)) calc(6px * var(--mobile-scale));
+    padding: calc(6px * var(--mobile-scale)) calc(8px * var(--mobile-scale));
   }
 
-  /* Uplata/Isplata/Trezor: stack icon over a short label instead of side-by-side,
-     so the three buttons fit comfortably in one row without oversized pills. */
   html.mobile-view .m-fixed-actions button {
-    flex-direction: column;
-    font-size: calc(10px * var(--mobile-scale));
+    font-size: calc(10.5px * var(--mobile-scale));
     gap: calc(2px * var(--mobile-scale));
-    min-height: calc(38px * var(--mobile-scale));
+    min-height: calc(42px * var(--mobile-scale));
     padding: calc(5px * var(--mobile-scale)) calc(4px * var(--mobile-scale));
   }
 
   html.mobile-view .m-fixed-actions button i {
-    font-size: calc(16px * var(--mobile-scale));
+    font-size: calc(17px * var(--mobile-scale));
   }
 
   /* Shift-work-card action row (Uplata/Isplata/Trezor/Presek/Zatvori) and the
@@ -4174,7 +4190,7 @@
     .m-section {
       gap: calc(10px * var(--mobile-scale));
       padding: calc(14px * var(--mobile-scale));
-      padding-bottom: calc(110px + env(safe-area-inset-bottom));
+      padding-bottom: max(calc(14px * var(--mobile-scale)), env(safe-area-inset-bottom));
     }
 
     .m-section-actions {
@@ -4234,18 +4250,6 @@
     .cur-btn {
       font-size: calc(12px * var(--mobile-scale));
       min-height: calc(34px * var(--mobile-scale));
-    }
-
-    .m-fixed-actions button {
-      flex-direction: column;
-      font-size: calc(10px * var(--mobile-scale));
-      gap: calc(2px * var(--mobile-scale));
-      min-height: calc(38px * var(--mobile-scale));
-      padding: calc(5px * var(--mobile-scale)) calc(4px * var(--mobile-scale));
-    }
-
-    .m-fixed-actions button i {
-      font-size: calc(16px * var(--mobile-scale));
     }
 
     .shift-work-card .actions {
@@ -5701,6 +5705,48 @@
     .new-order-grid,
     .new-order-attachments { grid-template-columns: 1fr; }
     .new-order-titlebar { display: grid; gap: 12px; }
+  }
+
+  /* Universal "Blagajnički list" print overlay - see printCashSheetForEvent_ in
+     scripts.html. Injected into <body> on demand, works from any screen (mobile or
+     desktop), invisible until html.printing-cashsheet-overlay is toggled on right
+     before window.print(). */
+  #print-cashsheet-overlay {
+    display: none;
+  }
+
+  @media print {
+    html.printing-cashsheet-overlay body > *:not(#print-cashsheet-overlay) {
+      display: none !important;
+    }
+
+    html.printing-cashsheet-overlay #print-cashsheet-overlay {
+      background: #ffffff !important;
+      color: #111827 !important;
+      display: block !important;
+      padding: 16px !important;
+      width: 100% !important;
+    }
+
+    #print-cashsheet-overlay .book-table {
+      border-collapse: collapse !important;
+      color: #111827 !important;
+      font-size: 11px !important;
+      width: 100% !important;
+    }
+
+    #print-cashsheet-overlay .book-table th,
+    #print-cashsheet-overlay .book-table td {
+      background: #ffffff !important;
+      border: 1px solid #d1d5db !important;
+      color: #111827 !important;
+      padding: 5px 6px !important;
+    }
+
+    #print-cashsheet-overlay .book-table th {
+      background: #f3f4f6 !important;
+      font-weight: 800 !important;
+    }
   }
 
   @media print {

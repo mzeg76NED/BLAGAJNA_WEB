@@ -694,3 +694,49 @@ Sta nije uradjeno:
 Sledeci korak:
 
 - Korisnik push-uje i testira: (1) izgled Brze akcije panela (Uplata/Isplata/Trezor/Najava uplate u 2x2 rasporedu, bez "Nema aktivne smene" teksta), (2) slanje naloga na isplatu pa promenu korisnika na aktivnoj smeni pa izvrsenje isplate - treba da prodje bez 409 greske.
+
+## FAZA 3q - Storno fix, mobilna Uplata/Isplata dugmad, ANNOUNCER bag, univerzalna stampa stavke (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE (implementacija), CEKA SQL primenu na live bazi (cashbox_balances view) + runtime test
+
+Kontekst: Cetiri odvojena zahteva/bag-a iz iste poruke korisnika.
+
+Sta je uradjeno:
+
+1. **STORNO fix** - KRITICNO, zahteva SQL. Ranije: storno je MENJAO original (status -> REVERSED), sto ga je brisalo iz Knjige (izvestaji filtriraju samo POSTED/LOCKED), i postovao je storno-dogadjaj sa SUPROTNIM smerom (uplata storno = isplata red). Korisnik je trazio: original OSTAJE netaknut i vidljiv, storno se dodaje kao NOVI red na ISTOJ strani sa negativnim iznosom (Uplata 100 / Storno uplata -100, oba u koloni Uplata).
+   - `web/functions/api/cash-events/reverse.js` - original se vise NE menja (nema PATCH-a statusa); dupli storno se sprecava proverom da li vec postoji `cash_events` red sa `reversal_of_event_id` = ovaj event, ne statusnim flagom. Storno dogadjaj se pise sa ISTIM `direction` kao original (ne suprotnim) - `amount` kolona ima DB check `amount >= 0` pa fizicki ne moze biti negativna, ali `event_type = 'REVERSAL'` je signal svakom mestu koje racuna saldo da tretira taj red kao SUPROTAN efekat od normalnog dogadjaja tog smera.
+   - `web/functions/_lib/cashEventMath.js` (novo) - `cashEventDelta(event)`/`cashEventDisplayAmount(event)`, jedinstvena konvencija znaka koju sada koriste: `reports/cash-movements.js` (Knjiga izvestaj + running balance), `_lib/cashSheet.js` (Blagajnicki list - uklonjen stari "flip direction" trik koji je pretpostavljao suprotan smer), `_lib/dailyClosing.js` (dnevni presek - opening balance + total_in/total_out).
+   - **`supabase/migrations/202607090001_initial_schema.sql`** - `cashbox_balances` VIEW izmenjen in-place (idempotentan `create or replace view`) da racuna REVERSAL redove sa obrnutim znakom. **Korisnik MORA pokrenuti ovaj `create or replace view` blok protiv live Supabase baze** - bez toga ce trenutno stanje blagajne (i provere "nedovoljno sredstava") biti pogresne za bilo koju blagajnu koja ima storniranu stavku.
+   - `src/html/scripts.html` - dugme "Storno" se sada onemogucava proverom da li POSTOJI storno-dogadjaj koji referencira ovaj event (`isEventAlreadyReversed_`, skenira ucitanu Knjigu), ne statusnim flagom na originalu (koji vise ne postoji). Trag "Stornirano"/"Storno stavke X" u opisu reda azuriran da pokazuje na PRAVI original umesto da samo-oznacava storno red.
+
+2. **Mobilna Uplata/Isplata/Trezor dugmad** - korisnik i dalje video prevelika, pomerena dugmad uprkos ranijem "smanjenju" (FAZA 3m). Root cause: `.m-fixed-actions` je bio `position: fixed` sa RUCNO PROCENJENIM `bottom` ofsetom (92px pa 110px) koji je trebalo da "pogodi" visinu donje navigacije - a ta visina se menjala kroz vise ranijih FAZA izmena bez azuriranja ofseta, i POSTOJALE su TRI razlicite, delimicno konfliktne definicije iste klase (bazna, `html.mobile-view` scoped, i `@media(max-width:768px)` scoped) razbacane kroz styles.html.
+   - `src/html/mobile.html` - `#m-direct-actions` premesten IZ pozicije POSLE `</div><!-- /m-shell -->` (fixed, van flex toka) UNUTAR `.m-shell`-a, kao pravi flex sibling IZMEDJU `.m-content` i `.m-bottom-nav`. Time automatski "lezi" tacno iznad navigacije bez ikakvog hardkodovanog ofseta - flexbox to garantuje strukturno, ne moze se vise razminuti.
+   - `src/html/styles.html` - sve tri konfliktne definicije `.m-fixed-actions` konsolidovane u JEDNU (`position:fixed` uklonjen, `background`/`border-top` u stilu trake ispod za vizuelnu koherenciju), plus JEDAN `html.mobile-view` scale-aware override. Kompenzujuci veliki `padding-bottom` na `.m-content`/`.m-section` (bio 180px/110px, potreban SAMO da sadrzaj ne bude prekriven starim floating overlay-om) smanjen na normalnu vrednost (16px / safe-area) jer overlay-a vise nema.
+   - Labele dugmadi promenjene iz SVA-VELIKA-SLOVA ("UPLATA") u Title Case ("Uplata"), u stilu desktop Brze akcije dugmadi - deo trazenog "modernijeg" izgleda.
+
+3. **ANNOUNCER bag posle kreiranja najave** - korisnik prijavio: kreiranje najave "prolazi", ali se ne prikaze na listi, i pojavljuje se greska o nedostatku privilegija. Root cause je bio DVOSTRUK:
+   - (a) `bootstrapShellAfterAppSession_` je imao redirekciju sa podrazumevanog Knjiga ekrana na `d-section-najave` SAMO za `ASSISTANT_CASHIER`, ne i za `ANNOUNCER` (koji TAKODJE nema `cash_events:view`) - ANNOUNCER je posle prijave ostajao na Knjizi, ekranu koji za njega strukturno ne moze da radi.
+   - (b) Bez obzira na (a), VISE pozadinskih ("quiet") poziva u bootstrap-u (`loadKnjiga_`, `refreshBalance_`, `loadPendingPaymentOrderOutflows_` unutar `applyDirectCashPermission_`) pozivalo je endpoint-e koje ANNOUNCER nema pravo da zove (`cash_events:view`, `payment_orders:execute`) - a `callApi`'s `quiet:true` je suzbijao SAMO loading/success poruke, NE i gresku, pa je svaki takav pozadinski poziv i dalje iskakao sa vidljivim "Nemate ovlascenje..." toast-om, cak i kad korisnik nije ni pokusao tu akciju.
+   - Fix (a): `bootstrapShellAfterAppSession_` redirekcija prosirena na `['ASSISTANT_CASHIER', 'ANNOUNCER']`.
+   - Fix (b): `callApi` u scripts.html - kada je `options.quiet === true`, greska se vise NE prikazuje korisniku (samo `console.warn` za debug); ovo je opsti, ne samo ANNOUNCER-specifican fix - svaki background/prefetch poziv (kojih ima mnogo: Knjiga polling, balance refresh, pending-payments badge...) sada cuti na 403/permission greskama umesto da bombarduje korisnika toast-ovima za akcije koje nikad nije preduzeo. Korisnicki-inicirane (non-quiet) akcije i dalje normalno prikazuju gresku.
+   - Dodatno: ANNOUNCER SADA MOZE da vidi sopstvene najave (ne tudje) - `web/functions/api/payment-announcements/list.js` prihvata i `payment_announcements:create` privilegiju, ali kad je to JEDINA privilegija koju pozivalac ima, `listAnnouncementsCore` (`_lib/paymentAnnouncements.js`) filtrira rezultat na `created_by = trenutni_korisnik`. Bez ovoga bi kreiranje najave i dalje bilo "bacanje u prazno" - nikakva potvrda da je uspelo.
+   - `canViewPaymentAnnouncements_()` u scripts.html prosiren da ukljuci `:create` privilegiju (utice na vidljivost `d-nav-najave` i osvezavanje liste posle kreiranja).
+
+4. **Univerzalna stampa stavke iz Knjige** - korisnik potvrdio da postojeci mehanizam (klik na "Blagajnicki list" dugme otvara vec ispravan, klijentski renderovan html + `window.print()`) radi na desktopu, i trazio da se ista logika primeni za stampu stavke. Desktop (`#d-detail-print`) je vec ovo radio (FAZA 3n), ali MOBILNI ekvivalent (`#m-detail-print`) je i dalje pozivao `openPrintView('print-cash-event', ...)` - jednu od poznato POLOMLJENIH `print-*.html` stranica sa neprevedenom GAS scriptlet sintaksom (vidi FAZA 3n napomenu), koja nikad nije radila.
+   - `src/html/scripts.html` - nova, DOM-nezavisna funkcija `printCashSheetForEvent_(ev)` (+ `buildCashSheetPrintHtml_`, `printCashSheetHtml_`, `ensurePrintCashSheetOverlay_`): povlaci isti `apiGetCashSheetReport` kao desktop, ali gradi HTML u DINAMICKI ubacen `#print-cashsheet-overlay` element (poslednje dete `<body>`), umesto da zavisi od postojanja odredjenog ekrana/sekcije. Radi identicno sa BILO KOG ekrana (mobilni ili desktop, bilo koji tab) - ne zahteva navigaciju.
+   - `src/html/styles.html` - novi `@media print` blok: `html.printing-cashsheet-overlay body > *:not(#print-cashsheet-overlay) { display:none }` sakriva SVE ostalo na stranici (cime god da je body direktno popunjen - `.d-shell`/`.m-shell`, `.app-dialog-overlay` dijalozi, toast poruke...), i prikazuje samo overlay sa istim `.cashsheet-header`/`.cashsheet-calc`/`.book-table` stilovima kao postojeci desktop print (ti stilovi vec nisu bili skopirani na `#d-section-blagajnicki-list`, pa rade i ovde bez izmene).
+   - `#m-detail-print` sada zove `printCashSheetForEvent_(ev)` umesto polomljenog `openPrintView(...)`.
+
+Sta nije uradjeno:
+
+- **SQL NIJE pusten na live Supabase bazu** - korisnik mora pokrenuti azurirani `create or replace view cashbox_balances ...` blok (vidi kraj `202607090001_initial_schema.sql`, sekcija cashbox_balances) PRE nego sto storno postane racunski ispravan u produkciji. Do tada ce postojece (pre ove sesije) storno stavke, ako ih ima, imati pogresan saldo efekat.
+- Runtime test sva cetiri fix-a na produkciji.
+- ANNOUNCER i dalje nema mobilni ekran (isti poznati gap kao ASSISTANT_CASHIER iz FAZA 3o) - na mobilnom i dalje nema gde da sleti posle prijave; ovom sesijom pokriven samo desktop bootstrap redirect.
+- `payment-announcements/cancel.js` i dalje NIJE ogranicen na `created_by = self` za ANNOUNCER-a (ANNOUNCER teorijski moze otkazati tudju najavu ako pogodi ID) - manji, ne-prijavljeni gap, van obima ove sesije.
+
+Sledeci korak:
+
+- **Korisnik HITNO pokrece SQL** (cashbox_balances view redefinicija) na Supabase-u, zatim push/deploy.
+- Test toka: uplata 100 -> storno -> original i storno oba vidljiva u koloni Uplata, ukupno 0, stanje ispravno.
+- Test: prijava kao ANNOUNCER -> kreiranje najave -> najava se pojavljuje na `d-section-najave` bez greske.
+- Test: mobilni prikaz Knjige - Uplata/Isplata/Trezor dugmad tacno iznad donje navigacije, bez razmaka/preklapanja; klik na "Blagajnicki list" u detaljima stavke otvara print dijalog sa ispravnim sadrzajem.

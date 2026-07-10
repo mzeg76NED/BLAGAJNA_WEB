@@ -333,12 +333,19 @@ create trigger audit_log_no_delete
 before delete on audit_log
 for each row execute function prevent_audit_log_update_delete();
 
+-- A "storno" (reversal) cash_event is stored with the SAME direction as the event it
+-- corrects (see web/functions/api/cash-events/reverse.js), so it renders in the same
+-- Uplata/Isplata column on the Knjiga screen (Uplata 100 / Storno uplata -100). Because
+-- of that, its effect on the balance must be the OPPOSITE of what its stored direction
+-- would normally mean - the event_type = 'REVERSAL' case below flips the sign.
 create or replace view cashbox_balances as
 select
   cashbox_id,
   currency,
   sum(
     case
+      when event_type = 'REVERSAL' and direction = 'IN' then -amount
+      when event_type = 'REVERSAL' and direction = 'OUT' then amount
       when direction = 'IN' then amount
       when direction = 'OUT' then -amount
       else 0

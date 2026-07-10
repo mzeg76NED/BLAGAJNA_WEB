@@ -1,4 +1,5 @@
 import { encodeEq, supabaseRest } from './supabase.js';
+import { cashEventDelta } from './cashEventMath.js';
 
 // Daily closing workflow, ported from src/DailyClosing.gs. Daily closing records the
 // calculated vs. physical balance for one cashbox/currency/date; it does not create cash
@@ -73,17 +74,14 @@ async function findOpenShift(env, cashboxId) {
 async function calculateOpeningBalanceBeforeDate(env, cashboxId, currency, closingDateKey) {
   const rows = await supabaseRest(
     env,
-    '/cash_events?select=amount,direction,event_date,status&cashbox_id=' + encodeEq(cashboxId) +
+    '/cash_events?select=amount,direction,event_type,event_date,status&cashbox_id=' + encodeEq(cashboxId) +
       '&currency=' + encodeEq(currency) +
       '&status=in.(POSTED,LOCKED)&order=event_date.asc&limit=10000'
   );
   return (rows || []).reduce((balance, event) => {
     const dateKey = String(event.event_date || '').slice(0, 10);
     if (dateKey >= closingDateKey) return balance;
-    const amount = Number(event.amount || 0);
-    if (event.direction === 'IN') return balance + amount;
-    if (event.direction === 'OUT') return balance - amount;
-    return balance;
+    return balance + cashEventDelta(event);
   }, 0);
 }
 
@@ -99,9 +97,13 @@ async function getCashEventsForDate(env, cashboxId, currency, closingDateKey) {
 
 function calculateDailyTotals(events) {
   return (events || []).reduce((totals, event) => {
+    // A storno/reversal keeps the SAME direction as the event it corrects (see
+    // cash-events/reverse.js), so it nets directly INTO the same total_in/total_out
+    // bucket rather than being tracked separately.
     const amount = Number(event.amount || 0);
-    if (event.direction === 'IN') totals.total_in += amount;
-    else if (event.direction === 'OUT') totals.total_out += amount;
+    const isReversal = event.event_type === 'REVERSAL';
+    if (event.direction === 'IN') totals.total_in += isReversal ? -amount : amount;
+    else if (event.direction === 'OUT') totals.total_out += isReversal ? -amount : amount;
     return totals;
   }, { total_in: 0, total_out: 0 });
 }

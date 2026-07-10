@@ -2,28 +2,44 @@ import { apiError, apiOk, getSessionId, readJsonBody } from '../../_lib/api.js';
 import { verifySession } from '../../_lib/auth.js';
 import { encodeEq, isSupabaseConfigured, supabaseRest } from '../../_lib/supabase.js';
 
-// "Storno" - reverses a POSTED/LOCKED cash event by posting a REVERSAL event with the
-// opposite direction (never mutates/deletes the original), and flips the original's
-// status to REVERSED. Ported from CashEvents.gs reverseCashEvent/assertCashEventCanBeReversed_.
+// "Storno" - reverses a POSTED/LOCKED cash event by posting a NEW event on the SAME
+// side (same `direction` as the original, e.g. a storno of an "uplata" is itself also
+// stored as direction=IN, so it renders in the same Uplata/Isplata column as the event
+// it corrects: Uplata 100 / Storno uplata -100, both under Uplata). The `amount` column
+// has a DB check (amount >= 0), so the reversal is stored with the SAME positive amount
+// as the original - the fact that it's event_type='REVERSAL' is what tells every balance
+// calculation (cashbox_balances view, cashEventMath.js, cashSheet.js, dailyClosing.js,
+// reports/cash-movements.js) to treat it as the OPPOSITE effect of a normal event with
+// that direction. See _lib/cashEventMath.js for the shared sign convention.
+// The original event is NEVER mutated or hidden - it stays exactly as it was (status
+// untouched), so it remains fully visible in the Knjiga. Idempotency (preventing
+// double-storno) is enforced by checking whether a reversal event already references
+// this event_id, not by a status flag on the original.
 const LOCKED_REVERSAL_ROLES = ['ADMIN', 'FINANCE'];
 
 function makeId(prefix) {
   return prefix + '-' + crypto.randomUUID();
 }
 
-function getOppositeDirection(direction) {
-  if (direction === 'IN') return 'OUT';
-  if (direction === 'OUT') return 'IN';
-  throw Object.assign(new Error('Neutral Cash Event cannot be reversed with this workflow.'), { status: 400 });
-}
-
 function buildReversalDescription(originalEvent, reason) {
   const prefix = originalEvent.status === 'LOCKED' ? 'POST_CLOSING_CORRECTION. ' : '';
-  return prefix + 'Reversal of ' + originalEvent.event_id + '. Reason: ' + reason;
+  return prefix + 'STORNO stavke ' + originalEvent.event_id + '. Razlog: ' + reason;
+}
+
+function buildReversalPartnerName(originalEvent) {
+  return 'STORNO' + (originalEvent.partner_name ? ' - ' + originalEvent.partner_name : '');
 }
 
 async function findEvent(env, eventId) {
   const rows = await supabaseRest(env, '/cash_events?select=*&event_id=' + encodeEq(eventId) + '&limit=1');
+  return rows && rows.length ? rows[0] : null;
+}
+
+async function findExistingReversal(env, eventId) {
+  const rows = await supabaseRest(
+    env,
+    '/cash_events?select=event_id&reversal_of_event_id=' + encodeEq(eventId) + '&limit=1'
+  );
   return rows && rows.length ? rows[0] : null;
 }
 
@@ -80,18 +96,20 @@ export async function onRequestPost(context) {
 
     const originalBefore = await findEvent(env, eventId);
     if (!originalBefore) return apiError('Stavka nije pronađena: ' + eventId, 404);
-    if (originalBefore.status === 'REVERSED') return apiError('Stavka je već stornirana: ' + eventId, 409);
+    if (originalBefore.event_type === 'REVERSAL') return apiError('Storno stavka se ne može ponovo stornirati.', 409);
     if (originalBefore.status === 'CANCELLED') return apiError('Otkazana stavka ne može biti stornirana: ' + eventId, 409);
     if (!['POSTED', 'LOCKED'].includes(originalBefore.status)) {
       return apiError('Samo proknjižena ili zaključana stavka može biti stornirana.', 409);
     }
+
+    const existingReversal = await findExistingReversal(env, eventId);
+    if (existingReversal) return apiError('Stavka je već stornirana: ' + eventId, 409);
 
     const appUser = sessionResult.session.app_user || {};
     if (originalBefore.status === 'LOCKED' && !LOCKED_REVERSAL_ROLES.includes(appUser.role) && appUser.role !== 'ADMIN') {
       return apiError('Storno zaključane stavke može da radi samo Admin ili Finansije.', 403);
     }
 
-    const direction = getOppositeDirection(originalBefore.direction);
     const previousBalance = await getCashboxBalance(env, originalBefore.cashbox_id, originalBefore.currency);
     const now = new Date().toISOString();
     const actorEmail = appUser.email || appUser.user_code || '';
@@ -104,11 +122,11 @@ export async function onRequestPost(context) {
       event_type: 'REVERSAL',
       cashbox_id: originalBefore.cashbox_id,
       currency: originalBefore.currency,
-      direction,
+      direction: originalBefore.direction,
       amount: Number(originalBefore.amount || 0),
       linked_request_id: originalBefore.linked_request_id || null,
       linked_order_id: originalBefore.linked_order_id || null,
-      partner_name: originalBefore.partner_name || '',
+      partner_name: buildReversalPartnerName(originalBefore),
       description: buildReversalDescription(originalBefore, reason),
       document_status: 'NONE',
       status: 'POSTED',
@@ -127,18 +145,12 @@ export async function onRequestPost(context) {
     });
     const insertedReversal = reversalRows && reversalRows.length ? reversalRows[0] : reversalEvent;
 
-    const originalRows = await supabaseRest(env, '/cash_events?event_id=' + encodeEq(eventId), {
-      method: 'PATCH',
-      headers: { prefer: 'return=representation' },
-      body: JSON.stringify({ status: 'REVERSED', updated_at: now })
-    });
-    const originalAfter = originalRows && originalRows.length ? originalRows[0] : { ...originalBefore, status: 'REVERSED' };
-
     const newBalance = await getCashboxBalance(env, originalBefore.cashbox_id, originalBefore.currency);
 
     await insertAuditLog(
-      env, 'REVERSE', 'CASH_EVENTS', originalBefore.event_id, originalBefore, originalAfter,
-      'Cash event reversed. Reason: ' + reason, appUser, sessionResult.session, originalBefore.cashbox_id
+      env, 'REVERSE', 'CASH_EVENTS', originalBefore.event_id, originalBefore, originalBefore,
+      'Cash event reversed (original left unchanged). Reason: ' + reason + '. Storno event: ' + insertedReversal.event_id,
+      appUser, sessionResult.session, originalBefore.cashbox_id
     );
     await insertAuditLog(
       env, 'POST', 'CASH_EVENTS', insertedReversal.event_id, null, insertedReversal,
@@ -146,7 +158,7 @@ export async function onRequestPost(context) {
     );
 
     return apiOk({
-      originalEvent: originalAfter,
+      originalEvent: originalBefore,
       reversalEvent: insertedReversal,
       previousBalance,
       newBalance

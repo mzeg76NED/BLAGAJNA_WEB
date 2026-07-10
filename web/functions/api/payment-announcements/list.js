@@ -1,5 +1,5 @@
 import { apiError, apiOk, getSessionId } from '../../_lib/api.js';
-import { verifySession } from '../../_lib/auth.js';
+import { verifySession, userHasAnyPrivilege } from '../../_lib/auth.js';
 import { isSupabaseConfigured } from '../../_lib/supabase.js';
 import { listAnnouncementsCore } from '../../_lib/paymentAnnouncements.js';
 
@@ -11,18 +11,26 @@ export async function onRequestGet(context) {
 
   try {
     const url = new URL(context.request.url);
-    // Namerno BEZ 'payment_announcements:create' ovde - ANNOUNCER rola sme da kreira
-    // najavu ali ne i da pregleda tudje (spec: "moze SAMO da uradi najavu uplate").
-    const sessionResult = await verifySession(env, getSessionId(context.request), ['payment_announcements:view', 'payment_announcements:match']);
+    // ANNOUNCER only has payment_announcements:create - they may not browse everyone
+    // else's najave (spec: "moze SAMO da uradi najavu uplate"), but they still need to
+    // be able to see the ones THEY created (otherwise creating one just throws it into
+    // a void with no confirmation and no way to check its status). So :create is allowed
+    // in here too, but scoped to created_by = self below when that's the only privilege
+    // the caller has.
+    const sessionResult = await verifySession(env, getSessionId(context.request), [
+      'payment_announcements:view', 'payment_announcements:match', 'payment_announcements:create'
+    ]);
     if (!sessionResult.ok) {
       return apiError(sessionResult.error, sessionResult.status);
     }
 
     const appUser = sessionResult.session.app_user || {};
+    const ownOnly = !userHasAnyPrivilege(appUser, ['payment_announcements:view', 'payment_announcements:match']);
     const announcements = await listAnnouncementsCore(env, appUser, {
       cashbox_id: url.searchParams.get('cashbox_id') || sessionResult.session.cashbox_id || '',
       currency: url.searchParams.get('currency') || '',
-      status: url.searchParams.get('status') || ''
+      status: url.searchParams.get('status') || '',
+      created_by: ownOnly ? (appUser.email || appUser.user_code || '') : ''
     });
     return apiOk({ announcements });
   } catch (error) {

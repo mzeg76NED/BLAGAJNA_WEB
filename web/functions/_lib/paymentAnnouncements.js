@@ -131,7 +131,12 @@ export async function createAnnouncementCore(env, data, actor, session) {
   return created;
 }
 
-// filters: { cashbox_id, currency, status }
+// filters: { cashbox_id, currency, status, created_by }
+// `created_by` is set by the caller (api/payment-announcements/list.js) when the acting
+// user only has payment_announcements:create (the ANNOUNCER role) - they may not browse
+// everyone's announcements, but they SHOULD be able to see the ones they themselves
+// submitted (status Čeka uplatu / Uparena / Otkazana), otherwise a najava disappears
+// into a void the moment it's created with no way to confirm it went through.
 export async function listAnnouncementsCore(env, user, filters) {
   filters = filters || {};
   const cashboxId = scopeCashboxForAnnouncements(user, filters.cashbox_id);
@@ -139,6 +144,7 @@ export async function listAnnouncementsCore(env, user, filters) {
   if (cashboxId) path += '&cashbox_id=' + encodeEq(cashboxId);
   if (filters.currency) path += '&currency=' + encodeEq(filters.currency);
   if (filters.status) path += '&status=' + encodeEq(filters.status);
+  if (filters.created_by) path += '&created_by=' + encodeEq(filters.created_by);
   path += '&order=created_at.desc&limit=500';
   return (await supabaseRest(env, path)) || [];
 }

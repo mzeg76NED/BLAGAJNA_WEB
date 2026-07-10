@@ -1,6 +1,7 @@
 import { apiError, apiOk, getSessionId } from '../../_lib/api.js';
 import { verifySession } from '../../_lib/auth.js';
 import { encodeEq, isSupabaseConfigured, supabaseRest } from '../../_lib/supabase.js';
+import { cashEventDelta, cashEventDisplayAmount } from '../../_lib/cashEventMath.js';
 
 function canAccessCashbox(user, cashboxId) {
   if (!user || !cashboxId) return false;
@@ -19,7 +20,7 @@ function isDateInRange(value, dateFrom, dateTo) {
 
 function sanitizeEvent(event, index, runningBalance) {
   const amount = Number(event.amount || 0);
-  const signedAmount = event.direction === 'OUT' ? -amount : amount;
+  const signedAmount = cashEventDelta(event);
   return {
     event_date: event.event_date || event.created_at || '',
     event_id: event.event_id || '',
@@ -29,7 +30,7 @@ function sanitizeEvent(event, index, runningBalance) {
     amount,
     signed_amount: signedAmount,
     display_direction: event.direction || '',
-    display_amount: amount,
+    display_amount: cashEventDisplayAmount(event),
     running_balance: runningBalance === undefined || runningBalance === null ? null : Number(runningBalance),
     cashbox_id: event.cashbox_id || '',
     currency: event.currency || '',
@@ -55,7 +56,7 @@ function sanitizeEvent(event, index, runningBalance) {
 // computed when a single currency is requested - a running balance mixing
 // currencies would not be meaningful.
 async function fetchRunningBalances(env, cashboxId, currency) {
-  let path = '/cash_events?select=event_id,event_date,created_at,direction,amount,status';
+  let path = '/cash_events?select=event_id,event_date,created_at,event_type,direction,amount,status';
   if (cashboxId) path += '&cashbox_id=' + encodeEq(cashboxId);
   if (currency) path += '&currency=' + encodeEq(currency);
   path += '&status=in.(POSTED,LOCKED)&order=event_date.asc,created_at.asc&limit=5000';
@@ -64,8 +65,7 @@ async function fetchRunningBalances(env, cashboxId, currency) {
   const balanceByEventId = {};
   let running = 0;
   (rows || []).forEach((row) => {
-    const amount = Number(row.amount || 0);
-    running += row.direction === 'OUT' ? -amount : row.direction === 'IN' ? amount : 0;
+    running += cashEventDelta(row);
     balanceByEventId[row.event_id] = running;
   });
   return balanceByEventId;

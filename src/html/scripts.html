@@ -1061,7 +1061,17 @@
         if (!response || response.ok !== true) {
           var message = response && response.error ? response.error.message : 'poziv nije uspeo.';
           handleApiErrorForAppSession_(message);
-          showMessage('Greška: ' + humanizeError_(message), 'error');
+          // Quiet calls are background/prefetch refreshes (Knjiga polling, balance
+          // refresh, pending-payments badge, itd.) that a role may legitimately not
+          // have access to (e.g. ANNOUNCER/ASSISTANT_CASHIER lack cash_events:view) -
+          // surfacing an error toast for those interrupts the user with a "nemate
+          // privilegije" message for an action they never took. Only user-initiated
+          // (non-quiet) calls show the error banner.
+          if (!options.quiet) {
+            showMessage('Greška: ' + humanizeError_(message), 'error');
+          } else if (window.console && console.warn) {
+            console.warn('[callApi quiet] ' + functionName + ' failed: ' + message);
+          }
           if (options.onComplete) {
             options.onComplete(response);
           }
@@ -1083,7 +1093,11 @@
         }
         var message = error && error.message ? error.message : 'tehnički problem.';
         handleApiErrorForAppSession_(message);
-        showMessage('Greška: ' + humanizeError_(message), 'error');
+        if (!options.quiet) {
+          showMessage('Greška: ' + humanizeError_(message), 'error');
+        } else if (window.console && console.warn) {
+          console.warn('[callApi quiet] ' + functionName + ' failed: ' + message);
+        }
         if (options.onComplete) {
           options.onComplete(error);
         }
@@ -1266,10 +1280,10 @@
     applyActiveShiftFields_();
     applyDirectCashPermission_();
     bindAnnouncementButtons_();
-    // Pomoćni blagajnik nema cash_events:view (namerno - vidi samo najave), pa bi
-    // podrazumevani Knjiga ekran za njih samo prikazao grešku 403. Umesto toga ih
-    // vodimo pravo na njihov jedini radni ekran.
-    if (isDesktop && uiState.currentUser && uiState.currentUser.role === 'ASSISTANT_CASHIER') {
+    // Pomoćni blagajnik i Najavljivač uplate nemaju cash_events:view (namerno - vide
+    // samo najave), pa bi podrazumevani Knjiga ekran za njih samo prikazao grešku 403.
+    // Umesto toga ih vodimo pravo na njihov jedini radni ekran.
+    if (isDesktop && uiState.currentUser && ['ASSISTANT_CASHIER', 'ANNOUNCER'].includes(uiState.currentUser.role)) {
       openDesktopSection_('najave');
       loadDesktopAnnouncements_();
     }
@@ -3804,6 +3818,99 @@
     return '<div class="cashsheet-calc-row"><span>' + escapeHtml(label) + '</span><strong class="' + (cls || '') + '">' + display + '</strong></div>';
   }
 
+  /* ─── Universal "Blagajnički list" print (works from mobile AND desktop) ───
+     Desktop's #d-detail-print button navigates to the d-section-blagajnicki-list
+     screen and reuses window.print() there (see openCashSheetForEvent_ above). Mobile
+     has no equivalent section to navigate to, and its old print button pointed at
+     print-cash-event.html, one of the print-*.html pages that still contain
+     un-evaluated GAS scriptlet syntax (<?= ... ?>) and have never worked post-migration
+     (see FAZA 3n notes). Rather than build a second mobile-only screen, this builds the
+     SAME "Blagajnički list" html content into a dedicated print-only overlay that's
+     injected into <body> on demand - works identically regardless of which screen
+     (mobile or desktop, any tab) the user is currently on. */
+
+  function buildCashSheetPrintHtml_(sheet) {
+    sheet = sheet || {};
+    var shift = sheet.shift || {};
+    var currency = sheet.currency || SESSION.currency || '';
+    var events = sheet.events || [];
+    var header = '<div class="cashsheet-header">' +
+      '<div><strong>BLAGAJNIČKI LIST</strong><span>' + escapeHtml(sheet.document_no || '') + '</span></div>' +
+      '<div><span>Datum</span><strong>' + escapeHtml(sheet.date || '') + '</strong></div>' +
+      '<div><span>Valuta</span><strong>' + escapeHtml(currency) + '</strong></div>' +
+      '<div><span>Smena</span><strong>' + escapeHtml(shift.shift_id || 'Sve smene dana') + '</strong></div>' +
+      '<div><span>Blagajnik</span><strong>' + escapeHtml(shortUserLabel_(shift.opened_by || '—')) + '</strong></div>' +
+      '<div><span>Status</span><strong>' + escapeHtml(sheet.status || '') + '</strong></div>' +
+    '</div>';
+    var calc = '<div class="cashsheet-calc">' +
+      cashsheetCalcRow_('Početno stanje', sheet.opening_balance, currency) +
+      cashsheetCalcRow_('+ Ukupne uplate', sheet.total_in, currency, 'cell-in') +
+      cashsheetCalcRow_('- Ukupne isplate', sheet.total_out, currency, 'cell-out') +
+      cashsheetCalcRow_('- Predato u trezor', sheet.total_treasury, currency, 'cell-out') +
+      cashsheetCalcRow_('= Očekivano završno stanje', sheet.expected_closing_balance || sheet.calculated_closing_balance, currency, 'cell-bal') +
+      cashsheetCalcRow_('Završni presek / fizički popis', sheet.physical_total == null ? 'Fizički popis nije unet' : sheet.physical_total, currency) +
+      cashsheetCalcRow_('Razlika', sheet.difference == null ? '—' : sheet.difference, currency, Number(sheet.difference || 0) === 0 ? 'cell-in' : 'cell-out') +
+    '</div>';
+    var rows = events.length ? events.map(function(ev, idx) {
+      var dir = ev.display_direction || ev.direction;
+      var amount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+      var isIn = dir === 'IN';
+      var isOut = dir === 'OUT';
+      var displayName = cashEventUserLabel_(ev);
+      var displayReason = cashEventReasonLabel_(ev);
+      return '<tr>' +
+        '<td>' + (events.length - idx) + '</td>' +
+        '<td>' + escapeHtml(formatTimeShort_(ev.event_date || ev.created_at)) + '</td>' +
+        '<td>' + escapeHtml(ev.event_type || '') + '</td>' +
+        '<td>' + escapeHtml(displayName || '—') + (displayReason ? ' — ' + escapeHtml(displayReason) : '') + '</td>' +
+        '<td>' + (isIn ? formatAmount_(amount) : '—') + '</td>' +
+        '<td>' + (isOut ? formatAmount_(Math.abs(amount)) : '—') + '</td>' +
+        '<td>' + formatAmount_(ev.running_balance) + '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="7">Nema prometa za izabrani period.</td></tr>';
+    var table = '<table class="book-table">' +
+      '<thead><tr><th>Rb.</th><th>Vreme</th><th>Vrsta</th><th>Opis</th><th>Uplata</th><th>Isplata</th><th>Stanje</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+    return header + calc + table;
+  }
+
+  function ensurePrintCashSheetOverlay_() {
+    var overlay = document.getElementById('print-cashsheet-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'print-cashsheet-overlay';
+      document.body.appendChild(overlay);
+    }
+    return overlay;
+  }
+
+  function printCashSheetHtml_(sheet) {
+    var overlay = ensurePrintCashSheetOverlay_();
+    overlay.innerHTML = buildCashSheetPrintHtml_(sheet);
+    document.documentElement.classList.add('printing-cashsheet-overlay');
+    var cleanup = function() {
+      document.documentElement.classList.remove('printing-cashsheet-overlay');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    // Give the overlay a tick to actually paint before invoking print().
+    window.setTimeout(function() { window.print(); }, 30);
+  }
+
+  function printCashSheetForEvent_(ev) {
+    var dateValue = ev && (ev.event_date || ev.created_at);
+    var filters = withUiDefaults({
+      cashbox_id: SESSION.cashboxId,
+      currency: SESSION.currency,
+      date: dateValue ? String(dateValue).slice(0, 10) : (uiState.config && uiState.config.today) || '',
+      shift_id: ''
+    });
+    callApi('apiGetCashSheetReport', [filters], function(sheet) {
+      printCashSheetHtml_(sheet || {});
+    }, { quiet: true });
+  }
+
   function renderRecords(targetId, records, fields) {
     records = records || [];
     if (records.length === 0) {
@@ -4317,7 +4424,13 @@
   var LAST_KNJIGA_ANNOUNCEMENTS = [];
 
   function canViewPaymentAnnouncements_() {
-    return currentUserHasPrivilege_('payment_announcements:view') || currentUserHasPrivilege_('payment_announcements:match');
+    // ANNOUNCER only has payment_announcements:create, not :view/:match - but they still
+    // need to see the najave THEY created (backend scopes this to created_by = self, see
+    // api/payment-announcements/list.js), otherwise a najava vanishes the moment it's
+    // submitted with zero confirmation.
+    return currentUserHasPrivilege_('payment_announcements:view') ||
+      currentUserHasPrivilege_('payment_announcements:match') ||
+      currentUserHasPrivilege_('payment_announcements:create');
   }
 
   function canCreatePaymentAnnouncement_() {
@@ -4417,7 +4530,10 @@
       callApi('apiCreatePaymentAnnouncement', [data], function() {
         showMessage('Najava uplate je sačuvana.', 'success');
         close();
-        if (canViewPaymentAnnouncements_()) loadKnjigaAnnouncements_();
+        if (canViewPaymentAnnouncements_()) {
+          loadKnjigaAnnouncements_();
+          loadDesktopAnnouncements_();
+        }
       }, { successMessage: 'Najava uplate je sačuvana.' });
     });
   }
@@ -4839,6 +4955,11 @@
     return ev.partner_name || ev.description || '—';
   }
 
+  function isEventAlreadyReversed_(eventId) {
+    if (!eventId) return false;
+    return (LAST_KNJIGA_EVENTS || []).some(function(e) { return e.reversal_of_event_id === eventId; });
+  }
+
   function cashEventReasonLabel_(ev) {
     if (ev.event_type === 'ANNOUNCEMENT') {
       var statusLabel = ev.status === 'MATCHED' ? 'Uparena' : ev.status === 'CANCELLED' ? 'Otkazana' : 'Čeka uplatu';
@@ -4865,7 +4986,8 @@
     var reason  = escapeHtml(cashEventReasonLabel_(ev));
     var createdBy = escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—'));
     var timeStr = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date));
-    var trace = ev.reversal_of_event_id ? ' · Stornirano' : '';
+    var trace = ev.reversal_of_event_id ? ' · Storno stavke ' + escapeHtml(ev.reversal_of_event_id)
+      : isEventAlreadyReversed_(ev.event_id) ? ' · Stornirano' : '';
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     var idAttr = isAnnouncement ? 'data-announcement-id="' + escapeHtml(ev.__announcement.announcement_id) + '"' : 'data-event-id="' + escapeHtml(ev.event_id) + '"';
     return '<tr class="' + rowClass + ' cashbook-row" ' + idAttr + '>' +
@@ -4932,7 +5054,7 @@
     var reason = escapeHtml(cashEventReasonLabel_(ev));
     var meta   = escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) +
       ' · ' + escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—')) +
-      (ev.reversal_of_event_id ? ' · Stornirano' : '');
+      (ev.reversal_of_event_id ? ' · Storno stavke' : isEventAlreadyReversed_(ev.event_id) ? ' · Stornirano' : '');
     var statusHint = ev.optimistic_id ? ' · Knjiženje...' : '';
     var idAttr = isAnnouncement ? 'data-announcement-id="' + escapeHtml(ev.__announcement.announcement_id) + '"' : 'data-event-id="' + escapeHtml(ev.event_id) + '"';
     return '<div class="m-entry' + (isCount ? ' count' : '') + (isAnnouncement ? ' announcement' : '') + (ev.optimistic_id ? ' optimistic' : '') + '" ' + idAttr + '>' +
@@ -5028,7 +5150,7 @@
       };
     }
     if (stornoBtn) {
-      var canReverse = !isCount && ev.status !== 'REVERSED' && ev.event_type !== 'REVERSAL';
+      var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !isEventAlreadyReversed_(ev.event_id);
       stornoBtn.disabled = !canReverse;
       stornoBtn.title = canReverse ? '' : 'Ova stavka je već storno ili storno događaj.';
       stornoBtn.onclick = function() {
@@ -5097,10 +5219,16 @@
     overlay.onclick = function(e) { if (e.target === overlay) overlay.style.display = 'none'; };
     if (printBtn) {
       printBtn.disabled = isCount;
-      printBtn.onclick = function() { if (!isCount) openPrintView('print-cash-event', ev.event_id); };
+      printBtn.title = isCount ? 'Popis se evidentira u preseku smene, bez blagajničkog lista za uplatu/isplatu.' : '';
+      // Ranije: openPrintView('print-cash-event', ...) - vodilo je na print-cash-event.html,
+      // koji (kao i ostale print-*.html stranice) sadrži neprevedenu GAS scriptlet sintaksu
+      // i nikad nije radio posle Cloudflare migracije. Sada koristi isti ISPRAVAN,
+      // klijentski-renderovani "Blagajnički list" html koji već radi na desktopu, samo
+      // kroz univerzalni print overlay koji ne zahteva navigaciju na poseban ekran.
+      printBtn.onclick = function() { if (!isCount) printCashSheetForEvent_(ev); };
     }
     if (stornoBtn) {
-      var canReverse = !isCount && ev.status !== 'REVERSED' && ev.event_type !== 'REVERSAL' && !ev.optimistic_id;
+      var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !ev.optimistic_id && !isEventAlreadyReversed_(ev.event_id);
       stornoBtn.disabled = !canReverse;
       stornoBtn.onclick = function() {
         if (!canReverse) return;

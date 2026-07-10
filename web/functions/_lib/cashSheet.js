@@ -1,6 +1,7 @@
 import { encodeEq, supabaseRest } from './supabase.js';
 import { scopeCashboxForUser } from './reports.js';
 import { getCashCountsReportCore } from './cashCounts.js';
+import { cashEventDelta, cashEventDisplayAmount } from './cashEventMath.js';
 
 // "Blagajnički list" (cash sheet) - a single-shift or single-day printable summary:
 // opening balance, all movements, totals by type, expected vs. physical closing
@@ -108,7 +109,7 @@ function calculateBalanceSnapshotForScope(eventsAscending, scope) {
       seenScope = true;
     }
     if (isBalanceAffecting(event)) {
-      running += event.direction === 'OUT' ? -safeNumber(event.amount) : event.direction === 'IN' ? safeNumber(event.amount) : 0;
+      running += cashEventDelta(event);
     }
     if (inScope) {
       closingBalance = running;
@@ -129,12 +130,11 @@ function calculateBalanceSnapshotForScope(eventsAscending, scope) {
 
 function buildEventRow(event, index, runningBalance) {
   const amount = safeNumber(event.amount);
-  const isReversal = event.event_type === 'REVERSAL' && event.reversal_of_event_id;
-  // A reversal is displayed as if it moved cash the OPPOSITE way from its own stored
-  // direction, with a negated amount - visually "undoing" the original line on the
-  // printed sheet, rather than showing as an extra same-direction movement.
-  const displayDirection = isReversal ? (event.direction === 'OUT' ? 'IN' : 'OUT') : event.direction;
-  const displayAmount = isReversal ? -amount : amount;
+  // A storno/reversal keeps the SAME stored direction as the event it corrects (see
+  // cash-events/reverse.js) so it lands in the same Uplata/Isplata column, with a
+  // negative display amount that nets it out on the printed sheet too.
+  const displayDirection = event.direction;
+  const displayAmount = cashEventDisplayAmount(event);
   return {
     event_date: event.event_date || event.created_at || '',
     event_id: event.event_id || '',
@@ -142,7 +142,7 @@ function buildEventRow(event, index, runningBalance) {
     event_type: event.event_type || '',
     direction: event.direction || '',
     amount,
-    signed_amount: event.direction === 'OUT' ? -amount : amount,
+    signed_amount: cashEventDelta(event),
     display_direction: displayDirection,
     display_amount: displayAmount,
     running_balance: runningBalance === undefined || runningBalance === null ? null : Number(runningBalance),
@@ -250,7 +250,7 @@ export async function getCashSheetReportCore(env, user, filters) {
   let runningTotal = 0;
   allEventsAscending.forEach((event) => {
     if (isBalanceAffecting(event)) {
-      runningTotal += event.direction === 'OUT' ? -safeNumber(event.amount) : event.direction === 'IN' ? safeNumber(event.amount) : 0;
+      runningTotal += cashEventDelta(event);
     }
     runningByEventId[event.event_id] = runningTotal;
   });

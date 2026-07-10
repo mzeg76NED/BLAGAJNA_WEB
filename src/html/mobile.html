@@ -240,6 +240,21 @@
 
       </div><!-- /m-content -->
 
+      <!-- Direktne akcije (Uplata/Isplata/Trezor) - deo normalnog flex toka ljuske,
+           nalepljene direktno iznad donje navigacije (bez position:fixed i nagađanja
+           visine trake ispod), pa se ne mogu razminuti/preklopiti sa njom. -->
+      <div class="m-fixed-actions" id="m-direct-actions" hidden>
+        <button class="btn-in" id="m-btn-uplata" type="button">
+          <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
+        </button>
+        <button class="btn-out" id="m-btn-isplata" type="button">
+          <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Isplata
+        </button>
+        <button class="btn-out" id="m-btn-trezor" type="button">
+          <i class="ti ti-building-bank" aria-hidden="true"></i> Trezor
+        </button>
+      </div>
+
       <!-- BOTTOM NAV -->
       <nav class="m-bottom-nav" aria-label="Navigacija">
         <button class="m-tab active" data-m-nav="m-section-knjiga" type="button">
@@ -266,18 +281,6 @@
       </nav>
 
     </div><!-- /m-shell -->
-
-    <div class="m-fixed-actions" id="m-direct-actions" hidden>
-      <button class="btn-in btn-lg" id="m-btn-uplata" type="button">
-        <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> UPLATA
-      </button>
-      <button class="btn-out btn-lg" id="m-btn-isplata" type="button">
-        <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> ISPLATA
-      </button>
-      <button class="btn-out btn-lg" id="m-btn-trezor" type="button">
-        <i class="ti ti-building-bank" aria-hidden="true"></i> TREZOR
-      </button>
-    </div>
 
     <div id="m-detail-overlay" class="m-detail-overlay" style="display:none" role="dialog" aria-modal="true">
       <div class="m-detail-sheet">
