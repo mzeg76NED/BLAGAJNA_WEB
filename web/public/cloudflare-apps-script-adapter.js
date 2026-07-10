@@ -52,28 +52,42 @@
     return (session && session.app_user) || null;
   }
 
-  function buildConfig(session, cashboxes) {
+  // Fallback ako /api/currencies/list ikad zakaže (mreža, migracija u toku) - drži
+  // aplikaciju upotrebljivom sa istim vrednostima koje su ranije bile hardkodovane.
+  var FALLBACK_CURRENCIES = [
+    { currency_code: 'RSD', name: 'Srpski dinar', active: true, is_default: true, denominations: [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1] },
+    { currency_code: 'EUR', name: 'Evro', active: true, is_default: false, denominations: [500, 200, 100, 50, 20, 10, 5, 2, 1] }
+  ];
+
+  function buildConfig(session, cashboxes, currencyRows) {
     var user = sessionToUser(session) || {};
     var defaultCashboxId = session.cashbox_id || user.default_cashbox_id || (cashboxes[0] && cashboxes[0].cashbox_id) || '';
     var defaultCashbox = cashboxes.filter(function (cashbox) {
       return cashbox.cashbox_id === defaultCashboxId;
     })[0] || {};
+    var currencies = (currencyRows && currencyRows.length ? currencyRows : FALLBACK_CURRENCIES)
+      .filter(function (row) { return row.active !== false; });
+    var cashDenominations = {};
+    currencies.forEach(function (row) {
+      cashDenominations[row.currency_code] = Array.isArray(row.denominations) && row.denominations.length
+        ? row.denominations
+        : [];
+    });
+    var defaultCurrencyRow = currencies.filter(function (row) { return row.is_default; })[0] || currencies[0] || {};
     return {
       appName: 'BLAGAJNA WEB',
       version: 'cloudflare-migration',
       appVersion: 'cloudflare-migration-0.1.0',
       environment: 'Cloudflare/Supabase migracija',
-      currencies: ['RSD', 'EUR'],
-      cashDenominations: {
-        RSD: [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1],
-        EUR: [500, 200, 100, 50, 20, 10, 5, 2, 1]
-      },
+      currencies: currencies.map(function (row) { return row.currency_code; }),
+      currencyDetails: currencies,
+      cashDenominations: cashDenominations,
       cashboxes: cashboxes,
       requestPriorities: ['NORMAL', 'URGENT', 'VERY_URGENT'],
       entityTypes: ['PAYMENT_REQUEST', 'PAYMENT_ORDER', 'CASH_EVENT', 'SHIFT', 'DAILY_CLOSING'],
       defaultCashboxId: defaultCashboxId,
       defaultCashboxName: defaultCashbox.name || defaultCashbox.cashbox_id || defaultCashboxId,
-      defaultCurrency: 'RSD',
+      defaultCurrency: defaultCurrencyRow.currency_code || 'RSD',
       today: todayIso()
     };
   }
@@ -86,16 +100,28 @@
     return session;
   }
 
+  async function getBootstrapCurrencies(sessionId) {
+    try {
+      var response = await apiFetch('/api/currencies/list', { sessionId: sessionId });
+      return response.currencies || [];
+    } catch (error) {
+      // Ne blokiraj bootstrap ako valute ne mogu da se ucitaju - FALLBACK_CURRENCIES
+      // u buildConfig() drzi RSD/EUR kao pre uvodjenja dinamickog citanja iz baze.
+      return [];
+    }
+  }
+
   async function getBootstrap(includeDashboard, sessionId) {
     var session = await getCurrentSession(sessionId);
     var cashboxesResponse = await apiFetch('/api/cashboxes', { sessionId: session.session_id });
     var shiftsResponse = await apiFetch('/api/shifts/mine/active', { sessionId: session.session_id });
     var balanceResponse = await apiFetch('/api/reports/cashbox-balance?cashbox_id=' + encodeURIComponent(session.cashbox_id || ''), { sessionId: session.session_id });
+    var currencyRows = await getBootstrapCurrencies(session.session_id);
     var cashboxes = cashboxesResponse.cashboxes || [];
     var shifts = shiftsResponse.shifts || [];
     var activeShift = shifts[0] || null;
     var data = {
-      config: buildConfig(session, cashboxes),
+      config: buildConfig(session, cashboxes, currencyRows),
       user: sessionToUser(session),
       activeShift: activeShift,
       canPostDirectCashEvents: Boolean(activeShift),
@@ -451,6 +477,54 @@
         method: 'POST',
         sessionId: sessionId,
         body: JSON.stringify({ order_id: orderId })
+      });
+    },
+    apiCreatePaymentAnnouncement: async function (data, sessionId) {
+      return apiFetch('/api/payment-announcements/create', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
+    },
+    apiListPaymentAnnouncements: async function (filters, sessionId) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'status'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      var response = await apiFetch('/api/payment-announcements/list?' + query.toString(), { sessionId: sessionId });
+      return response.announcements || [];
+    },
+    apiMatchPaymentAnnouncement: async function (announcementId, data, sessionId) {
+      return apiFetch('/api/payment-announcements/match', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ announcement_id: announcementId, data: data || {} })
+      });
+    },
+    apiCancelPaymentAnnouncement: async function (announcementId, reason, sessionId) {
+      return apiFetch('/api/payment-announcements/cancel', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ announcement_id: announcementId, reason: reason || '' })
+      });
+    },
+    apiListCurrencies: async function (sessionId) {
+      var response = await apiFetch('/api/currencies/list', { sessionId: sessionId });
+      return response.currencies || [];
+    },
+    apiCreateCurrency: async function (data, sessionId) {
+      return apiFetch('/api/currencies/create', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify(data || {})
+      });
+    },
+    apiUpdateCurrency: async function (currencyCode, data, sessionId) {
+      return apiFetch('/api/currencies/update', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ currency_code: currencyCode, data: data || {} })
       });
     },
     apiListPaymentOrders: async function (filters, sessionId) {

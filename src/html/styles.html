@@ -756,11 +756,40 @@
     z-index: 20;
   }
 
+  .m-header-top {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
   .m-header-balance {
     font-size: 24px;
     font-weight: 800;
     color: var(--color-in);
     line-height: 1.1;
+  }
+
+  /* Compact icon button that reveals the blagajna/valuta/tema chips - previously
+     those were always visible and ate ~35-40% of the mobile viewport on every tab.
+     Collapsed by default; toggled via bindMobileHeaderSettings_() in scripts.html. */
+  .m-header-settings-btn {
+    align-items: center;
+    background: var(--color-surface-alt, #202733);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    color: var(--color-text);
+    display: inline-flex;
+    flex-shrink: 0;
+    font-size: 16px;
+    height: 32px;
+    justify-content: center;
+    width: 32px;
+  }
+
+  .m-header-settings-btn.active {
+    background: var(--color-accent, #3b82f6);
+    color: #fff;
   }
 
   .m-header-meta {
@@ -774,6 +803,15 @@
     gap: 6px;
     margin-top: 8px;
     flex-wrap: wrap;
+  }
+
+  .m-header-chips[hidden] {
+    display: none;
+  }
+
+  .m-chip-version {
+    color: var(--color-text-muted);
+    font-size: 10px;
   }
 
   .m-chip {
@@ -3497,8 +3535,57 @@
 
   html.mobile-view .m-fixed-actions {
     bottom: calc(110px + env(safe-area-inset-bottom));
-    gap: calc(8px * var(--mobile-scale));
-    padding: calc(10px * var(--mobile-scale)) calc(10px * var(--mobile-scale)) calc(8px * var(--mobile-scale));
+    gap: calc(6px * var(--mobile-scale));
+    padding: calc(8px * var(--mobile-scale)) calc(8px * var(--mobile-scale)) calc(6px * var(--mobile-scale));
+  }
+
+  /* Uplata/Isplata/Trezor: stack icon over a short label instead of side-by-side,
+     so the three buttons fit comfortably in one row without oversized pills. */
+  html.mobile-view .m-fixed-actions button {
+    flex-direction: column;
+    font-size: calc(10px * var(--mobile-scale));
+    gap: calc(2px * var(--mobile-scale));
+    min-height: calc(38px * var(--mobile-scale));
+    padding: calc(5px * var(--mobile-scale)) calc(4px * var(--mobile-scale));
+  }
+
+  html.mobile-view .m-fixed-actions button i {
+    font-size: calc(16px * var(--mobile-scale));
+  }
+
+  /* Shift-work-card action row (Uplata/Isplata/Trezor/Presek/Zatvori) and the
+     Presek "add denomination" row both used desktop-width grids (min 220-500px)
+     that overflow a ~360-400px phone screen, forcing oversized wrapped buttons. */
+  html.mobile-view .shift-work-card .actions {
+    display: grid;
+    gap: calc(6px * var(--mobile-scale));
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  html.mobile-view .shift-work-card .actions button {
+    flex-direction: column;
+    font-size: calc(10px * var(--mobile-scale));
+    gap: calc(2px * var(--mobile-scale));
+    min-height: calc(40px * var(--mobile-scale));
+    padding: calc(5px * var(--mobile-scale)) calc(4px * var(--mobile-scale));
+  }
+
+  html.mobile-view .shift-work-card .actions button i {
+    font-size: calc(16px * var(--mobile-scale));
+  }
+
+  html.mobile-view .count-entry-form {
+    grid-template-columns: 1fr 1fr;
+    max-width: none;
+  }
+
+  html.mobile-view .count-add-control {
+    grid-column: 1 / -1;
+    min-height: calc(40px * var(--mobile-scale));
+  }
+
+  html.mobile-view .count-add-control button {
+    min-height: calc(40px * var(--mobile-scale));
   }
 
   html.mobile-view .m-detail-actions {
@@ -3898,6 +3985,21 @@
     border-color: #ef4444;
   }
 
+  /* Compact variant used for mobile order-detail / new-order action rows
+     (m-order-detail, m-new-order-form) - the default 60px full-bleed style
+     is desktop-scaled and too tall for stacked mobile action lists. */
+  .m-detail-actions .cash-count-action {
+    align-items: center;
+    font-size: 13px;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 14px;
+  }
+
+  .m-detail-actions .cash-count-action i {
+    font-size: 18px;
+  }
+
   .cash-count-empty {
     color: #93a4b8;
     font-weight: 800;
@@ -4064,10 +4166,8 @@
       font-size: calc(24px * var(--mobile-scale));
     }
 
-    .m-header-meta,
-    .m-header-clock span,
-    .m-header-clock strong {
-      font-size: calc(20px * var(--mobile-scale));
+    .m-header-meta {
+      font-size: calc(11px * var(--mobile-scale));
     }
 
     .m-header-chips {
@@ -4147,6 +4247,50 @@
     .cur-btn {
       font-size: calc(12px * var(--mobile-scale));
       min-height: calc(34px * var(--mobile-scale));
+    }
+
+    .m-fixed-actions button {
+      flex-direction: column;
+      font-size: calc(10px * var(--mobile-scale));
+      gap: calc(2px * var(--mobile-scale));
+      min-height: calc(38px * var(--mobile-scale));
+      padding: calc(5px * var(--mobile-scale)) calc(4px * var(--mobile-scale));
+    }
+
+    .m-fixed-actions button i {
+      font-size: calc(16px * var(--mobile-scale));
+    }
+
+    .shift-work-card .actions {
+      display: grid;
+      gap: calc(6px * var(--mobile-scale));
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .shift-work-card .actions button {
+      flex-direction: column;
+      font-size: calc(10px * var(--mobile-scale));
+      gap: calc(2px * var(--mobile-scale));
+      min-height: calc(40px * var(--mobile-scale));
+      padding: calc(5px * var(--mobile-scale)) calc(4px * var(--mobile-scale));
+    }
+
+    .shift-work-card .actions button i {
+      font-size: calc(16px * var(--mobile-scale));
+    }
+
+    .count-entry-form {
+      grid-template-columns: 1fr 1fr;
+      max-width: none;
+    }
+
+    .count-add-control {
+      grid-column: 1 / -1;
+      min-height: calc(40px * var(--mobile-scale));
+    }
+
+    .count-add-control button {
+      min-height: calc(40px * var(--mobile-scale));
     }
 
     .d-nav { display: none; }

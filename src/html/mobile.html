@@ -18,19 +18,20 @@
 
       <!-- HEADER -->
       <header class="m-header">
-        <div class="m-header-balance" id="m-balance" data-raw-value="0">— RSD</div>
-        <div class="m-header-clock">
-          <span id="m-current-date">—</span>
-          <strong id="m-current-time">--:--</strong>
+        <div class="m-header-top">
+          <div class="m-header-balance" id="m-balance" data-raw-value="0">— RSD</div>
+          <button class="m-header-settings-btn" id="m-header-settings-btn" type="button" aria-label="Podešavanja blagajne" aria-expanded="false" aria-controls="m-header-chips">
+            <i class="ti ti-adjustments-horizontal" aria-hidden="true"></i>
+          </button>
         </div>
         <div class="m-header-meta">
           <span id="m-date"></span>
           &nbsp;·&nbsp;
-          <span data-current-user>...</span>
+          <strong id="m-current-time">--:--</strong>
           &nbsp;·&nbsp;
-          <span data-app-version>verzija...</span>
+          <span data-current-user>...</span>
         </div>
-        <div class="m-header-chips">
+        <div class="m-header-chips" id="m-header-chips" hidden>
           <span class="m-chip">
             <i class="ti ti-building-bank" aria-hidden="true"></i>
             <select data-session-cashbox-select aria-label="Blagajna"></select>
@@ -46,6 +47,7 @@
             <i class="ti ti-coins" aria-hidden="true"></i>
             Sve valute
           </button>
+          <span class="m-chip m-chip-version" data-app-version>verzija...</span>
         </div>
       </header>
 
@@ -69,9 +71,14 @@
         <!-- NALOZI -->
         <section id="m-section-nalozi" class="m-section" data-section>
           <h2>Nalozi za isplatu</h2>
-          <button id="m-load-nalozi-btn" type="button">
-            <i class="ti ti-refresh" aria-hidden="true"></i> Učitaj naloge
-          </button>
+          <div class="m-section-actions">
+            <button id="m-load-nalozi-btn" type="button">
+              <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
+            </button>
+            <button id="m-new-order-btn" type="button" class="btn-primary">
+              <i class="ti ti-plus" aria-hidden="true"></i> Novi nalog
+            </button>
+          </div>
           <div id="m-nalozi-list"></div>
         </section>
 

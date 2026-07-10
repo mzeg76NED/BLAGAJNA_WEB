@@ -17,7 +17,7 @@ create table users (
   user_id text primary key,
   email text not null,
   full_name text not null,
-  role text not null check (role in ('ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','CASHIER','APPROVER','REQUESTER','VIEWER')),
+  role text not null check (role in ('ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','CASHIER','APPROVER','REQUESTER','VIEWER','ANNOUNCER','ASSISTANT_CASHIER')),
   active boolean not null default true,
   default_cashbox_id text,
   created_at timestamptz not null default now(),
@@ -358,3 +358,55 @@ create trigger cash_events_set_updated_at before update on cash_events for each 
 create trigger shifts_set_updated_at before update on shifts for each row execute function set_updated_at();
 create trigger cash_counts_set_updated_at before update on cash_counts for each row execute function set_updated_at();
 create trigger daily_closing_set_updated_at before update on daily_closing for each row execute function set_updated_at();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- FAZA 3o (2026-07-10) - Najave uplate (payment announcements) + nove role
+-- ANNOUNCER / ASSISTANT_CASHIER. Ova sekcija je dodata NAKON prvobitnog
+-- deploy-a - ako se ovaj fajl pokreće na bazi koja VEC ima users tabelu
+-- (produkcija), pokrenuti samo ALTER/CREATE ispod (create table users iznad
+-- ce vec postojati i biti preskocena/greska ako se ceo fajl ponovo pusta bez
+-- "if not exists" zastite - namerno, da se ne prepisuju postojeci podaci).
+-- ─────────────────────────────────────────────────────────────────────────
+
+-- Ako je users tabela vec kreirana sa starim (bez ANNOUNCER/ASSISTANT_CASHIER)
+-- check constraint-om, ovo ga zamenjuje da dozvoli nove role bez diranja
+-- postojecih redova.
+alter table users drop constraint if exists users_role_check;
+alter table users add constraint users_role_check
+  check (role in ('ADMIN','DIRECTOR','FINANCE','CASHIER_SUPERVISOR','CASHIER','APPROVER','REQUESTER','VIEWER','ANNOUNCER','ASSISTANT_CASHIER'));
+
+-- Najava uplate: NE menja stanje blagajne (nije cash_event), ali je vidljiva
+-- u blagajnickoj knjizi kao informativna stavka (isti "merge" obrazac kao
+-- CASH_COUNT redovi u getCashSheetReport). Kad se najava "upari" sa stvarnom
+-- uplatom (UPLATA akcija), backend kreira normalan CASH_INFLOW cash_event za
+-- stvarni iznos + (ako se razlikuje od najavljenog) CORRECTION cash_event za
+-- razliku (VISAK/MANJAK) - isti pattern kao Presek stanja razlike. Ovaj
+-- red pamti oba ID-ja (matched_cash_event_id za glavnu uplatu) radi trag-a;
+-- sama razlika/korekcija se vidi kao zaseban cash_event u knjizi, ne ovde.
+create table payment_announcements (
+  announcement_id text primary key,
+  created_at timestamptz not null default now(),
+  created_by text not null,
+  cashbox_id text not null references cashboxes(cashbox_id),
+  currency text not null references currencies(currency_code),
+  announced_amount numeric(18,2) not null check (announced_amount > 0),
+  partner_name text not null,
+  purpose text,
+  note text,
+  status text not null default 'OPEN' check (status in ('OPEN', 'MATCHED', 'CANCELLED')),
+  matched_cash_event_id text references cash_events(event_id),
+  matched_correction_event_id text references cash_events(event_id),
+  matched_amount numeric(18,2),
+  difference numeric(18,2),
+  matched_by text,
+  matched_at timestamptz,
+  cancelled_by text,
+  cancelled_at timestamptz,
+  cancel_reason text,
+  updated_at timestamptz
+);
+
+create index payment_announcements_cashbox_idx on payment_announcements(cashbox_id, currency, status, created_at desc);
+create index payment_announcements_status_idx on payment_announcements(status);
+
+create trigger payment_announcements_set_updated_at before update on payment_announcements for each row execute function set_updated_at();

@@ -575,3 +575,61 @@ Sledeci korak:
 
 - Korisnik push-uje i testira mobilni prikaz na telefonu: da li su dugmad/tekst sada normalne velicine, da li se naslovi stavki u Knjizi vise ne seku toliko agresivno.
 - Potvrdjeno (ponovnim diff-om `callApi(...)` poziva iz `scripts.html` protiv adapter handlera) da NEMA preostalih pravih (zivih) API rupa - svi nedostajuci pozivi su iskljucivo u poznatom mrtvom `bindUi()`/`bindDesktop()` bloku. API migracija je kompletna; preostali rad je UI/UX poliranje i korisnicko testiranje.
+
+## FAZA 3m - Mobilni: kolaps zaglavlja, kompaktnija dugmad, Nalozi CRUD (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE (implementacija), CEKA runtime test na telefonu
+
+Kontekst: Korisnik je poslao treci snimak ekrana (Screen_Recording_20260710_095357_Brave.mp4) sa jos konkretnijim zahtevima nakon FAZA 3l: (1) UPLATA/ISPLATA/TREZOR dugmad i dalje prevelika, (2) zaglavlje (blagajna/valuta/tema/"sve valute" red) zauzima previse prostora na svakom tabu, treba sakriti unutar opcije, (3) mobilni Nalozi tab nema NIKAKVU funkcionalnost - samo listu i blokirano dugme koje ispisuje poruku da je akcija onemogucena, (4) Smena i Presek tabovi treba bolje organizovani/kompaktniji ekrani.
+
+Sta je uradjeno:
+
+1. **Kolaps zaglavlja** - `mobile.html` header restrukturiran: `.m-header-top` (balans + novo dugme `#m-header-settings-btn` sa ikonicom podesavanja) + `.m-header-chips` (blagajna/valuta/tema/"sve valute"/verzija) sada `hidden` po default-u i otvara se klikom (nova `bindMobileHeaderSettings_()` u `scripts.html`). U `styles.html` dodato `.m-header-chips[hidden] { display: none }` (bez ovoga bi `.m-header-chips { display:flex }` mogao nadjacati `[hidden]` UA-default). Usput otkriven i ispravljen zaostali bug: `.m-header-clock` selektor iz stare markup strukture (uklonjene u ovoj sesiji) je ostao u `@media(max-width:768px)` bloku sa font-size 20px - vise ne pogadja nista postojece, ocisceno.
+2. **Dodatno smanjena UPLATA/ISPLATA/TREZOR dugmad** (`.m-fixed-actions button`) i identicna dugmad na Smena tabu (`.shift-work-card .actions button`) - promenjena sa horizontalnog (ikonica+tekst) na vertikalni layout (ikonica iznad kratkog labela), min-height spusten na ~38-40px (sa ranijih 44-48px), font 10px. Primenjeno u OBA dupla CSS bloka (`html.mobile-view` scale-blok i `@media(max-width:768px)` blok) - ustanovljeni obrazac iz FAZA 3j/3l da se moraju menjati zajedno.
+3. **Presek tab** - `.count-entry-form` (Apoen/Komada/Upisi red za unos denominacija) je koristio desktop-only `grid-template-columns: minmax(220px,1fr) minmax(160px,1fr) 120px` (min ~500px) sto je na telefonu (360-400px) prelilo ekran i naciniralo "ogromna" dugmad kao vizuelni efekat prelivanja. Prebaceno na `1fr 1fr` sa dugmetom "Upisi" u punoj sirini ispod.
+4. **Mobilni Nalozi tab - puna CRUD funkcionalnost** (najveca stavka ove faze): Ranije `loadMobileNalozi_()` je zvao `apiListOrdersWaitingForPayment` i prikazivao dugme "Ceka" koje je SAMO ispisivalo poruku (`executeOrderDirect_` = "blokirano dok se ne uvede ISPLATA zapis") - dakle nikakva prava akcija nije postojala. Zamenjeno potpuno novim tokom koji koristi ISTE, vec proverene desktop API pozive (nijedan nov backend endpoint nije bio potreban - `apiListPaymentOrders`, `apiCreateDirectPaymentOrder`, `apiUpdateDraftPaymentOrder`, `apiIssuePaymentOrder`, `apiRejectPaymentOrderByCashier`, `apiSendPaymentOrderToCashier`, `apiExecutePendingPaymentOrderOutflow` - svi vec postoje i koriste se na desktop `d-section-nalozi` ekranu):
+   - `loadMobileNalozi_()`/`renderMobileNalozi_()` - lista SVIH naloga (isto sto i desktop `loadDesktopNalozi_`), status-obojeni chip po redu, tab-badge broji naloge u DRAFT/WAITING_PAYMENT/PARTIALLY_PAID statusu.
+   - `openMobileOrderDetail_(order)` - tap na red otvara `.app-dialog-overlay` sa detaljima i dugmadima ciji su uslovi prikazivanja 1:1 preslikani iz desktop `renderPaymentOrderDetail_`/`bindPaymentOrderDetailActions_` (Izmeni nacrt - samo DRAFT, Odobri nalog - samo DRAFT preko `apiIssuePaymentOrder`, Odbij - samo WAITING_PAYMENT preko `apiRejectPaymentOrderByCashier` uz obavezan razlog, Posalji na isplatu - WAITING_PAYMENT/PARTIALLY_PAID bez vec poslatog pending zapisa preko `apiSendPaymentOrderToCashier`, Izvrsi isplatu - kad postoji pending cash event i korisnik ima otvorenu smenu na blagajni, preko `apiExecutePendingPaymentOrderOutflow`).
+   - `openMobileNewOrderForm_(existingOrder)` - novi kompaktni mobilni formular (dugme "+ Novi nalog" u `mobile.html`) za kreiranje ILI izmenu nacrta naloga (blagajna/valuta/primalac/iznos/osnov/rok/napomena), sa dva puta: "Sacuvaj nacrt" (`apiCreateDirectPaymentOrder`/`apiUpdateDraftPaymentOrder`) ili "Sacuvaj i izdaj" (cuva pa odmah zove `apiIssuePaymentOrder`) - ista logika kao desktop `saveNewPaymentOrderDraft_`/`issueNewPaymentOrder_`, samo bez draft-attachment/file-upload dela desktop ekrana (nije trazen za mobilni).
+   - Dodata kompaktna varijanta `.cash-count-action` stila (`.m-detail-actions .cash-count-action`, min-height 44px umesto desktop 60px) da dugmad u ovim novim mobilnim dijalozima ne budu preglomazna.
+
+Sta nije uradjeno:
+
+- Nije runtime testirano na telefonu (korisnik treba da potvrdi da kolaps zaglavlja, manja dugmad i novi Nalozi tok rade ispravno na stvarnom uredjaju).
+- Mobilni Nalozi CRUD NE ukljucuje prilozene dokumente (attachments) - desktop `new-payment-order-form` ima upload polje, mobilni formular namerno ne (van obima zahteva, moze se dodati naknadno ako zatreba).
+- Preostale stavke iz istog korisnickog zahteva (valute CRUD, print Blagajnickog lista, Najave/najava uplate feature sa novim rolama ANNOUNCER/ASSISTANT_CASHIER) NISU zapocete u ovoj fazi - planirane su i potvrdjene od strane korisnika, ali su odlozene za sledecu fazu jer ukljucuju SQL migraciju i nove role (visi rizik, zahteva odvojen pregled).
+
+Sledeci korak:
+
+- Korisnik push-uje i testira mobilni prikaz (zaglavlje/dugmad/Nalozi tok) na telefonu.
+- Nastaviti sa preostalim odobrenim stavkama: Valute CRUD (API + admin ekran + dinamicki bootstrap umesto hardkodovanih `RSD`/`EUR`), aktivacija print dugmeta za Blagajnicki list (ispravka `openPrintView`/`getBasePrintUrl_` URL rutiranja), i Najave (najava uplate) feature - SQL migracija za nove role, `payment_announcements` tabela, backend match/VISAK-MANJAK logika, frontend (kreiranje najave, prikaz u Knjizi, UPLATA akcija), i ogranicen ekran za Pomocnog blagajnika.
+
+## FAZA 3n - Valute CRUD + ispravka dugmeta Blagajnicki list (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE (implementacija), CEKA runtime test
+
+Sta je uradjeno:
+
+1. **Valute CRUD** (tabela `currencies` je vec postojala u šemi sa `denominations` jsonb kolonom - nije bila potrebna nova SQL migracija, samo nova permisija):
+   - `web/functions/_lib/currencies.js` (novo) - `normalizeCurrencyCode`, `isValidCurrencyCode`, `normalizeDenominations` (prima CSV ili niz, vraca ociscen/sortiran niz pozitivnih celih brojeva), `clearOtherDefaultCurrencies` (garantuje tacno 0 ili 1 `is_default` valuta), `findCurrency`.
+   - `web/functions/api/currencies/list.js` (novo, GET) - dostupno svakom prijavljenom korisniku (valute su deljena konfiguracija, ne osetljiv podatak).
+   - `web/functions/api/currencies/create.js`, `update.js` (novo, POST) - zahtevaju novu privilegiju `currencies:manage`; audit log (`CURRENCIES` entity).
+   - `supabase/seed.sql` - dodata permisija `currencies:manage` (kategorija `currencies`) + role_permissions za `ADMIN` i `FINANCE`.
+   - `cloudflare-apps-script-adapter.js` - `apiListCurrencies`/`apiCreateCurrency`/`apiUpdateCurrency` handleri; `buildConfig()` vise NE hardkoduje `currencies: ['RSD','EUR']` i `cashDenominations` - `getBootstrap()` sada zove `/api/currencies/list` i prosledjuje stvarne redove; `FALLBACK_CURRENCIES` konstanta cuva iste stare vrednosti kao safety-net ako poziv ikad zakaze (npr. mreza), da app ne postane neupotrebljiv.
+   - `desktop.html`/`scripts.html` - nov nav item "Valute" (`d-section-valute`), tabela sa listom valuta (šifra/naziv/status/podrazumevana/apoeni) + dijalog za dodavanje/izmenu (isti `.app-dialog-overlay` pattern kao mobilni Nalozi dijalozi iz FAZA 3m), gated iza `currencies:manage` privilegije (denied/allowed panel isti obrazac kao `d-users-admin-denied`/`d-users-admin-content`). Samo desktop (mobilni admin ekran nije trazen, valute su retka administrativna operacija).
+
+2. **Blagajnicki list print dugme** - istraga je otkrila da problem NIJE bio nedostajuca stranica, vec da dugme "Blagajnicki list" u detalju stavke na Knjiga tabu (`#d-detail-print`) poziva pogresnu funkciju: `openPrintView('print-cash-event', ev.event_id)` - otvara vaucer POJEDINACNE stavke, ne blagajnicki list. Uz to, `openPrintView`/`getBasePrintUrl_` su gradili neispravan URL (`trenutnaStranica.html?view=X&id=Y`umesto pravog Cloudflare flat-fajla) - taj deo je TAKODJE ispravljen (nova `getPrintFileUrl_()` gradi `/print-X.html` direktno), sto koristi bilo koje drugo dugme koje jos zove `openPrintView`.
+   - Ispravljeno: `#d-detail-print` sada zove novu `openCashSheetForEvent_(ev)` koja navigira na VEC RADEcI `d-section-blagajnicki-list` ekran (postoji od FAZA 3k - `loadCashSheet_`/`renderCashSheet_`/`window.print()` sa posvecenim `@media print` CSS-om koji sakriva navigaciju), skopiran na DATUM izabrane stavke (cash_events tabela nema `shift_id` kolonu, pa je scope uvek po danu, ne po smeni - isto ponasanje kao default `loadCashSheet_()` bez eksplicitnog shift filtera).
+   - VAZNO OTKRICE (nije popravljeno u ovoj fazi, samo dokumentovano): Preostalih 5 print-*.html fajlova (`print-cash-event`, `print-payment-order`, `print-payment-request`, `print-shift-handover`, `print-daily-closing`, `print-report`) i dalje sadrze NEPRENETU GAS server-side scriptlet sintaksu (`<? var data = printData || {}; ?>`, `<?= event.event_id ?>`) iz stare Apps Script HtmlService sablonizacije. `web/build.mjs` (graditelj za Cloudflare Pages) NIKAD nije implementirao evaluaciju ovih scriptlet-a - njegova `rewriteAppsScriptExpressions()` menja samo par specificnih GAS izraza (base target, ScriptApp.getService().getUrl(), href=?view= linkove), ne generalne `<? ... ?>` blokove. To znaci da bi OTVARANJE bilo koje od ovih stranica (npr. print-payment-order.html za nalog) danas prikazalo polomljen HTML sa vidljivim `<?= ... ?>` tekstom umesto podataka - te stranice NIKAD nisu radile posle Cloudflare migracije, cak i kad bi URL rutiranje bilo ispravno. Blagajnicki list ovo zaobilazi jer koristi DRUGACIJI, vec ispravan obrazac (klijentska JS renderovanje u `d-section-blagajnicki-list` + `window.print()`, bez posebnog print-*.html fajla). Popravka preostalih 5 stranica (konverzija u isti klijentski fetch+render obrazac) NIJE uradjena u ovoj sesiji - obiman je posao (svaka stranica treba prepravku iz scriptlet-a u JS render funkciju) i nije bio deo eksplicitnog zahteva ove sesije.
+
+Sta nije uradjeno:
+
+- Runtime test valuta CRUD-a i print dugmeta na produkciji.
+- Preostalih 5 print-*.html stranica sa neprenetom GAS scriptlet sintaksom (vidi gore) - i dalje polomljene, treba posebna sesija.
+- Mobilni admin ekran za valute (namerno preskocen, desktop-only).
+
+Sledeci korak:
+
+- Korisnik push-uje i testira: Valute ekran (dodavanje/izmena/apoeni), i "Blagajnicki list" dugme u Knjizi (treba da vodi na ispravan izvestaj sa opcijom stampe).
+- Odluciti da li i kada popraviti preostalih 5 print-*.html stranica (odvojen posao, nije deo trenutnog zahteva).
+- Nastaviti sa Najave (najava uplate) feature-om - poslednja preostala stavka iz odobrenog zahteva.

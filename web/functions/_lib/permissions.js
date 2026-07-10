@@ -8,7 +8,9 @@ export const USER_ROLES = [
   'CASHIER',
   'APPROVER',
   'REQUESTER',
-  'VIEWER'
+  'VIEWER',
+  'ANNOUNCER',
+  'ASSISTANT_CASHIER'
 ];
 
 export async function getAllPermissionIds(env) {

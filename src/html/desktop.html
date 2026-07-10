@@ -88,6 +88,9 @@
         <button class="nav-item" data-d-nav="users-admin" type="button">
           <i class="ti ti-users" aria-hidden="true"></i> Korisnici i prava
         </button>
+        <button class="nav-item" data-d-nav="valute" type="button">
+          <i class="ti ti-coins" aria-hidden="true"></i> Valute
+        </button>
 
         <div class="nav-bottom">
           <a class="button-link" href="?view=mobile" style="width:100%;font-size:12px;min-height:32px">
@@ -1122,6 +1125,35 @@
                     </div>
                   </aside>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- VALUTE -->
+          <section id="d-section-valute" class="d-section">
+            <div class="users-admin-page">
+              <div class="po-page-head">
+                <div>
+                  <h2>Valute</h2>
+                  <p>Valute i apoeni dostupni u blagajni. Neaktivna valuta se ne prikazuje u formama za unos/presek.</p>
+                </div>
+                <div class="po-head-actions">
+                  <button id="d-currencies-add-btn" class="po-primary-btn cash-count-action save" type="button">
+                    <i class="ti ti-plus" aria-hidden="true"></i> Dodaj valutu
+                  </button>
+                  <button id="d-currencies-refresh-btn" class="po-secondary-btn cash-count-action draft" type="button">
+                    <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
+                  </button>
+                </div>
+              </div>
+
+              <div id="d-currencies-denied" class="empty-state users-admin-denied" hidden>
+                <i class="ti ti-lock" aria-hidden="true"></i>
+                <p>Nemate ovlašćenje za upravljanje valutama.</p>
+              </div>
+
+              <div id="d-currencies-content">
+                <div id="d-currencies-list" class="po-table-wrap"></div>
               </div>
             </div>
           </section>
