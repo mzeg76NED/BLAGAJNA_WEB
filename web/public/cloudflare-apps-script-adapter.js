@@ -648,6 +648,14 @@
       if (cashboxId) query.set('cashbox_id', cashboxId);
       return apiFetch('/api/cashbook/filter-options?' + query.toString(), { sessionId: sessionId });
     },
+    apiGetCashSheetReport: async function (filters, sessionId) {
+      filters = filters || {};
+      var query = new URLSearchParams();
+      ['cashbox_id', 'currency', 'date', 'date_from', 'date_to', 'shift_id'].forEach(function (field) {
+        if (filters[field]) query.set(field, filters[field]);
+      });
+      return apiFetch('/api/reports/cash-sheet?' + query.toString(), { sessionId: sessionId });
+    },
     apiGetShiftHistory: async function (filters, sessionId) {
       filters = filters || {};
       var query = new URLSearchParams();

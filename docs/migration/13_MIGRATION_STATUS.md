@@ -518,3 +518,31 @@ Sledeci korak:
 
 - Korisnik push-uje i testira sve gore navedeno, narocito: (a) vreme u detaljima transakcija/preseka sada odgovara stvarnom lokalnom vremenu, (b) Apoeni tab u Presek stanja vise ne prikazuje lazno "0,00" razliku, (c) drugi korisnik koji se uloguje na blagajnu sa vec otvorenom smenom vidi tu smenu i moze da knjizi Uplatu/Isplatu/Trezor/Presek (ali NE moze da zatvori smenu ako nije vlasnik ili supervizor/admin/finansije), (d) mobilni prikaz je sada normalne velicine, (e) sesija se vise ne gasi usred aktivnog rada.
 - Sledeci veci moduli po planu: Blagajnički list (`getCashSheetReport` - posebna runda), Documents (upload/attach).
+
+## FAZA 3k - Blagajnički list (getCashSheetReport) (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE (Blagajnički list); Documents potvrdjeno mrtav kod, namerno nije implementiran
+
+Kontekst: Korisnik je trazio da se nastavi sa API migracijom po planu. Sledeci veci nemigrirani modul iz plana je bio Blagajnički list (`getCashSheetReport` u `Reports.gs`) - namerno odlozen u prethodnoj rundi jer je racunski najkompleksniji izvestaj u sistemu (opening/closing balance snapshot po opsegu smene ili datuma, signed/display iznosi po tipu dogadjaja, spajanje preseka i knjizenja u jedinstven "list").
+
+Sta je uradjeno:
+
+- Novi modul `web/functions/_lib/cashSheet.js` - port `getCashSheetReport` + `resolveCashSheetScope_`, `calculateBalanceSnapshotForScope_`, `isCashSheetInformationalEvent_`/`isCashCountCorrectionReportEvent_`, `selectCashSheetPhysicalCount_` iz `Reports.gs`, polje-po-polje. Namerno NIJE ponovo koriscen/menjan postojeci `api/reports/cash-movements.js` (koji vec radi i koristi ga Knjiga) - ovaj modul povlaci i oblikuje svoje sopstvene redove dogadjaja da eventualne izmene u slozenijem skoupovanju (opseg smene, flip prikaza za storno, spojeni CASH_COUNT redovi) ne mogu da pokvare vec proveren cashbook izvestaj.
+  - Skoupovanje: ako je prosledjen `shift_id`, koristi se vremenski opseg [opened_at, closed_at||handover_at] smene; inace `date_from`/`date_to` (default na `date`/danas) - **tacno kao legacy**, oba filtera (opseg smene I opseg datuma) se primenjuju ZAJEDNO kad je smena prosledjena (legacy kvirk za smene koje traju preko ponoci - namerno NIJE "popravljano", portovano verno).
+  - Storno (REVERSAL) dogadjaji se prikazuju sa suprotnim smerom i negativnim iznosom (`display_direction`/`display_amount`), tacno kao original.
+  - Presek stanja (`cash_counts`) redovi se spajaju u listu dogadjaja kao informativni redovi (KONTROLNI PRESEK / OTVARANJE SMENE / ZATVARANJE SMENE - POPIS), iskljuceni iz totala (da ne duplira VIŠAK/MANJAK koji se vec vidi u fizickom popisu na dnu lista).
+  - `total_surplus`/`total_shortage` polja postoje u odgovoru ali se (kao i u legacy kodu) nikad ne pune - portovano verno kao zatecen legacy nedostatak/nedovrsenost, nije "ispravljano" bez eksplicitnog zahteva.
+- Novi endpoint `web/functions/api/reports/cash-sheet.js` (GET, privilegija `shifts:view`) - poziva `getCashSheetReportCore`.
+- `scopeCashboxForUser` u `_lib/reports.js` sad je `export`-ovana (bila je privatna) da bi `cashSheet.js` mogao da je ponovo iskoristi umesto duplirane logike.
+- Adapter dobio `apiGetCashSheetReport` handler, tacno prema pozivu iz `scripts.html` (`callApi('apiGetCashSheetReport', [filters], ...)` gde `filters = {cashbox_id, currency, date, shift_id}`). Potvrdjeno da je "Blagajnički list" STVARAN, zivi ekran u `desktop.html` (`d-section-blagajnicki-list`, `d-cashsheet-date`, `d-cashsheet-shift`), ne mrtav kod.
+- Documents modul (upload/attach): potvrdjeno grep-om da `d-document`/`m-document`/`document-form`/`list-documents-btn` NE postoje NIGDE u `desktop.html`/`mobile.html` - jedine reference su u vec poznatom mrtvom `bindUi()` bloku u `scripts.html`. Namerno NIJE implementiran (nema UI koji bi ga koristio, isti princip kao ranije dead-code odluke za `apiGetShiftBalance`/`apiHandoverShift`/itd).
+
+Sta nije uradjeno:
+
+- Nije runtime testirano preko Cloudflare Pages okruzenja.
+- `total_surplus`/`total_shortage` ostaju uvek 0 (zatecena legacy nedovrsenost, ne ispravljano).
+
+Sledeci korak:
+
+- Korisnik push-uje i testira Blagajnički list: otvaranje po datumu (bez smene) i po konkretnoj smeni (dugme "Blagajnički list" u detaljima smene), provera da Očekivano/Fizičko/Razlika i lista dogadjaja odgovaraju stvarnom stanju, i da storno stavke prikazuju suprotan smer u listi.
+- Ovim je migracioni plan iz `13_MIGRATION_STATUS.md` u potpunosti zavrsen za sve identifikovane, zive (ne mrtav-kod) module. Preostali rad je iskljucivo runtime testiranje i eventualni novi zahtevi korisnika.

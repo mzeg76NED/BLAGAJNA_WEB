@@ -19,7 +19,8 @@ function isDateInRange(value, dateFrom, dateTo) {
 // A CASHIER may only see reports scoped to their own default cashbox - mirrors legacy
 // normalizeReportFilters_. Other roles are unrestricted at the report-filter level (the
 // underlying queries are already scoped by whatever cashbox_id/currency filter is passed).
-function scopeCashboxForUser(user, requestedCashboxId) {
+// Exported so other report modules (e.g. cashSheet.js) can reuse the same access rule.
+export function scopeCashboxForUser(user, requestedCashboxId) {
   if (user && user.role === 'CASHIER' && user.default_cashbox_id) {
     if (requestedCashboxId && requestedCashboxId !== user.default_cashbox_id) {
       throw Object.assign(new Error('Blagajnik može da vidi izveštaje samo za svoju podrazumevanu blagajnu.'), { status: 403 });
