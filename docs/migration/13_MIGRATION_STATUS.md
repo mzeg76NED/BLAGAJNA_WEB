@@ -440,3 +440,26 @@ Sledeci korak:
 
 - Korisnik push-uje i testira "Izveštaji" meni (svih 10 tabova) i "Audit log" stranicu.
 - Sledeci veci moduli za migraciju: Blagajnički list (`getCashSheetReport`), Dnevni zaključak (kreiranje), Documents (upload/attach), cancel/reverse akcije (`cancelPaymentRequest`, `cancelPaymentOrder`, `reverseCashEvent`, `markPaymentOrderClosed`).
+
+## FAZA 3h - Otvaranje/zatvaranje smene (pravi presek) + Storno stavke (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE
+
+Kontekst: Korisnik je eksplicitno trazio da se otvaranje i zatvaranje smene "obavezno" sredi. Analizom je nadjeno da je zatvaranje smene bilo STVARNO POKVARENO za svaki slucaj kad korisnik unosi apoene (a ne jedan rucni total): `apiCloseShiftWithClosingCount` u adapteru nikad nije citao `data.denominations` (samo `data.currency`+`data.counted_cash_total` ili vec gotov `data.physical_balance_json`, od kojih ni jedno standardni closing formular ne salje), pa je `/api/shifts/close` uvek dobijao prazan `physical_balance_json` i odbijao zahtev gresku "Physical balance is missing currency" za svaku aktivnu valutu.
+
+Sta je uradjeno:
+
+- `apiOpenShiftWithOpeningCount` (adapter) - posle uspesnog `/api/shifts/open`, sad zove `apiCreateCashCounts` (postojeci endpoint iz FAZA 3f) sa `count_type: 'SHIFT_OPENING'` da upise pravi presek u `cash_counts`. Best-effort (try/catch) - ako presek ne uspe, smena ostaje otvorena i korisnik moze da radi dalje (moze naknadno da uradi presek preko "Presek stanja").
+- `apiCloseShiftWithClosingCount` (adapter) - sad prvo nadje aktivnu smenu, zatim (ako ima apoena) zove `apiCreateCashCounts` sa `count_type: 'SHIFT_CLOSING'` DOK je smena jos otvorena (mora pre zatvaranja jer `createCashCountsCore` zahteva aktivnu smenu za taj tip), pa iz vracenih `counted_total` po valuti sastavi ispravan `physical_balance_json` (pokriva SVE aktivne valute, jer closing formular vec salje `include_all_currencies: true`) i tek onda zove `/api/shifts/close`. Ovo NIJE best-effort - ako presek ne uspe, zatvaranje se prekida (ne sme da se zatvori smena sa netacnim/nedostajucim fizickim stanjem).
+- Novi endpoint `web/functions/api/cash-events/reverse.js` - "Storno" akcija (jedina cancel/reverse funkcija koja je STVARNO ozicena na UI - dugme u detalju stavke u Knjizi, desktop i mobile). Port `reverseCashEvent`/`assertCashEventCanBeReversed_` iz `CashEvents.gs`: pravi REVERSAL cash event sa suprotnim smerom (original se ne brise, samo status → REVERSED), koristi postojecu privilegiju `cash_events:reverse`, i dodatno zahteva ADMIN/FINANCE rolu za storno LOCKED stavke (ne samo privilegiju), tacno kao legacy.
+- Adapter dobio `apiReverseCashEvent` handler.
+
+Sta nije uradjeno:
+
+- `cancelPaymentRequest`, `cancelPaymentOrder`, `markPaymentOrderClosed` NISU migrirani - proveren ceo `scripts.html` i frontend NIGDE ne poziva ove funkcije (nema dugmadi za njih), pa bi implementacija bila mrtav kod. Ako se doda UI za njih kasnije, logika je vec dokumentovana ovde (iz `PaymentRequests.gs`/`PaymentOrders.gs`) za brzo portovanje.
+- Nije runtime testirano preko Cloudflare Pages okruzenja.
+
+Sledeci korak:
+
+- Korisnik push-uje i OBAVEZNO testira: otvaranje smene sa unetim apoenima, zatvaranje smene sa unetim apoenima (i sa i bez razlike), i storno stavke iz Knjige.
+- Nastaviti sa: Blagajnički list, Dnevni zaključak (kreiranje), Documents (upload/attach).

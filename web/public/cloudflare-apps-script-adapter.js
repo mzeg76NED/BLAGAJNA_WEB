@@ -179,10 +179,29 @@
           opening_note: data.opening_note || data.note || ''
         })
       });
+      var shift = response.shift;
+      // Record the physical opening count for the audit trail (SHIFT_OPENING cash_counts
+      // row). Best-effort: the shift itself is already open at this point, so a failure
+      // here must not block the user from working - it just means the opening presek
+      // wasn't recorded and can be redone from "Presek stanja" if needed.
+      var counts = [];
+      var countError = '';
+      if (shift && shift.shift_id) {
+        try {
+          counts = await handlers.apiCreateCashCounts(Object.assign({}, data, {
+            cashbox_id: shift.cashbox_id || data.cashbox_id || '',
+            shift_id: shift.shift_id,
+            count_type: 'SHIFT_OPENING'
+          }), sessionId);
+        } catch (err) {
+          countError = (err && err.message) || 'Presek pri otvaranju smene nije sačuvan.';
+        }
+      }
       return {
-        shift: response.shift,
-        counts: [],
-        countSkipped: true
+        shift: shift,
+        counts: counts,
+        countSkipped: !counts.length,
+        countError: countError
       };
     },
     apiCloseActiveShift: async function (cashboxId, physicalBalance, note, sessionId) {
@@ -206,13 +225,42 @@
     },
     apiCloseShiftWithClosingCount: async function (data, sessionId) {
       data = data || {};
+      var shiftsResponse = await apiFetch('/api/shifts/mine/active', { sessionId: sessionId });
+      var shift = (shiftsResponse.shifts || []).filter(function (item) {
+        return !data.cashbox_id || item.cashbox_id === data.cashbox_id;
+      })[0];
+      if (!shift) {
+        throw new Error('Nema otvorene smene za zatvaranje.');
+      }
+
+      // Record the physical closing count (SHIFT_CLOSING cash_counts row + automatic
+      // VIŠAK/MANJAK correction if it differs from the live balance) BEFORE closing -
+      // createCashCountsCore requires an active shift, which stops existing the moment
+      // the shift is actually closed. Unlike opening, this is NOT best-effort: /api/shifts/close
+      // requires a physical balance for every active currency, so if the count fails to
+      // save we must not proceed to close with garbage/missing data.
+      var counts = [];
+      if (Array.isArray(data.denominations) && data.denominations.length) {
+        counts = await handlers.apiCreateCashCounts(Object.assign({}, data, {
+          cashbox_id: shift.cashbox_id,
+          shift_id: shift.shift_id,
+          count_type: 'SHIFT_CLOSING'
+        }), sessionId);
+      }
+
       var physical = {};
-      if (data.currency && data.counted_cash_total !== undefined) {
+      if (counts.length) {
+        counts.forEach(function (count) {
+          var total = count.counted_total !== undefined ? count.counted_total : count.counted_cash_total;
+          physical[count.currency] = Number(total || 0);
+        });
+      } else if (data.currency && data.counted_cash_total !== undefined) {
         physical[data.currency] = Number(data.counted_cash_total || 0);
       } else if (data.physical_balance_json) {
         physical = data.physical_balance_json;
       }
-      return handlers.apiCloseActiveShift(data.cashbox_id || '', physical, data.note || '', sessionId);
+
+      return handlers.apiCloseActiveShift(shift.cashbox_id, physical, data.note || '', sessionId);
     },
     apiCalculateCashboxBalance: async function (cashboxId, currency) {
       var response = await apiFetch('/api/cashbox-balance?cashbox_id=' + encodeURIComponent(cashboxId || '') + '&currency=' + encodeURIComponent(currency || ''), {});
@@ -302,6 +350,13 @@
         method: 'POST',
         sessionId: sessionId,
         body: JSON.stringify(data || {})
+      });
+    },
+    apiReverseCashEvent: async function (eventId, reason, sessionId) {
+      return apiFetch('/api/cash-events/reverse', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ event_id: eventId, reason: reason || '' })
       });
     },
     apiCreatePaymentRequest: async function (data, sessionId) {
