@@ -854,7 +854,7 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    /* .m-fixed-actions and .m-bottom-nav are real flex siblings below this element now
+    /* .m-fab-row and .m-bottom-nav are real flex siblings below this element now
        (not a position:fixed overlay), so this only needs a little scroll breathing
        room at the end of the list, not a large guess at "how tall is the stuff below". */
     padding-bottom: 16px;
@@ -997,37 +997,77 @@
      koja je vremenom izasla iz sinhronizacije sa stvarnom visinom trake i pravila da
      dugmad "lebde" pogresno pozicionirana). Kao pravi flex sibling automatski sedi
      tacno iznad trake, bez obzira na buduce promene velicine fonta/ikonica u traci. */
-  .m-fixed-actions {
-    background: var(--color-surface);
-    border-top: 1px solid var(--color-border-light);
-    display: grid;
+  /* FAZA 3s: Uplata/Isplata/Trezor/Najava dugmad zamenjena jednim okruglim "+" FAB
+     dugmetom - .m-fab-row je i dalje pravi flex sibling (isti razlog kao gornji
+     komentar - bez position:fixed nagadjanja). Meni se otvara position:absolute
+     bottom:100% RELATIVNO na sam red (ne na viewport), pa se automatski naslanja
+     tacno iznad dugmeta bez obzira na visinu bilo cega ispod. */
+  .m-fab-row {
+    align-items: center;
+    display: flex;
     flex-shrink: 0;
-    gap: 8px;
-    grid-template-columns: repeat(3, 1fr);
-    padding: 8px 10px;
+    justify-content: flex-end;
+    padding: 6px 12px;
+    position: relative;
     z-index: 90;
   }
 
-  .m-fixed-actions[hidden] {
+  .m-fab-row[hidden] {
     display: none;
   }
 
-  .m-fixed-actions button {
+  .m-fab-btn {
     align-items: center;
-    border-radius: 10px;
+    background: var(--color-primary);
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, .3);
+    color: #fff;
     display: flex;
-    flex-direction: column;
-    font-size: 11px;
-    font-weight: 800;
-    gap: 3px;
+    font-size: 20px;
+    height: 42px;
     justify-content: center;
-    min-height: 46px;
-    padding: 6px 4px;
+    transition: transform .15s ease;
+    width: 42px;
   }
 
-  .m-fixed-actions button i {
-    font-size: 18px;
+  .m-fab-btn.active {
+    transform: rotate(45deg);
   }
+
+  .m-fab-menu {
+    bottom: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+    position: absolute;
+    right: 12px;
+  }
+
+  .m-fab-menu[hidden] {
+    display: none;
+  }
+
+  .m-fab-menu-item {
+    align-items: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, .18);
+    display: flex;
+    font-size: 12px;
+    font-weight: 800;
+    gap: 6px;
+    justify-content: flex-end;
+    min-height: 38px;
+    padding: 6px 12px;
+    white-space: nowrap;
+  }
+
+  .m-fab-menu-item.in { color: var(--color-in); }
+  .m-fab-menu-item.out { color: var(--color-out); }
+  .m-fab-menu-item.najava { color: #7c8bb0; }
 
   .m-detail-overlay {
     align-items: flex-end;
@@ -1160,6 +1200,18 @@
     display: grid;
     gap: 6px;
     padding: 0 12px 12px;
+  }
+
+  .cashsheet-kpis {
+    padding: 0 12px 12px;
+  }
+
+  .cashsheet-row-print-btn {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 8px;
   }
 
   #d-section-presek .count-page-layout {
@@ -1772,7 +1824,8 @@
 
   /* ─── Desktop shell ───────────────────────────────────── */
 
-  body.app-locked .d-shell {
+  body.app-locked .d-shell,
+  body.app-locked .m-shell {
     display: none;
   }
 
@@ -3573,20 +3626,20 @@
     font-size: calc(20px * var(--mobile-scale));
   }
 
-  html.mobile-view .m-fixed-actions {
-    gap: calc(6px * var(--mobile-scale));
-    padding: calc(6px * var(--mobile-scale)) calc(8px * var(--mobile-scale));
+  html.mobile-view .m-fab-row {
+    padding: calc(5px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
   }
 
-  html.mobile-view .m-fixed-actions button {
-    font-size: calc(10.5px * var(--mobile-scale));
-    gap: calc(2px * var(--mobile-scale));
-    min-height: calc(42px * var(--mobile-scale));
-    padding: calc(5px * var(--mobile-scale)) calc(4px * var(--mobile-scale));
+  html.mobile-view .m-fab-btn {
+    font-size: calc(18px * var(--mobile-scale));
+    height: calc(38px * var(--mobile-scale));
+    width: calc(38px * var(--mobile-scale));
   }
 
-  html.mobile-view .m-fixed-actions button i {
-    font-size: calc(17px * var(--mobile-scale));
+  html.mobile-view .m-fab-menu-item {
+    font-size: calc(11px * var(--mobile-scale));
+    min-height: calc(34px * var(--mobile-scale));
+    padding: calc(5px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
   }
 
   /* Shift-work-card action row (Uplata/Isplata/Trezor/Presek/Zatvori) and the
@@ -5780,6 +5833,130 @@
       background: #f3f4f6 !important;
       font-weight: 800 !important;
     }
+
+    /* Priznanica (buildReceiptPrintHtml_) - dva primerka (arhiva/korisnik) na jednoj
+       strani, po uzoru na stari GAS print-cash-event.html izlaz koji je korisnik
+       priložio kao referencu. Isti overlay mehanizam kao Blagajnički list iznad. */
+    .receipt-sheet {
+      display: block !important;
+    }
+
+    .receipt-copy {
+      border: 1px dashed #9ca3af !important;
+      break-inside: avoid !important;
+      margin-bottom: 14px !important;
+      padding: 14px !important;
+      position: relative !important;
+    }
+
+    .receipt-copy-label {
+      color: #6b7280 !important;
+      font-size: 10px !important;
+      font-weight: 800 !important;
+      letter-spacing: .04em !important;
+      position: absolute !important;
+      right: 14px !important;
+      text-transform: uppercase !important;
+      top: 10px !important;
+    }
+
+    .receipt-head {
+      align-items: flex-start !important;
+      border-bottom: 1px solid #d1d5db !important;
+      display: flex !important;
+      justify-content: space-between !important;
+      padding-bottom: 8px !important;
+    }
+
+    .receipt-head strong {
+      color: #111827 !important;
+      display: block !important;
+      font-size: 14px !important;
+    }
+
+    .receipt-head span {
+      color: #4b5563 !important;
+      display: block !important;
+      font-size: 10px !important;
+    }
+
+    .receipt-head-right {
+      text-align: right !important;
+    }
+
+    .receipt-box {
+      border: 1px solid #16a34a !important;
+      border-radius: 4px !important;
+      margin: 10px 0 !important;
+      padding: 10px 12px !important;
+    }
+
+    .receipt-box h3 {
+      color: #111827 !important;
+      font-size: 13px !important;
+      margin: 0 0 6px !important;
+    }
+
+    .receipt-meta {
+      color: #374151 !important;
+      display: flex !important;
+      font-size: 11px !important;
+      gap: 16px !important;
+      margin-bottom: 2px !important;
+    }
+
+    .receipt-amount {
+      color: #16a34a !important;
+      font-size: 24px !important;
+      font-weight: 800 !important;
+      margin: 6px 0 2px !important;
+    }
+
+    .receipt-words {
+      color: #4b5563 !important;
+      font-size: 11px !important;
+      font-style: italic !important;
+    }
+
+    .receipt-details {
+      display: grid !important;
+      font-size: 11px !important;
+      gap: 4px !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      margin-bottom: 10px !important;
+    }
+
+    .receipt-details strong {
+      color: #374151 !important;
+      display: block !important;
+      font-size: 10px !important;
+    }
+
+    .receipt-details span {
+      color: #111827 !important;
+    }
+
+    .receipt-sign-row {
+      display: flex !important;
+      gap: 40px !important;
+      justify-content: space-between !important;
+      margin: 20px 0 8px !important;
+    }
+
+    .receipt-sign {
+      border-top: 1px solid #9ca3af !important;
+      color: #6b7280 !important;
+      flex: 1 !important;
+      font-size: 10px !important;
+      padding-top: 3px !important;
+      text-align: center !important;
+    }
+
+    .receipt-footer {
+      color: #9ca3af !important;
+      font-size: 8px !important;
+      text-align: center !important;
+    }
   }
 
   @media print {
@@ -5857,6 +6034,43 @@
     .cashsheet-header span,
     .cashsheet-calc-row span {
       color: #4b5563 !important;
+    }
+
+    /* Ekranski prikaz (renderCashSheet_) sada koristi .cashbook-kpi-card umesto
+       .cashsheet-calc-row (FAZA 3s) - kad se štampa direktno preko "Štampa / PDF (ceo
+       list)" dugmeta (window.print() nad vidljivom sekcijom, ne overlay), spljošti
+       kartice u iste jednostavne redove kao gore, bez gradijenata/senki/ikonica koje
+       se loše štampaju. */
+    #d-section-blagajnicki-list .cashsheet-kpis {
+      display: grid !important;
+      gap: 6px !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      padding: 0 0 10px !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-kpis .cashbook-kpi-card {
+      background: #ffffff !important;
+      border: 1px solid #d1d5db !important;
+      box-shadow: none !important;
+      color: #111827 !important;
+      display: block !important;
+      padding: 7px 9px !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-kpis .cashbook-kpi-icon {
+      display: none !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-kpis span {
+      color: #4b5563 !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-kpis strong {
+      color: #111827 !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-row-print-btn {
+      display: none !important;
     }
 
     #d-section-blagajnicki-list .table-wrap {

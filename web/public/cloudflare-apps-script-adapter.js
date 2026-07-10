@@ -385,6 +385,29 @@
         body: JSON.stringify({ event_id: eventId, reason: reason || '' })
       });
     },
+    // FAZA 3s: prilozi (Google Drive) - filePayload = { file_name, mime_type, file_base64 }.
+    apiUploadDocument: async function (entityType, entityId, filePayload, note, sessionId) {
+      filePayload = filePayload || {};
+      return apiFetch('/api/documents/upload', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({
+          entity_type: entityType,
+          entity_id: entityId,
+          file_name: filePayload.file_name,
+          mime_type: filePayload.mime_type,
+          file_base64: filePayload.file_base64,
+          note: note || ''
+        })
+      });
+    },
+    apiListDocuments: async function (entityType, entityId, sessionId) {
+      var query = '?entity_type=' + encodeURIComponent(entityType || '') + '&entity_id=' + encodeURIComponent(entityId || '');
+      return apiFetch('/api/documents/list' + query, {
+        method: 'GET',
+        sessionId: sessionId
+      });
+    },
     apiCreatePaymentRequest: async function (data, sessionId) {
       return apiFetch('/api/payment-requests/create', {
         method: 'POST',

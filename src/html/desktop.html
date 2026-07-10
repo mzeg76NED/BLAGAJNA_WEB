@@ -317,6 +317,12 @@
                     </div>
                     <div id="d-detail-body" class="cashbook-detail-empty">Izaberite stavku u tabeli da vidite detalje.</div>
                     <div class="cashbook-panel-actions">
+                      <button id="d-detail-receipt" type="button">
+                        <i class="ti ti-receipt" aria-hidden="true"></i> Priznanica
+                      </button>
+                      <button id="d-detail-documents" type="button">
+                        <i class="ti ti-paperclip" aria-hidden="true"></i> Dokumenti
+                      </button>
                       <button id="d-detail-print" type="button">
                         <i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list
                       </button>
@@ -352,12 +358,13 @@
                       <tr>
                         <th style="width:42px">Rb.</th>
                         <th style="width:72px">Vreme</th>
-                        <th style="width:110px">Tip</th>
+                        <th style="width:110px">Korisnik</th>
                         <th>Opis / primalac</th>
                         <th class="num">Uplata</th>
                         <th class="num">Isplata</th>
                         <th class="num">Stanje</th>
                         <th>Status</th>
+                        <th style="width:40px"></th>
                       </tr>
                     </thead>
                     <tbody id="d-cashsheet-events"></tbody>
@@ -370,33 +377,14 @@
                   <div id="d-cashsheet-side" class="empty-state">Kliknite Prikaži.</div>
                 </div>
                 <div class="card">
-                  <div class="card-head"><h3>Povezani dokumenti</h3></div>
-              <form id="print-tools-form" class="form-grid" style="grid-template-columns:1fr 1fr;gap:10px">
-                <label>ID zahteva <input name="payment_request_id" placeholder="REQ-..."></label>
-                <label>ID naloga <input name="payment_order_id" placeholder="ORD-..."></label>
-                <label>ID događaja <input name="cash_event_id" placeholder="CEV-..."></label>
-                <label>ID smene <input name="shift_id" placeholder="SHF-..."></label>
-                <label>ID zaključka <input name="daily_closing_id" placeholder="CLS-..."></label>
-                <label>Izveštaj
-                  <select id="print-report-type" name="report_type">
-                    <option value="missing-documents">Nedostajuća dokumenta</option>
-                    <option value="cashbox-balance">Presek stanja blagajni</option>
-                    <option value="orders-waiting-payment">Nalozi koji čekaju isplatu</option>
-                    <option value="requests-for-approval">Zahtevi za odobrenje</option>
-                    <option value="daily-closing">Dnevni zaključci</option>
-                    <option value="differences">Razlike</option>
-                    <option value="corrections-reversals">Korekcije i storno</option>
-                  </select>
-                </label>
-              </form>
-              <div class="actions">
-                <button id="print-payment-request-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Zahtev</button>
-                <button id="print-payment-order-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Nalog</button>
-                <button id="print-cash-event-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Događaj</button>
-                <button id="print-shift-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Primopredaja</button>
-                <button id="print-daily-closing-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Zaključak</button>
-                <button id="print-report-btn" type="button"><i class="ti ti-printer" aria-hidden="true"></i> Izveštaj</button>
-              </div>
+                  <div class="card-head"><h3>Štampa</h3></div>
+                  <div class="empty-state" style="text-align:left;padding:14px 4px">
+                    <i class="ti ti-printer" aria-hidden="true"></i>
+                    <p>Za štampu priznanice pojedinačne uplate/isplate klikni na ikonicu štampača pored stavke u tabeli levo. Nema više ručnog unosa ID broja - izaberi stavku sa liste.</p>
+                  </div>
+                  <button class="btn-ghost btn-full" type="button" onclick="openDesktopSection_('izvestaji')">
+                    <i class="ti ti-chart-bar" aria-hidden="true"></i> Otvori Izveštaje
+                  </button>
                 </div>
               </div>
             </div>

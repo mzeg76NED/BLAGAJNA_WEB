@@ -13,7 +13,37 @@
       window.BLAGAJNA_WEB_APP_URL = '<?= ScriptApp.getService().getUrl() ?>';
     </script>
   </head>
-  <body>
+  <body class="app-locked">
+    <div id="app-login-lock" class="app-login-lock" aria-live="polite">
+      <section class="app-login-card" aria-labelledby="app-login-title">
+        <div class="app-login-brand">
+          <div class="app-login-icon"><i class="ti ti-building-bank" aria-hidden="true"></i></div>
+          <div>
+            <strong>BLAGAJNA</strong>
+            <span>Interni aplikativni pristup</span>
+          </div>
+        </div>
+        <div class="app-login-copy">
+          <h1 id="app-login-title">Prijava u blagajnu</h1>
+          <p>Google nalog je tehnička sesija. Unesite korisnički kod i PIN za rad u blagajni.</p>
+          <small id="app-login-google-session">Google sesija: tehnički nalog</small>
+        </div>
+        <form id="app-login-form" class="app-login-form" autocomplete="off">
+          <label>Korisnički kod
+            <input id="app-login-user-code" name="user_code" type="text" autocomplete="username" inputmode="text" spellcheck="false" required>
+          </label>
+          <label>PIN
+            <input id="app-login-pin" name="pin" type="password" autocomplete="current-password" inputmode="numeric" required>
+          </label>
+          <button id="app-login-submit" class="btn-primary btn-full btn-lg" type="submit">
+            <i class="ti ti-login-2" aria-hidden="true"></i>
+            <span data-login-submit-label>Prijavi se</span>
+          </button>
+        </form>
+        <div id="app-login-message" class="app-login-message" role="alert"></div>
+      </section>
+    </div>
+
     <div class="m-shell">
 
       <!-- HEADER -->
@@ -47,6 +77,16 @@
             <i class="ti ti-coins" aria-hidden="true"></i>
             Sve valute
           </button>
+          <span class="m-chip m-chip-account" id="app-user-chip" hidden>
+            <i class="ti ti-user-circle" aria-hidden="true"></i>
+            <strong id="app-user-label">—</strong>
+          </span>
+          <button class="m-chip" id="app-switch-user-btn" type="button" hidden>
+            <i class="ti ti-switch-horizontal" aria-hidden="true"></i> Promeni korisnika
+          </button>
+          <button class="m-chip" id="app-logout-btn" type="button" hidden>
+            <i class="ti ti-logout" aria-hidden="true"></i> Odjava
+          </button>
           <span class="m-chip m-chip-version" data-app-version>verzija...</span>
         </div>
       </header>
@@ -62,9 +102,6 @@
             </button>
             <button id="m-knjiga-refresh" type="button" aria-label="Osveži knjigu">
               <i class="ti ti-refresh" aria-hidden="true"></i>
-            </button>
-            <button id="m-new-announcement-btn" type="button" class="btn-primary" hidden>
-              <i class="ti ti-bell-plus" aria-hidden="true"></i> Najava
             </button>
           </div>
           <div class="m-traffic-summary" id="m-traffic-summary" hidden></div>
@@ -240,18 +277,28 @@
 
       </div><!-- /m-content -->
 
-      <!-- Direktne akcije (Uplata/Isplata/Trezor) - deo normalnog flex toka ljuske,
-           nalepljene direktno iznad donje navigacije (bez position:fixed i nagađanja
-           visine trake ispod), pa se ne mogu razminuti/preklopiti sa njom. -->
-      <div class="m-fixed-actions" id="m-direct-actions" hidden>
-        <button class="btn-in" id="m-btn-uplata" type="button">
-          <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
-        </button>
-        <button class="btn-out" id="m-btn-isplata" type="button">
-          <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Isplata
-        </button>
-        <button class="btn-out" id="m-btn-trezor" type="button">
-          <i class="ti ti-building-bank" aria-hidden="true"></i> Trezor
+      <!-- Uplata/Isplata/Trezor/Najava - FAZA 3s: umesto tri velika dugmeta u redu,
+           jedno okruglo "+" dugme koje otvara mali meni sa opcijama. I dalje deo
+           normalnog flex toka ljuske (bez position:fixed i nagađanja visine trake
+           ispod), samo desno poravnato - meni se širi NAGORE od dugmeta (bottom:100%
+           relativno na sam red, ne na viewport, pa ne zavisi od visine bottom nav-a). -->
+      <div class="m-fab-row" id="m-direct-actions" hidden>
+        <div class="m-fab-menu" id="m-fab-menu" hidden>
+          <button class="m-fab-menu-item in" id="m-btn-uplata" type="button">
+            <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
+          </button>
+          <button class="m-fab-menu-item out" id="m-btn-isplata" type="button">
+            <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Isplata
+          </button>
+          <button class="m-fab-menu-item out" id="m-btn-trezor" type="button">
+            <i class="ti ti-building-bank" aria-hidden="true"></i> Trezor
+          </button>
+          <button class="m-fab-menu-item najava" id="m-fab-najava" type="button" hidden>
+            <i class="ti ti-bell-plus" aria-hidden="true"></i> Najava uplate
+          </button>
+        </div>
+        <button class="m-fab-btn" id="m-fab-btn" type="button" aria-label="Nova stavka" aria-haspopup="true" aria-expanded="false" aria-controls="m-fab-menu">
+          <i class="ti ti-plus" aria-hidden="true"></i>
         </button>
       </div>
 
@@ -293,6 +340,12 @@
         </div>
         <div id="m-detail-body"></div>
         <div class="m-detail-actions">
+          <button class="btn-ghost btn-lg" id="m-detail-receipt" type="button">
+            <i class="ti ti-receipt" aria-hidden="true"></i> Priznanica
+          </button>
+          <button class="btn-ghost btn-lg" id="m-detail-documents" type="button">
+            <i class="ti ti-paperclip" aria-hidden="true"></i> Dokumenti
+          </button>
           <button class="btn-ghost btn-lg" id="m-detail-print" type="button">
             <i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list
           </button>

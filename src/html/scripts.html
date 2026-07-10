@@ -26,6 +26,7 @@
   var PENDING_OPTIMISTIC_EVENTS = [];
   var OPTIMISTIC_REFRESH_DELAY_MS = 4200;
   var LAST_KNJIGA_EVENTS = [];
+  var LAST_CASHSHEET_EVENTS = [];
   var REPORT_CACHE = {};
   var CASH_COUNT_UI = {
     rawRows: [],
@@ -1169,6 +1170,8 @@
     if (switchUser) switchUser.addEventListener('click', function() { logoutAppSession_(true); });
   }
 
+  // Naziv je istorijski "Desktop" iako se od FAZA 3s koristi i za mobilni prikaz -
+  // login gate je potpuno generičan (ID-based binding, radi identično na obe stranice).
   function initDesktopAppLogin_(onReady) {
     bindAppLoginUi_();
     setAppLocked_(true);
@@ -1213,7 +1216,7 @@
       context: {
         cashbox_id: SESSION.cashboxId || '',
         shift_id: uiState.activeShift && uiState.activeShift.shift_id || '',
-        device_label: 'desktop'
+        device_label: Boolean(document.querySelector('.m-shell')) ? 'mobile' : 'desktop'
       }
     }], function(session) {
       setAppLoginLoading_(false);
@@ -1248,8 +1251,11 @@
   }
 
   function bootstrapDesktopAfterLogin_() {
-    callApi('apiGetUiBootstrap', [true], function(data) {
-      bootstrapShellAfterAppSession_(true, false, data);
+    // Naziv je istorijski - radi za oba prikaza, vidi initDesktopAppLogin_ napomenu.
+    var isDesktop = Boolean(document.querySelector('.d-shell'));
+    var isMobile = Boolean(document.querySelector('.m-shell'));
+    callApi('apiGetUiBootstrap', [isDesktop], function(data) {
+      bootstrapShellAfterAppSession_(isDesktop, isMobile, data);
     }, { quiet: true });
   }
 
@@ -1506,8 +1512,13 @@
     var screenWidth = window.screen && window.screen.width ? window.screen.width : window.innerWidth;
     var screenHeight = window.screen && window.screen.height ? window.screen.height : window.innerHeight;
     var shortSide = Math.min(screenWidth, screenHeight);
+    // FAZA 3s: korisnik je tražio da dugmad/elementi na SVIM tabovima budu manji da
+    // stane više redova Knjige na ekran bez skrolovanja - opšte smanjenje cele skale
+    // (0.85–1.25 → 0.75–1.12) je jednostavnije i konzistentnije od gonjenja pojedinačnih
+    // dugmadi po tabovima, jer skoro sva mobilna CSS pravila već koriste calc(Npx *
+    // var(--mobile-scale)).
     var scale = shortSide / 360;
-    scale = Math.max(0.85, Math.min(scale, 1.25));
+    scale = Math.max(0.75, Math.min(scale, 1.12));
     document.documentElement.style.setProperty('--mobile-scale', String(scale.toFixed(3)));
   }
 
@@ -3775,22 +3786,15 @@
       '<div><span>Blagajnik</span><strong>' + escapeHtml(shortUserLabel_(shift.opened_by || '—')) + '</strong></div>' +
       '<div><span>Status</span><strong>' + escapeHtml(sheet.status || '') + '</strong></div>' +
     '</div>' +
-    '<div class="cashsheet-calc">' +
-      cashsheetCalcRow_('Početno stanje', sheet.opening_balance, sheet.currency) +
-      cashsheetCalcRow_('+ Ukupne uplate', sheet.total_in, sheet.currency, 'cell-in') +
-      cashsheetCalcRow_('- Ukupne isplate', sheet.total_out, sheet.currency, 'cell-out') +
-      cashsheetCalcRow_('- Predato u trezor', sheet.total_treasury, sheet.currency, 'cell-out') +
-      cashsheetCalcRow_('= Očekivano završno stanje', sheet.expected_closing_balance || sheet.calculated_closing_balance, sheet.currency, 'cell-bal') +
-      cashsheetCalcRow_('Završni presek / fizički popis', sheet.physical_total == null ? 'Fizički popis nije unet' : sheet.physical_total, sheet.currency) +
-      cashsheetCalcRow_('Razlika', sheet.difference == null ? '—' : sheet.difference, sheet.currency, Number(sheet.difference || 0) === 0 ? 'cell-in' : 'cell-out') +
-    '</div>';
+    buildCashSheetKpiHtml_(sheet);
     side.innerHTML =
       '<div class="detail-row"><span class="detail-key">Status</span><strong>' + escapeHtml(sheet.status || '') + '</strong></div>' +
       '<div class="detail-row"><span class="detail-key">Očekivano</span><strong>' + formatAmount_(sheet.expected_closing_balance || sheet.calculated_closing_balance) + ' ' + escapeHtml(sheet.currency || '') + '</strong></div>' +
       '<div class="detail-row"><span class="detail-key">Fizički</span><strong>' + (sheet.physical_total == null ? 'Nije unet' : formatAmount_(sheet.physical_total) + ' ' + escapeHtml(sheet.currency || '')) + '</strong></div>' +
       '<div class="detail-row"><span class="detail-key">Razlika</span><strong>' + (sheet.difference == null ? '—' : formatAmount_(sheet.difference)) + '</strong></div>' +
-      '<button class="btn-primary btn-full" type="button" onclick="window.print()">Štampa / PDF</button>';
+      '<button class="btn-primary btn-full" type="button" onclick="window.print()">Štampa / PDF (ceo list)</button>';
     var events = sheet.events || [];
+    LAST_CASHSHEET_EVENTS = events;
     eventsTarget.innerHTML = events.length ? events.map(function(ev, idx) {
       var dir = ev.display_direction || ev.direction;
       var amount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
@@ -3800,17 +3804,48 @@
       var rowClass = isCount ? 'row-count' : isIn ? 'row-in' : isOut ? 'row-out' : '';
       var displayName = cashEventUserLabel_(ev);
       var displayReason = cashEventReasonLabel_(ev);
+      var canPrintReceipt = Boolean(ev.event_id) && ev.event_type !== 'ANNOUNCEMENT';
       return '<tr class="' + rowClass + '">' +
         '<td>' + (ev.ref_no != null ? ev.ref_no : '—') + '</td>' +
         '<td>' + escapeHtml(formatTimeShort_(ev.event_date || ev.created_at)) + '</td>' +
-        '<td>' + escapeHtml(ev.event_type || '') + '</td>' +
+        '<td>' + escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—')) + '</td>' +
         '<td><div class="desc-main">' + escapeHtml(displayName || '—') + '</div><div class="desc-reason">' + escapeHtml(displayReason || '') + '</div></td>' +
         '<td class="cell-in">' + (isIn ? formatAmount_(Math.abs(amount)) : '—') + '</td>' +
         '<td class="cell-out">' + (isOut ? formatAmount_(Math.abs(amount)) : '—') + '</td>' +
         '<td class="cell-bal">' + formatAmount_(ev.running_balance) + '</td>' +
         '<td>' + renderStatusBadge_(ev.status) + '</td>' +
+        '<td>' + (canPrintReceipt ? '<button class="small cashsheet-row-print-btn" type="button" title="Odštampaj priznanicu" onclick="printReceiptForEventId_(\'' + escapeHtml(ev.event_id) + '\')"><i class="ti ti-printer" aria-hidden="true"></i></button>' : '') + '</td>' +
       '</tr>';
-    }).join('') : '<tr><td colspan="8"><div class="empty-state">Nema prometa za izabrani period.</div></td></tr>';
+    }).join('') : '<tr><td colspan="9"><div class="empty-state">Nema prometa za izabrani period.</div></td></tr>';
+  }
+
+  // FAZA 3s: isti vizuelni jezik kao KPI red na Knjizi (.cashbook-kpis/.cashbook-kpi-card,
+  // vidi renderCashbookKpis_) umesto ravnih tekstualnih redova - korisnik je tražio da
+  // Blagajnički list izgleda "kao onaj na Knjizi". Samo za EKRANSKI prikaz - print verzija
+  // (buildCashSheetPrintHtml_ ispod, koristi se i za d-section-blagajnicki-list štampu i za
+  // mobilni print overlay) i dalje koristi jednostavne .cashsheet-calc redove jer se bolje
+  // štampaju na papiru (gradijenti/senke kartica se gube/loše renderuju pri štampi).
+  function buildCashSheetKpiHtml_(sheet) {
+    var currency = sheet.currency || SESSION.currency || '';
+    var diff = sheet.difference == null ? null : Number(sheet.difference || 0);
+    var diffIcon = diff == null ? 'kpi-cyan' : (diff === 0 ? 'kpi-green' : 'kpi-red');
+    var expected = sheet.expected_closing_balance || sheet.calculated_closing_balance;
+    return '<div class="cashbook-kpis cashsheet-kpis">' +
+      '<article class="cashbook-kpi-card"><div class="cashbook-kpi-icon kpi-blue"><i class="ti ti-wallet" aria-hidden="true"></i></div>' +
+        '<div><span>Početno stanje</span><strong>' + formatAmount_(sheet.opening_balance) + ' ' + escapeHtml(currency) + '</strong></div></article>' +
+      '<article class="cashbook-kpi-card"><div class="cashbook-kpi-icon kpi-green"><i class="ti ti-trending-up" aria-hidden="true"></i></div>' +
+        '<div><span>Ukupne uplate</span><strong class="amount-positive">' + formatAmount_(sheet.total_in) + ' ' + escapeHtml(currency) + '</strong></div></article>' +
+      '<article class="cashbook-kpi-card"><div class="cashbook-kpi-icon kpi-red"><i class="ti ti-trending-down" aria-hidden="true"></i></div>' +
+        '<div><span>Ukupne isplate</span><strong class="amount-negative">' + formatAmount_(sheet.total_out) + ' ' + escapeHtml(currency) + '</strong></div></article>' +
+      '<article class="cashbook-kpi-card"><div class="cashbook-kpi-icon kpi-gold"><i class="ti ti-building-bank" aria-hidden="true"></i></div>' +
+        '<div><span>Predato u trezor</span><strong>' + formatAmount_(sheet.total_treasury) + ' ' + escapeHtml(currency) + '</strong></div></article>' +
+      '<article class="cashbook-kpi-card"><div class="cashbook-kpi-icon kpi-cyan"><i class="ti ti-calculator" aria-hidden="true"></i></div>' +
+        '<div><span>Očekivano završno</span><strong>' + formatAmount_(expected) + ' ' + escapeHtml(currency) + '</strong></div></article>' +
+      '<article class="cashbook-kpi-card"><div class="cashbook-kpi-icon kpi-blue"><i class="ti ti-clipboard-check" aria-hidden="true"></i></div>' +
+        '<div><span>Fizički popis</span><strong>' + (sheet.physical_total == null ? 'Nije unet' : formatAmount_(sheet.physical_total) + ' ' + escapeHtml(currency)) + '</strong></div></article>' +
+      '<article class="cashbook-kpi-card"><div class="cashbook-kpi-icon ' + diffIcon + '"><i class="ti ti-scale" aria-hidden="true"></i></div>' +
+        '<div><span>Razlika</span><strong>' + (diff == null ? '—' : formatAmount_(diff) + ' ' + escapeHtml(currency)) + '</strong></div></article>' +
+    '</div>';
   }
 
   function cashsheetCalcRow_(label, value, currency, cls) {
@@ -3861,7 +3896,7 @@
       return '<tr>' +
         '<td>' + (ev.ref_no != null ? ev.ref_no : '—') + '</td>' +
         '<td>' + escapeHtml(formatTimeShort_(ev.event_date || ev.created_at)) + '</td>' +
-        '<td>' + escapeHtml(ev.event_type || '') + '</td>' +
+        '<td>' + escapeHtml(shortUserLabel_(ev.posted_by || ev.created_by || '—')) + '</td>' +
         '<td>' + escapeHtml(displayName || '—') + (displayReason ? ' — ' + escapeHtml(displayReason) : '') + '</td>' +
         '<td>' + (isIn ? formatAmount_(amount) : '—') + '</td>' +
         '<td>' + (isOut ? formatAmount_(Math.abs(amount)) : '—') + '</td>' +
@@ -3869,7 +3904,7 @@
       '</tr>';
     }).join('') : '<tr><td colspan="7">Nema prometa za izabrani period.</td></tr>';
     var table = '<table class="book-table">' +
-      '<thead><tr><th>Rb.</th><th>Vreme</th><th>Vrsta</th><th>Opis</th><th>Uplata</th><th>Isplata</th><th>Stanje</th></tr></thead>' +
+      '<thead><tr><th>Rb.</th><th>Vreme</th><th>Korisnik</th><th>Opis</th><th>Uplata</th><th>Isplata</th><th>Stanje</th></tr></thead>' +
       '<tbody>' + rows + '</tbody>' +
     '</table>';
     return header + calc + table;
@@ -3909,6 +3944,238 @@
     callApi('apiGetCashSheetReport', [filters], function(sheet) {
       printCashSheetHtml_(sheet || {});
     }, { quiet: true });
+  }
+
+  /* ─── Priznanica (blagajnički uplatni/isplatni list) - štampa jedne stavke ──
+     FAZA 3s. Isti univerzalni print-overlay obrazac kao Blagajnički list gore
+     (ensurePrintCashSheetOverlay_ / html.printing-cashsheet-overlay), samo drugačiji
+     sadržaj. Raspored/tekst je po uzoru na stari (GAS-era) print-cash-event.html izlaz
+     koji je korisnik priložio kao PDF - dva primerka na jednoj strani (arhiva +
+     korisnik), veliki iznos, iznos slovima, potpisi dole. */
+
+  var SR_ONES = ['', 'jedan', 'dva', 'tri', 'četiri', 'pet', 'šest', 'sedam', 'osam', 'devet'];
+  var SR_ONES_FEM = ['', 'jedna', 'dve', 'tri', 'četiri', 'pet', 'šest', 'sedam', 'osam', 'devet'];
+  var SR_TEENS = ['deset', 'jedanaest', 'dvanaest', 'trinaest', 'četrnaest', 'petnaest', 'šesnaest', 'sedamnaest', 'osamnaest', 'devetnaest'];
+  var SR_TENS = ['', '', 'dvadeset', 'trideset', 'četrdeset', 'pedeset', 'šezdeset', 'sedamdeset', 'osamdeset', 'devedeset'];
+  var SR_HUNDREDS = ['', 'sto', 'dvesta', 'trista', 'četiristo', 'petsto', 'šeststo', 'sedamsto', 'osamsto', 'devetsto'];
+
+  function srThreeDigitsToWords_(n, feminine) {
+    var words = [];
+    var h = Math.floor(n / 100);
+    var rem = n % 100;
+    if (h) words.push(SR_HUNDREDS[h]);
+    if (rem >= 10 && rem < 20) {
+      words.push(SR_TEENS[rem - 10]);
+    } else {
+      var t = Math.floor(rem / 10);
+      var o = rem % 10;
+      if (t) words.push(SR_TENS[t]);
+      if (o) words.push(feminine ? SR_ONES_FEM[o] : SR_ONES[o]);
+    }
+    return words.join(' ');
+  }
+
+  function srPluralForm_(n, forms) {
+    var mod100 = n % 100;
+    var mod10 = n % 10;
+    if (mod100 >= 11 && mod100 <= 14) return forms[2];
+    if (mod10 === 1) return forms[0];
+    if (mod10 >= 2 && mod10 <= 4) return forms[1];
+    return forms[2];
+  }
+
+  function srIntegerToWords_(num) {
+    num = Math.floor(Math.abs(num || 0));
+    if (num === 0) return 'nula';
+    var groups = [
+      { value: 1000000000, forms: ['milijarda', 'milijarde', 'milijardi'], fem: true },
+      { value: 1000000, forms: ['milion', 'miliona', 'miliona'], fem: false },
+      { value: 1000, forms: ['hiljadu', 'hiljade', 'hiljada'], fem: true }
+    ];
+    var parts = [];
+    var remaining = num;
+    groups.forEach(function(group) {
+      var count = Math.floor(remaining / group.value);
+      if (!count) return;
+      remaining = remaining % group.value;
+      if (count === 1) {
+        // "jedan/jedna" se izostavlja ispred hiljadu/milion/milijarda u standardnoj upotrebi
+        // ("hiljadu dinara", ne "jedna hiljadu dinara"; "milion", ne "jedan milion").
+        parts.push(group.forms[0]);
+        return;
+      }
+      var groupWords = srThreeDigitsToWords_(count, group.fem);
+      var noun = srPluralForm_(count, group.forms);
+      parts.push(groupWords + ' ' + noun);
+    });
+    if (remaining) parts.push(srThreeDigitsToWords_(remaining, false));
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function amountToSerbianWords_(amount, currency) {
+    amount = Number(amount || 0);
+    var negative = amount < 0;
+    amount = Math.abs(amount);
+    var wholePart = Math.floor(amount);
+    var centsPart = Math.round((amount - wholePart) * 100);
+    if (centsPart >= 100) { wholePart += 1; centsPart = 0; }
+    var currencyWord = currency === 'EUR' ? 'evra' : currency === 'USD' ? 'dolara' : currency === 'CHF' ? 'franaka' : 'dinara';
+    var words = srIntegerToWords_(wholePart) + ' ' + currencyWord + ' i ' + String(centsPart).padStart(2, '0') + '/100';
+    words = words.charAt(0).toUpperCase() + words.slice(1);
+    return (negative ? '− ' : '') + words;
+  }
+
+  function buildReceiptCopyHtml_(ev, copyLabel) {
+    var isOut = (ev.display_direction || ev.direction) === 'OUT';
+    var docTitle = isOut ? 'BLAGAJNIČKI ISPLATNI LIST' : 'BLAGAJNIČKI UPLATNI LIST';
+    var amount = Number(ev.display_amount !== undefined ? ev.display_amount : ev.amount) || 0;
+    var currency = ev.currency || SESSION.currency || '';
+    var ref = ev.ref_no != null ? ('#' + ev.ref_no) : (ev.event_id || '');
+    var partnerLabel = isOut ? 'Isplaćeno:' : 'Uplatio:';
+    var cashboxes = (uiState.config && uiState.config.cashboxes) || [];
+    var cashbox = cashboxes.find(function(c) { return c.cashbox_id === (ev.cashbox_id || SESSION.cashboxId); });
+    var cashboxName = (cashbox && cashbox.name) || SESSION.cashboxName || 'Blagajna';
+    var actor = uiState.currentUser || {};
+    return '<div class="receipt-copy">' +
+      '<div class="receipt-copy-label">' + escapeHtml(copyLabel) + '</div>' +
+      '<div class="receipt-head">' +
+        '<div><strong>Industrija Mesa Nedeljković doo</strong><span>Interni dokument blagajničkog poslovanja</span></div>' +
+        '<div class="receipt-head-right"><span>' + escapeHtml(cashboxName) + '</span><span>' + escapeHtml(currency) + '</span></div>' +
+      '</div>' +
+      '<div class="receipt-box">' +
+        '<h3>' + docTitle + '</h3>' +
+        '<div class="receipt-meta"><span>Broj: <strong>' + escapeHtml(ref) + '</strong></span><span>Datum: <strong>' + escapeHtml(formatDateTimeShort_(ev.event_date || ev.created_at)) + '</strong></span></div>' +
+        '<div class="receipt-meta"><span>Status: <strong>' + escapeHtml(renderPlainStatusLabel_(ev.status)) + '</strong></span></div>' +
+        '<div class="receipt-amount">' + formatAmount_(Math.abs(amount)) + ' ' + escapeHtml(currency) + '</div>' +
+        '<div class="receipt-words">Slovima: ' + escapeHtml(amountToSerbianWords_(amount, currency)) + '</div>' +
+      '</div>' +
+      '<div class="receipt-details">' +
+        '<div><strong>' + escapeHtml(partnerLabel) + '</strong><span>' + escapeHtml(ev.partner_name || '—') + '</span></div>' +
+        '<div><strong>Svrha / opis:</strong><span>' + escapeHtml(cleanBusinessDescription_(ev.description || '') || '—') + '</span></div>' +
+        '<div><strong>Knjižio:</strong><span>' + escapeHtml(ev.posted_by || ev.created_by || '—') + '</span></div>' +
+        '<div><strong>Proknjiženo:</strong><span>' + escapeHtml(formatDateTimeShort_(ev.posted_at || ev.created_at)) + '</span></div>' +
+      '</div>' +
+      '<div class="receipt-sign-row"><div class="receipt-sign">Blagajnik</div><div class="receipt-sign">' + escapeHtml(isOut ? 'Primalac' : 'Primalac / uplatilac') + '</div></div>' +
+      '<div class="receipt-footer">Generisano: ' + escapeHtml(formatDateTimeShort_(new Date().toISOString())) + ' · Korisnik: ' + escapeHtml(actor.email || actor.user_code || '—') + ' · CASH_EVENT ' + escapeHtml(ev.event_id || '') + '</div>' +
+    '</div>';
+  }
+
+  function renderPlainStatusLabel_(status) {
+    return STATUS_LABEL_MAP && STATUS_LABEL_MAP[status] ? STATUS_LABEL_MAP[status] : (status || '—');
+  }
+
+  function buildReceiptPrintHtml_(ev) {
+    return '<div class="receipt-sheet">' +
+      buildReceiptCopyHtml_(ev, 'PRIMERAK ZA ARHIVU / POTPIS') +
+      buildReceiptCopyHtml_(ev, 'PRIMERAK ZA KORISNIKA') +
+    '</div>';
+  }
+
+  function printReceiptForEvent_(ev) {
+    if (!ev || !ev.event_id || ev.event_type === 'ANNOUNCEMENT') {
+      showMessage('Priznanica je dostupna samo za proknjižene stavke (uplata/isplata/storno).', 'info');
+      return;
+    }
+    var overlay = ensurePrintCashSheetOverlay_();
+    overlay.innerHTML = buildReceiptPrintHtml_(ev);
+    document.documentElement.classList.add('printing-cashsheet-overlay');
+    var cleanup = function() {
+      document.documentElement.classList.remove('printing-cashsheet-overlay');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    window.setTimeout(function() { window.print(); }, 30);
+  }
+
+  /* ─── Prilozi (dokumenti preko Google Drive-a) - FAZA 3s ───────────────────
+     Jedan dijalog za pregled I dodavanje priloga uz proizvoljnu stavku (cash_event,
+     nalog, zahtev...) - koristi već postojeću documents tabelu (entity_type/entity_id),
+     samo prvi put ima stvaran upload backend (_lib/googleDrive.js). */
+
+  function renderDocumentsListHtml_(docs) {
+    if (!docs || !docs.length) {
+      return '<div class="empty-state" style="padding:8px 0">Nema prikačenih dokumenata.</div>';
+    }
+    return docs.map(function(d) {
+      return '<div class="detail-row" style="border-bottom:1px solid var(--color-border-light);padding:7px 0">' +
+        '<a href="' + escapeHtml(d.file_url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(d.file_name || 'Dokument') + '</a>' +
+        '<span style="color:var(--color-text-muted);font-size:11px;text-align:right">' + escapeHtml(shortUserLabel_(d.uploaded_by || '—')) + '<br>' + escapeHtml(formatDateTimeShort_(d.created_at)) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadAndRenderDocumentsFor_(entityType, entityId, targetId) {
+    var target = document.getElementById(targetId);
+    if (!target) return;
+    target.innerHTML = '<div class="empty-state" style="padding:8px 0">Učitavanje...</div>';
+    callApi('apiListDocuments', [entityType, entityId], function(docs) {
+      target.innerHTML = renderDocumentsListHtml_(docs);
+    }, { quiet: true, onComplete: function() {
+      if (target.innerHTML.indexOf('Učitavanje') !== -1) {
+        target.innerHTML = '<div class="empty-state" style="padding:8px 0">Nije moguće učitati dokumenta.</div>';
+      }
+    } });
+  }
+
+  function openDocumentsDialog_(entityType, entityId, entityLabel) {
+    if (!entityId) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>Dokumenti' + (entityLabel ? ' — ' + escapeHtml(entityLabel) : '') + '</h3>' +
+        '<div id="documents-dialog-list"><div class="empty-state" style="padding:8px 0">Učitavanje...</div></div>' +
+        '<form id="documents-dialog-form" class="form-grid" style="margin-top:12px">' +
+          '<label>Prikači novi fajl <input type="file" name="file" required></label>' +
+          '<label>Napomena <input type="text" name="note" placeholder="opciono"></label>' +
+          '<div class="m-detail-actions">' +
+            '<button type="button" class="btn-ghost" id="documents-dialog-close">Zatvori</button>' +
+            '<button type="submit" class="btn-primary" id="documents-dialog-upload">Prikači</button>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('#documents-dialog-close').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    var refresh = function() { loadAndRenderDocumentsFor_(entityType, entityId, 'documents-dialog-list'); };
+    refresh();
+    overlay.querySelector('#documents-dialog-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var form = e.target;
+      var fileInput = form.querySelector('[name="file"]');
+      var noteInput = form.querySelector('[name="note"]');
+      var submitBtn = document.getElementById('documents-dialog-upload');
+      fileToBase64Payload(fileInput).then(function(payload) {
+        if (submitBtn) submitBtn.disabled = true;
+        callApi('apiUploadDocument', [entityType, entityId, {
+          file_name: payload.fileName,
+          mime_type: payload.mimeType,
+          file_base64: payload.base64Data
+        }, noteInput ? noteInput.value || '' : ''], function() {
+          form.reset();
+          refresh();
+        }, {
+          successMessage: 'Dokument je prikačen.',
+          onComplete: function() { if (submitBtn) submitBtn.disabled = false; }
+        });
+      }).catch(function(error) {
+        showMessage('Greška: ' + error.message, 'error');
+      });
+    });
+  }
+
+  // Nalazi učitanu stavku po event_id (Knjiga ili Blagajnički list već imaju ceo
+  // objekat u memoriji) - koristi se za "klikni na listu, izaberi štampu" umesto
+  // ručnog unosa ID-ja (vidi FAZA 3s napomenu u desktop.html Blagajnički list sekciji).
+  function printReceiptForEventId_(eventId) {
+    var found = (LAST_KNJIGA_EVENTS || []).find(function(e) { return e.event_id === eventId; }) ||
+      (LAST_CASHSHEET_EVENTS || []).find(function(e) { return e.event_id === eventId; });
+    if (!found) {
+      showMessage('Stavka nije pronađena u trenutno učitanoj listi.', 'error');
+      return;
+    }
+    printReceiptForEvent_(found);
   }
 
   function renderRecords(targetId, records, fields) {
@@ -4329,7 +4596,7 @@
   function bindAnnouncementButtons_() {
     var canCreate = canCreatePaymentAnnouncement_();
     var canView = canViewPaymentAnnouncements_();
-    ['d-new-announcement-btn', 'm-new-announcement-btn', 'd-najave-add-btn'].forEach(function(id) {
+    ['d-new-announcement-btn', 'm-fab-najava', 'd-najave-add-btn'].forEach(function(id) {
       var btn = document.getElementById(id);
       if (!btn) return;
       btn.hidden = !canCreate;
@@ -5189,6 +5456,21 @@
         '<div><span>Promena</span><strong class="' + amountClass + '">' + (signedChange > 0 ? '+' : signedChange < 0 ? '−' : '') + formatAmount_(Math.abs(signedChange)) + ' ' + currencyLabel + '</strong></div>' +
       '</div>';
 
+    var receiptBtn = document.getElementById('d-detail-receipt');
+    if (receiptBtn) {
+      receiptBtn.disabled = isCount || ev.event_type === 'ANNOUNCEMENT';
+      receiptBtn.title = receiptBtn.disabled ? 'Priznanica je dostupna samo za uplate/isplate/storno.' : '';
+      receiptBtn.onclick = function() {
+        if (receiptBtn.disabled) return;
+        printReceiptForEvent_(ev);
+      };
+    }
+    var documentsBtn = document.getElementById('d-detail-documents');
+    if (documentsBtn) {
+      documentsBtn.onclick = function() {
+        openDocumentsDialog_('CASH_EVENT', ev.event_id, 'stavka ' + (ev.ref_no != null ? '#' + ev.ref_no : ev.event_id));
+      };
+    }
     var printBtn  = document.getElementById('d-detail-print');
     var stornoBtn = document.getElementById('d-detail-storno');
     if (printBtn) {
@@ -5269,10 +5551,23 @@
         '<span class="detail-key">' + r[0] + '</span><span style="text-align:right;overflow-wrap:anywhere">' + r[1] + '</span></div>';
     }).join('');
     var closeBtn = document.getElementById('m-detail-close');
+    var receiptBtn = document.getElementById('m-detail-receipt');
     var printBtn = document.getElementById('m-detail-print');
     var stornoBtn = document.getElementById('m-detail-storno');
     if (closeBtn) closeBtn.onclick = function() { overlay.style.display = 'none'; };
     overlay.onclick = function(e) { if (e.target === overlay) overlay.style.display = 'none'; };
+    if (receiptBtn) {
+      var canReceipt = !isCount && ev.event_type !== 'ANNOUNCEMENT';
+      receiptBtn.disabled = !canReceipt;
+      receiptBtn.title = canReceipt ? '' : 'Priznanica je dostupna samo za uplate/isplate/storno.';
+      receiptBtn.onclick = function() { if (canReceipt) printReceiptForEvent_(ev); };
+    }
+    var documentsBtn = document.getElementById('m-detail-documents');
+    if (documentsBtn) {
+      documentsBtn.onclick = function() {
+        openDocumentsDialog_('CASH_EVENT', ev.event_id, ev.ref_no != null ? '#' + ev.ref_no : ev.event_id);
+      };
+    }
     if (printBtn) {
       printBtn.disabled = isCount;
       printBtn.title = isCount ? 'Popis se evidentira u preseku smene, bez blagajničkog lista za uplatu/isplatu.' : '';
@@ -5554,9 +5849,36 @@
     });
   }
 
+  /* ─── Mobile: FAB "+" meni (Uplata/Isplata/Trezor/Najava) ──────── */
+
+  function bindMobileFab_() {
+    var fabBtn = document.getElementById('m-fab-btn');
+    var fabMenu = document.getElementById('m-fab-menu');
+    if (!fabBtn || !fabMenu || fabBtn.dataset.bound === '1') return;
+    fabBtn.dataset.bound = '1';
+    var setOpen = function(open) {
+      if (open) fabMenu.removeAttribute('hidden'); else fabMenu.setAttribute('hidden', 'hidden');
+      fabBtn.classList.toggle('active', open);
+      fabBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    fabBtn.addEventListener('click', function(event) {
+      event.stopPropagation();
+      setOpen(fabMenu.hasAttribute('hidden'));
+    });
+    // Zatvori meni posle klika na bilo koju opciju unutra (Uplata/Isplata/Trezor/Najava
+    // otvaraju svoj dijalog preko postojećih handlera - meni sam ne treba da ostane otvoren).
+    fabMenu.addEventListener('click', function(event) {
+      if (event.target.closest('.m-fab-menu-item')) setOpen(false);
+    });
+    document.addEventListener('click', function(event) {
+      if (!fabMenu.hasAttribute('hidden') && !event.target.closest('.m-fab-row')) setOpen(false);
+    });
+  }
+
   /* ─── Mobile: bottom sheet ───────────────────────────────────── */
 
   function bindMobileSheet_() {
+    bindMobileFab_();
     var btnU   = document.getElementById('m-btn-uplata');
     var btnI   = document.getElementById('m-btn-isplata');
     var btnT   = document.getElementById('m-btn-trezor');
@@ -9581,16 +9903,19 @@
       dateEl.textContent = now.getDate() + '.' + (now.getMonth()+1) + '.' + now.getFullYear() + '.';
     }
 
-    if (isDesktop) {
+    if (isDesktop || isMobile) {
+      // FAZA 3s: mobilni prikaz je ranije preskakao login gate potpuno (pretpostavljao
+      // je da je sesija već uspostavljena preko desktop prijave na istom browseru) - sada
+      // oba prikaza prolaze kroz isti generički login/logout mehanizam.
       initDesktopAppLogin_(function() {
-        callApi('apiGetUiBootstrap', [true], function(data) {
-          bootstrapShellAfterAppSession_(true, false, data);
+        callApi('apiGetUiBootstrap', [isDesktop], function(data) {
+          bootstrapShellAfterAppSession_(isDesktop, isMobile, data);
         }, { quiet: true });
       });
       return;
     }
 
-    // Bootstrap API call
+    // Bootstrap API call (fallback za slučaj da ni .d-shell ni .m-shell nisu prisutni)
     callApi('apiGetUiBootstrap', [isDesktop], function(data) {
       bootstrapShellAfterAppSession_(isDesktop, isMobile, data);
     }, { quiet: true });
