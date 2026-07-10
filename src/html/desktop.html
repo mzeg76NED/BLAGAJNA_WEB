@@ -188,9 +188,6 @@
                   <button class="cashbook-refresh" id="d-knjiga-refresh" type="button" title="Osveži">
                     <i class="ti ti-refresh" aria-hidden="true"></i>
                   </button>
-                  <button class="po-primary-btn cash-count-action save" id="d-new-announcement-btn" type="button" hidden>
-                    <i class="ti ti-bell-plus" aria-hidden="true"></i> Najava uplate
-                  </button>
                 </div>
               </div>
 
@@ -248,13 +245,6 @@
                 <aside class="cashbook-details-panel">
                   <div class="cashbook-quick-actions">
                     <div class="cashbook-panel-title">Brze akcije</div>
-                    <div class="cashbook-lock-note" id="d-quick-lock-message">
-                      <div>
-                        <strong><i class="ti ti-alert-triangle" aria-hidden="true"></i> Nema aktivne smene – otvorite smenu za direktan rad</strong>
-                        <span>Uplata, isplata i trezor su zaključani dok smena nije otvorena.</span>
-                      </div>
-                      <button class="cash-count-action draft" id="d-open-shift-from-book" type="button"><i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu</button>
-                    </div>
                     <div class="quick-action-grid">
                       <button class="quick-action-button quick-action-button--uplata" id="d-side-btn-uplata" type="button">
                         <i class="ti ti-arrow-down-circle" aria-hidden="true"></i><span>Uplata</span><i class="ti ti-lock quick-lock-icon" aria-hidden="true"></i>
@@ -265,6 +255,12 @@
                       <button class="quick-action-button quick-action-button--trezor" id="d-side-btn-trezor" type="button">
                         <i class="ti ti-building-bank" aria-hidden="true"></i><span>Trezor</span><i class="ti ti-lock quick-lock-icon" aria-hidden="true"></i>
                       </button>
+                      <button class="quick-action-button quick-action-button--najava" id="d-new-announcement-btn" type="button" hidden>
+                        <i class="ti ti-bell-plus" aria-hidden="true"></i><span>Najava uplate</span>
+                      </button>
+                    </div>
+                    <div class="cashbook-lock-note" id="d-quick-lock-message" hidden>
+                      <button class="cash-count-action draft" id="d-open-shift-from-book" type="button"><i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu</button>
                     </div>
                     <div class="card permission-card" id="d-direct-permission-card" hidden>
                       <p id="d-direct-permission-text">Direktne uplate, isplate i predaju u trezor može knjižiti samo glavni blagajnik aktivne smene.</p>

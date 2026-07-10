@@ -2788,19 +2788,8 @@
     var openShift = document.getElementById('d-open-shift-from-book');
     var hasShift = Boolean(uiState.activeShift && uiState.activeShift.shift_id);
     if (lockMessage) {
-      if (canPost) lockMessage.setAttribute('hidden', 'hidden');
-      else {
-        lockMessage.removeAttribute('hidden');
-        var title = lockMessage.querySelector('strong');
-        var note = lockMessage.querySelector('span');
-        if (hasShift) {
-          if (title) title.innerHTML = '<i class="ti ti-info-circle" aria-hidden="true"></i> Aktivna smena je otvorena';
-          if (note) note.textContent = 'Direktne uplate, isplate i trezor trenutno nisu dostupni. Smenu je otvorio: ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '.';
-        } else {
-          if (title) title.innerHTML = '<i class="ti ti-alert-triangle" aria-hidden="true"></i> Nema aktivne smene - otvorite smenu za direktan rad';
-          if (note) note.textContent = 'Uplata, isplata i trezor su zaključani dok smena nije otvorena.';
-        }
-      }
+      if (hasShift) lockMessage.setAttribute('hidden', 'hidden');
+      else lockMessage.removeAttribute('hidden');
     }
     if (openShift) {
       openShift.hidden = hasShift;

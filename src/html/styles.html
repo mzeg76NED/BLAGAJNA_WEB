@@ -2497,38 +2497,19 @@
   }
 
   .cashbook-lock-note {
-    align-items: center;
-    background: rgba(245, 158, 11, 0.09);
-    border: 1px solid rgba(245, 158, 11, 0.24);
-    border-radius: 10px;
-    display: grid;
-    gap: 10px;
-    grid-template-columns: minmax(0, 1fr) auto;
-    margin-bottom: 12px;
-    padding: 12px;
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
   }
 
   .cashbook-lock-note button[hidden] {
     display: none !important;
   }
 
-  .cashbook-lock-note strong {
-    color: #fbbf24;
-    display: block;
-    font-size: 13px;
-  }
-
-  .cashbook-lock-note span {
-    color: var(--color-text-muted);
-    display: block;
-    font-size: 12px;
-    margin-top: 3px;
-  }
-
   .quick-action-grid {
     display: grid;
     gap: 10px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .quick-action-button {
@@ -2552,6 +2533,12 @@
     background: linear-gradient(135deg, rgba(127, 29, 29, 0.45), rgba(69, 10, 10, 0.4));
     border-color: rgba(248, 113, 113, 0.35);
     color: var(--color-out);
+  }
+
+  .quick-action-button--najava {
+    background: linear-gradient(135deg, rgba(30, 64, 175, 0.45), rgba(15, 23, 63, 0.4));
+    border-color: rgba(96, 165, 250, 0.35);
+    color: #60a5fa;
   }
 
   .quick-action-button--trezor {

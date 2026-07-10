@@ -11,10 +11,10 @@ async function findById(env, table, key, value) {
   return rows && rows.length ? rows[0] : null;
 }
 
-async function findOpenShift(env, cashboxId, userEmail) {
+async function findOpenShift(env, cashboxId) {
   const rows = await supabaseRest(
     env,
-    '/shifts?select=*&cashbox_id=' + encodeEq(cashboxId) + '&status=eq.OPEN&opened_by=' + encodeEq(userEmail) + '&limit=1'
+    '/shifts?select=shift_id&cashbox_id=' + encodeEq(cashboxId) + '&status=eq.OPEN&limit=1'
   );
   return rows && rows.length ? rows[0] : null;
 }
@@ -98,8 +98,8 @@ export async function onRequestPost(context) {
     if (paymentCashboxId !== orderBefore.cashbox_id) return apiError('Blagajna isplate mora odgovarati nalogu.', 400);
 
     const appUser = sessionResult.session.app_user || {};
-    const openShift = await findOpenShift(env, paymentCashboxId, appUser.email || '');
-    if (!openShift) return apiError('Aktivna smena za ovu blagajnu nije pronađena za trenutnog korisnika.', 409);
+    const openShift = await findOpenShift(env, paymentCashboxId);
+    if (!openShift) return apiError('Aktivna smena za ovu blagajnu nije pronađena.', 409);
 
     const previousBalance = await getBalance(env, paymentCashboxId, paymentCurrency);
     if (previousBalance < paymentAmount) {

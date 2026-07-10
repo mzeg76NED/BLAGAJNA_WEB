@@ -664,3 +664,33 @@ Sledeci korak:
 - Korisnik pokreće SQL blok na Supabase-u (nove role + payment_announcements tabela), zatim push/deploy.
 - Kreirati bar jednog test korisnika sa rolom ANNOUNCER i jednog sa ASSISTANT_CASHIER da se potvrdi ceo tok end-to-end.
 - Po potrebi, dodati mobilni ekran za Pomocnog blagajnika (van obima ove sesije).
+
+## FAZA 3p - UI relokacija dugmeta Najava uplate + fix bag-a isplate posle smene korisnika (2026-07-10, Claude/Cowork sesija)
+
+Status: DONE (implementacija), CEKA runtime test
+
+Kontekst: Korisnik je potvrdio da je SQL iz FAZA 3o uspesno pusten na live Supabase bazu (test najava se vidi u Knjizi). Ovom sesijom je zatrazio dve stvari na osnovu screenshot-a live app-a: (1) premestanje dugmeta "Najava uplate" iz Knjiga toolbar-a u "Brze akcije" panel pored Uplata/Isplata/Trezor, uz uklanjanje "Nema aktivne smene" upozorenja; (2) bag - isplata naloga ne prolazi ako je aktivna smena na blagajni promenila korisnika (drugi korisnik otvorio smenu) u odnosu na onog koji salje isplatu.
+
+Sta je uradjeno:
+
+1. **UI relokacija** (`desktop.html`, `styles.html`, `scripts.html`):
+   - `#d-new-announcement-btn` premesten iz `cashbook-filters` toolbar-a u `quick-action-grid` (isti panel gde su `d-side-btn-uplata`/`-isplata`/`-trezor`), sa novom klasom `quick-action-button--najava` (plava boja, bez lock ikonice - kreiranje najave NE zahteva otvorenu smenu, za razliku od direktnih uplata/isplata/trezora).
+   - `.quick-action-grid` promenjen sa `repeat(3, 1fr)` na `repeat(2, 1fr)` (2x2 raspored za 4 dugmeta).
+   - Upozorenje "Nema aktivne smene - otvorite smenu za direktan rad" (`<strong>`/`<span>` u `#d-quick-lock-message`) je UKLONJENO - bilo je redundantno sa vec postojecom `#d-direct-permission-card` porukom (`d-direct-permission-text`) koja pokriva isti slucaj. `#d-quick-lock-message` sada sadrzi SAMO dugme "Otvori smenu", i prikazuje se iskljucivo kad NEMA nikakve aktivne smene na blagajni (ranije se prikazivao i kad smena postoji ali je drugi korisnik vlasnik, sa drugim tekstom - taj slucaj sada pokriva iskljucivo permission-card, bez duplirane poruke).
+   - `updateDesktopDirectActionsVisibility_()` pojednostavljen: vise ne menja `<strong>`/`<span>` tekst dinamicki, samo prikazuje/sakriva `d-quick-lock-message` na osnovu `hasShift`.
+   - `bindAnnouncementButtons_()` nije menjan - vec je nezavisno od stanja smene prikazivao/sakrivao dugme po privilegiji `payment_announcements:create`, sto je tacno ponasanje potrebno na novoj lokaciji.
+   - Mobilni prikaz (`mobile.html`, `#m-new-announcement-btn`) NIJE menjan - zahtev se odnosio na desktop Brze akcije panel (screenshot je bio desktop).
+
+2. **Bag fix - isplata posle promene korisnika na smeni** (`web/functions/api/payment-orders/execute-pending.js`):
+   - Root cause: lokalna `findOpenShift(env, cashboxId, userEmail)` funkcija u ovom fajlu je JOS UVEK filtrirala po `opened_by=userEmail` (trenutni korisnik koji izvrsava isplatu) - stari, pre-FAZA-3j obrazac vezan za "smena pripada korisniku koji ju je otvorio". Kad je smena na blagajni zatvorena/ponovo otvorena od DRUGOG korisnika (ili je drugi korisnik preuzeo blagajnu), provera nije nalazila OPEN smenu za trenutnog korisnika (jer redom vlasnik nije on) i vracala je gresku 409 "Aktivna smena za ovu blagajnu nije pronadjena za trenutnog korisnika" - iako je smena bila aktivna, samo pod drugim korisnikom.
+   - Ovaj fajl je bio JEDINI preostali payment-orders endpoint sa ovim zastarelim obrascem - `create-direct.js` uopste ne proverava vlasnika smene, ostali fajlovi u folderu ne diraju `opened_by`.
+   - Fix: `findOpenShift` uskladjen sa vec ustaljenim deljeno-smena obrascem iz `cash-events/inflow.js`/`outflow.js`/`treasury-handover.js` (FAZA 3j) - proverava SAMO da li postoji BILO KOJA OPEN smena na toj blagajni (`select=shift_id&cashbox_id=...&status=eq.OPEN`, bez `opened_by` filtera). Poziv na liniji koja koristi `findOpenShift` azuriran da vise ne prosledjuje `appUser.email`; poruka greske pojednostavljena u "Aktivna smena za ovu blagajnu nije pronadjena." (bez pominjanja "trenutnog korisnika", posto vise nije relevantno ko je vlasnik).
+
+Sta nije uradjeno:
+
+- Runtime test oba fix-a na produkciji (UI relokacija dugmeta + izvrsenje pending isplate sa promenjenim korisnikom na smeni).
+- Nije proveravano da li isti "vlasnik smene" obrazac postoji u nekom DRUGOM, van payment-orders foldera lociranom kodu (npr. cash-counts/daily-closing) - van obima ovog izvestaja o bagu jer korisnik je prijavio konkretno isplatu naloga.
+
+Sledeci korak:
+
+- Korisnik push-uje i testira: (1) izgled Brze akcije panela (Uplata/Isplata/Trezor/Najava uplate u 2x2 rasporedu, bez "Nema aktivne smene" teksta), (2) slanje naloga na isplatu pa promenu korisnika na aktivnoj smeni pa izvrsenje isplate - treba da prodje bez 409 greske.
