@@ -4917,6 +4917,17 @@
     document.querySelectorAll('[data-m-nav]').forEach(function(btn) {
       if (btn.getAttribute('data-m-nav') !== 'm-section-najave') btn.hidden = true;
     });
+    // FAZA 3w-2 bugfix: nav sekcije su bile sakrivene, ali "+" FAB meni na mobilnom
+    // je poseban, odvojen skup dugmadi (m-fab-new-order/m-fab-new-count/m-btn-uplata/
+    // m-btn-isplata/m-btn-trezor/m-fab-mandatory-count) koji NIJE prolazio kroz ovu
+    // funkciju - ANNOUNCER/ASSISTANT_CASHIER je i dalje mogao da otvori "Novi nalog"
+    // ili "Presek stanja" iz "+" menija iako odgovarajuci nav tab uopste ne vidi.
+    // "Najava uplate" pilula (m-fab-najava) ostaje - vec je pokrivena posebnom
+    // canCreatePaymentAnnouncement_() proverom u bindAnnouncementButtons_().
+    ['m-fab-new-order', 'm-fab-new-count', 'm-fab-mandatory-count', 'm-btn-uplata', 'm-btn-isplata', 'm-btn-trezor'].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.hidden = true;
+    });
   }
 
   function bindAnnouncementButtons_() {
@@ -5457,13 +5468,13 @@
       '<div class="app-dialog" role="dialog" aria-modal="true">' +
         '<div class="po-detail-head"><h3>Najava uplate' + (a.ref_no != null ? ' #' + a.ref_no : '') + '</h3><span class="po-status ' + announcementStatusClass_(a.status) + '">' + escapeHtml(statusLabel) + '</span></div>' +
         '<div class="po-detail-grid">' + rows.map(function(r) { return renderPaymentOrderField_(r[0], r[1]); }).join('') + '</div>' +
-        '<div class="m-detail-actions">' +
-          (canEditOrSend ? '<button type="button" class="btn-ghost" id="announcement-edit-btn"><i class="ti ti-edit" aria-hidden="true"></i> Izmeni</button>' : '') +
-          (canEditOrSend ? '<button type="button" class="cash-count-action draft" id="announcement-send-btn"><i class="ti ti-send" aria-hidden="true"></i> Pošalji u blagajnu</button>' : '') +
+        '<div class="m-detail-actions po-panel-actions">' +
+          (canEditOrSend ? '<button type="button" class="cash-count-action draft" id="announcement-edit-btn"><i class="ti ti-edit" aria-hidden="true"></i> Izmeni</button>' : '') +
+          (canEditOrSend ? '<button type="button" class="cash-count-action save" id="announcement-send-btn"><i class="ti ti-send" aria-hidden="true"></i> Pošalji u blagajnu</button>' : '') +
           (canMatch ? '<button type="button" class="cash-count-action save" id="announcement-match-btn"><i class="ti ti-cash" aria-hidden="true"></i> UPLATA</button>' : '') +
-          (canReturn ? '<button type="button" class="btn-ghost" id="announcement-return-btn"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Vrati na doradu</button>' : '') +
-          (canViewMatchDetail ? '<button type="button" class="btn-ghost" id="announcement-match-detail-btn"><i class="ti ti-receipt" aria-hidden="true"></i> Detalji uparivanja</button>' : '') +
-          '<button type="button" class="btn-ghost" id="announcement-docs-btn"><i class="ti ti-paperclip" aria-hidden="true"></i> Dokumenti</button>' +
+          (canReturn ? '<button type="button" class="cash-count-action draft" id="announcement-return-btn"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Vrati na doradu</button>' : '') +
+          (canViewMatchDetail ? '<button type="button" class="cash-count-action draft" id="announcement-match-detail-btn"><i class="ti ti-receipt" aria-hidden="true"></i> Detalji uparivanja</button>' : '') +
+          '<button type="button" class="cash-count-action draft" id="announcement-docs-btn"><i class="ti ti-paperclip" aria-hidden="true"></i> Dokumenti</button>' +
           (canCancel ? '<button type="button" class="cash-count-action cancel" id="announcement-cancel-btn"><i class="ti ti-circle-x" aria-hidden="true"></i> Otkaži najavu</button>' : '') +
         '</div>' +
         '<button type="button" class="btn-ghost btn-full" id="announcement-detail-close">Zatvori</button>' +

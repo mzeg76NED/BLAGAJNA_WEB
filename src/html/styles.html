@@ -3833,23 +3833,21 @@
      unutar scroll kontejnera), umesto da se odvuku van ekrana zajedno sa sadržajem
      iznad njih. Pozadina mora da se poklopi sa .shift-detail-panel da tekst ispod
      ne "probija" kroz providnu traku dugmadi dok se skroluje. */
+  /* FAZA 3w-2: display/grid-template-columns/gap namerno UKLONJENI odavde - ova
+     traka sad dobija SVOJ layout iskljucivo od .po-panel-actions (dodato kao
+     druga klasa u renderShiftDetail_, isto kao Zahtevi/Nalog za isplatu), da ne
+     bi dve konkurentske definicije (grid ovde vs flex tamo) nepredvidivo odlucivale
+     ko pobedjuje po redosledu u fajlu - to je bio uzrok neujednacenog izgleda na
+     Smeni. Ovde ostaju SAMO sticky-footer specificne osobine (pozicija/pozadina). */
   .shift-actions-grid {
     background: linear-gradient(145deg, rgba(10, 34, 58, 0.9), rgba(8, 25, 43, 0.94));
     bottom: -14px;
-    display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-top: 14px;
     padding: 10px 0 14px;
     position: sticky;
   }
 
   :root:not([data-theme="dark"]) .shift-actions-grid {
     background: #ffffff;
-  }
-
-  .shift-actions-grid button {
-    min-height: 48px;
   }
 
   @media (max-width: 1500px) {
@@ -3870,8 +3868,7 @@
     .shifts-panel-head,
     .shifts-filters,
     .shift-detail-info-grid,
-    .shift-currency-grid,
-    .shift-actions-grid {
+    .shift-currency-grid {
       grid-template-columns: 1fr;
     }
   }
@@ -4956,15 +4953,30 @@
     padding: 0 16px;
   }
 
+  /* KONSOLIDACIJA (FAZA 3w-2): OVO je JEDINI izgled za dugmad u akcionim trakama
+     (Nalog za isplatu, Zahtevi, Smena, Korisnici, Valute) - ista visina/padding/
+     font TACNO svuda, bez obzira na duzinu teksta. Ranije je duzi tekst (npr.
+     "Odobri i kreiraj nalog") prelamao se u 2 reda i pravio VISE dugme nego
+     susedno jednoredno dugme na istoj traci - "dugmad se pomeraju, nekad veca
+     nekad manja". Sad je nowrap: tekst NIKAD ne prelama red, min-height/
+     max-height je fiksna vrednost svuda, garantovano identicna; font je malo
+     manji i gap uzi bas u ovom kontekstu (gusto pakovane trake sa vise dugmadi)
+     da duzi natpisi staju u jedan red bez skraćivanja. */
   .po-panel-actions .cash-count-action,
   .po-head-actions .cash-count-action,
   .new-order-titlebar .cash-count-action,
   .cashbook-lock-note .cash-count-action,
-  .shifts-page-head .cash-count-action {
+  .shifts-page-head .cash-count-action,
+  .shift-actions-grid .cash-count-action {
+    font-size: 12.5px;
+    gap: 6px;
     justify-content: center;
+    max-height: 44px;
     min-height: 44px;
-    padding: 10px 16px;
+    overflow: hidden;
+    padding: 10px 12px;
     text-align: center;
+    white-space: nowrap;
     width: auto;
   }
 
@@ -5297,8 +5309,11 @@
     padding-top: 14px;
   }
 
+  /* FAZA 3w-2: 2 dugmeta po redu (ne 3) - sire dugme = duzi natpisi ("Odobri i
+     kreiraj nalog") staju u jedan red bez prelamanja (vidi konsolidovano pravilo
+     iznad koje sad forsira nowrap+fiksnu visinu svuda). */
   .po-panel-actions button {
-    flex: 1 1 140px;
+    flex: 1 1 calc(50% - 5px);
   }
 
   .po-panel-actions button:disabled {
