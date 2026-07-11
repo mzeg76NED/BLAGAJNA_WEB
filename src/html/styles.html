@@ -751,65 +751,81 @@
     overscroll-behavior: contain;
   }
 
+  /* FAZA 3v: header smanjen ~25% (padding/font) - hamburger + saldo su sada jedini
+     stalni elementi, sve podesavanje (blagajna/valuta/tema/korisnik/odjava) je
+     preselo u hamburger fioku (#m-drawer-overlay), donja traka sa tabovima je
+     ukinuta (navigacija je takodje u fioci - .m-drawer-nav). */
   .m-header {
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border-light);
     flex-shrink: 0;
-    padding: 12px 16px 10px;
-    padding-top: max(12px, env(safe-area-inset-top));
+    padding: 9px 12px 7px;
+    padding-top: max(9px, env(safe-area-inset-top));
     z-index: 20;
   }
 
   .m-header-top {
     align-items: center;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     justify-content: space-between;
   }
 
-  .m-header-balance {
-    font-size: 24px;
-    font-weight: 800;
-    color: var(--color-in);
-    line-height: 1.1;
-  }
-
-  /* Compact icon button that reveals the blagajna/valuta/tema chips - previously
-     those were always visible and ate ~35-40% of the mobile viewport on every tab.
-     Collapsed by default; toggled via bindMobileHeaderSettings_() in scripts.html. */
-  .m-header-settings-btn {
+  .m-hamburger-btn {
     align-items: center;
-    background: var(--color-surface-alt, #202733);
-    border: 1px solid var(--color-border);
-    border-radius: 999px;
+    background: none;
+    border: none;
     color: var(--color-text);
     display: inline-flex;
     flex-shrink: 0;
-    font-size: 16px;
-    height: 32px;
+    font-size: 17px;
+    height: 26px;
     justify-content: center;
-    width: 32px;
+    width: 26px;
   }
 
-  .m-header-settings-btn.active {
-    background: var(--color-accent, #3b82f6);
-    color: #fff;
+  /* Saldo je sad dugme (ne div) - klik otvara/zatvara #m-header-kpi red ispod
+     (bindMobileHeaderKpiToggle_ u scripts.html). Strelica se rotira kad je otvoren. */
+  .m-header-balance {
+    align-items: center;
+    background: none;
+    border: none;
+    color: var(--color-in);
+    display: flex;
+    flex: 1;
+    font-size: 18px;
+    font-weight: 800;
+    gap: 5px;
+    justify-content: center;
+    line-height: 1.1;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .m-header-balance i {
+    color: var(--color-text-muted);
+    font-size: 13px;
+    transition: transform .15s ease;
+  }
+
+  .m-header-balance.open i {
+    transform: rotate(180deg);
   }
 
   .m-header-meta {
     color: var(--color-text-muted);
-    font-size: 12px;
-    margin-top: 2px;
+    font-size: 10px;
+    margin-top: 1px;
+    text-align: center;
   }
 
-  .m-header-chips {
-    display: flex;
-    gap: 6px;
-    margin-top: 8px;
-    flex-wrap: wrap;
+  /* KPI red - isti podaci kao renderKnjigaTotalsHtml_ (Blagajnicki list stil),
+     otvara se klikom na saldo umesto ranijeg posebnog dugmeta "Pregled prometa". */
+  .m-header-kpi {
+    margin-top: 7px;
   }
 
-  .m-header-chips[hidden] {
+  .m-header-kpi[hidden] {
     display: none;
   }
 
@@ -851,6 +867,102 @@
     min-height: 0;
     padding: 0;
     width: auto;
+  }
+
+  /* ─── Hamburger fioka (FAZA 3v) - zamena za donju traku sa tabovima + stari
+     header zupčanik. Modalni overlay (position:fixed OVDE je ispravno - ovo je
+     pravi modal, ne stalna chrome traka koja se sudara sa flex layout-om,
+     razlika objasnjena uz mandatory-count-bar komentar dole). ────────────── */
+  .m-drawer-overlay {
+    background: rgba(0, 0, 0, .45);
+    bottom: 0;
+    left: 0;
+    position: fixed;
+    right: 0;
+    top: 0;
+    z-index: 200;
+  }
+
+  .m-drawer {
+    background: var(--color-surface);
+    bottom: 0;
+    box-shadow: 2px 0 16px rgba(15, 23, 42, .25);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    left: 0;
+    max-width: 78%;
+    overflow-y: auto;
+    padding: max(14px, env(safe-area-inset-top)) 14px 14px;
+    position: absolute;
+    top: 0;
+    width: 280px;
+  }
+
+  .m-drawer-head {
+    align-items: center;
+    display: flex;
+    font-size: 15px;
+    font-weight: 800;
+    justify-content: space-between;
+  }
+
+  .m-drawer-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .m-drawer-nav-item {
+    align-items: center;
+    background: none;
+    border: none;
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    display: flex;
+    font-size: 13px;
+    font-weight: 700;
+    gap: 12px;
+    justify-content: flex-start;
+    min-height: 40px;
+    padding: 8px 14px;
+    position: relative;
+  }
+
+  .m-drawer-nav-item i { font-size: 18px; }
+
+  .m-drawer-nav-item.active {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+  }
+
+  .m-drawer-nav-item .m-tab-badge {
+    left: auto;
+    position: static;
+    margin-left: auto;
+    top: auto;
+  }
+
+  .m-drawer-divider {
+    background: var(--color-border-light);
+    height: 1px;
+    margin: 2px 0;
+  }
+
+  .m-drawer-label {
+    color: var(--color-text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: 0 14px;
+    text-transform: uppercase;
+  }
+
+  .m-drawer-settings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 10px;
   }
 
   .m-content {
@@ -910,16 +1022,19 @@
      računa (obojena zaobljena ikonica levo + bold naslov/iznos + meta), umesto
      tanke linije sa malom tačkom. Boja bedža koristi iste --color-in/out/bg
      tokene, pa dark/light rade automatski bez dodatnih pravila. */
+  /* FAZA 3v: visina kartice smanjena ~20% (dogovoreno) - bedz 40->32px, padding
+     12->9px, razmak 12->9px, font malo tanji - isti vizuelni jezik (icon-bedz),
+     samo kompaktnije da vise stavki stane na ekran. */
   .m-entry {
     align-items: center;
     background: var(--color-surface);
     border: 1px solid var(--color-border-light);
-    border-radius: 14px;
+    border-radius: 12px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
     cursor: pointer;
     display: flex;
-    gap: 12px;
-    padding: 12px;
+    gap: 9px;
+    padding: 9px;
   }
   .m-entry.count {
     border-color: #e7bd45;
@@ -933,13 +1048,13 @@
 
   .m-entry-icon {
     align-items: center;
-    border-radius: 12px;
+    border-radius: 10px;
     display: flex;
     flex-shrink: 0;
-    font-size: 19px;
-    height: 40px;
+    font-size: 16px;
+    height: 32px;
     justify-content: center;
-    width: 40px;
+    width: 32px;
   }
 
   .m-entry-info {
@@ -948,7 +1063,7 @@
   }
 
   .m-entry-desc {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -963,12 +1078,12 @@
 
   .m-entry-meta {
     color: var(--color-text-muted);
-    font-size: 11px;
-    margin-top: 2px;
+    font-size: 10px;
+    margin-top: 1px;
   }
 
   .m-entry-amt {
-    font-size: 15px;
+    font-size: 13px;
     font-variant-numeric: tabular-nums;
     font-weight: 800;
     flex-shrink: 0;
@@ -1028,21 +1143,34 @@
      komentar - bez position:fixed nagadjanja). Meni se otvara position:absolute
      bottom:100% RELATIVNO na sam red (ne na viewport), pa se automatski naslanja
      tacno iznad dugmeta bez obzira na visinu bilo cega ispod. */
-  /* FAZA 3u: dugme centrirano (umesto uz desnu ivicu) i uvećano - po uzoru na
-     centralno okruglo dugme za skeniranje u Moj Maxi donjoj navigaciji. Meni se
-     i dalje otvara position:absolute bottom:100% RELATIVNO na sam red (ne na
-     viewport), samo sada centriran ispod/iznad dugmeta umesto uz desnu ivicu. */
+  /* FAZA 3v: donja stalna traka je ukinuta (hamburger fioka je zamenjuje), pa je
+     .m-fab-row sada POSLEDNJI flex sibling u m-shell-u - dugme ide u DONJI DESNI
+     ugao (kao pravi Google Keep FAB), umesto centrirano iznad trake (FAZA 3u).
+     Meni i dalje "raste" nagore (position:absolute bottom:100% na sam red, ne na
+     viewport), sada uz #m-fab-backdrop zatamnjenje (isti Keep obrazac - klik van
+     pilula zatvara meni, vidi bindMobileFab_ u scripts.html). */
   .m-fab-row {
     align-items: center;
     display: flex;
     flex-shrink: 0;
-    justify-content: center;
-    padding: 8px 12px;
+    justify-content: flex-end;
+    padding: 10px 14px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
     position: relative;
-    z-index: 90;
+    z-index: 210;
   }
 
-  .m-fab-row[hidden] {
+  .m-fab-backdrop {
+    background: rgba(0, 0, 0, .5);
+    bottom: 0;
+    left: 0;
+    position: fixed;
+    right: 0;
+    top: 0;
+    z-index: 195;
+  }
+
+  .m-fab-backdrop[hidden] {
     display: none;
   }
 
@@ -1066,40 +1194,69 @@
   }
 
   .m-fab-menu {
-    align-items: center;
+    align-items: stretch;
     bottom: 100%;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    left: 50%;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 14px;
     position: absolute;
-    transform: translateX(-50%);
+    right: 0;
   }
 
   .m-fab-menu[hidden] {
     display: none;
   }
 
+  /* Bez ovoga bi [hidden] atribut na pojedinacnoj pilili bio nadjacan od
+     ".m-fab-menu-item { display:flex }" pravila ispod (autorski CSS uvek bije
+     UA podrazumevano [hidden] pravilo bez obzira na specificnost) - eksplicitno
+     ga vracamo da updateMobileDirectActionsVisibility_/bindAnnouncementButtons_
+     stvarno sakriju dugme, ne samo postave atribut. */
+  .m-fab-menu-item[hidden] {
+    display: none;
+  }
+
+  /* Pilula: ikonica u obojenom kruzicu (levo) + naziv - isti obrazac kao
+     Google Keep "Image/Drawing/Audio/List/Text" meni. Boja kruzica/teksta
+     dolazi od .in/.out/.najava/.order/.count modifikatora ispod. */
   .m-fab-menu-item {
     align-items: center;
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
-    box-shadow: 0 6px 16px rgba(15, 23, 42, .18);
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, .22);
     display: flex;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
-    gap: 6px;
-    justify-content: flex-end;
-    min-height: 38px;
-    padding: 6px 12px;
+    gap: 10px;
+    justify-content: flex-start;
+    min-height: 40px;
+    padding: 5px 16px 5px 5px;
     white-space: nowrap;
   }
 
+  .m-fab-menu-item i {
+    align-items: center;
+    border-radius: 999px;
+    display: flex;
+    flex-shrink: 0;
+    font-size: 15px;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+  }
+
   .m-fab-menu-item.in { color: var(--color-in); }
+  .m-fab-menu-item.in i { background: var(--color-in-bg); }
   .m-fab-menu-item.out { color: var(--color-out); }
+  .m-fab-menu-item.out i { background: var(--color-out-bg); }
   .m-fab-menu-item.najava { color: #7c8bb0; }
+  .m-fab-menu-item.najava i { background: rgba(124,139,176,.16); }
+  .m-fab-menu-item.order { color: var(--color-primary); }
+  .m-fab-menu-item.order i { background: var(--color-primary-bg); }
+  .m-fab-menu-item.count { color: #d99a00; }
+  .m-fab-menu-item.count i { background: rgba(217,154,0,.15); }
 
   .m-detail-overlay {
     align-items: flex-end;
@@ -1150,6 +1307,51 @@
 
   .m-detail-actions button i {
     font-size: 24px;
+  }
+
+  /* FAZA 3v: pilule (ikonica u kruzicu + naziv) SAMO za staticni detalj-list stavke
+     (#m-detail-overlay) - po dogovoru, generička .m-detail-actions klasa iznad
+     ostaje netaknuta jer je deljena sa drugim, dinamicki generisanim dijalozima
+     (najave/nalozi forme) koji imaju drugačiji broj/tip dugmadi. */
+  #m-detail-overlay .m-detail-actions {
+    gap: 8px;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  #m-detail-overlay .m-detail-actions button {
+    background: var(--color-surface-alt, #202733);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    gap: 8px;
+    justify-content: flex-start;
+    min-height: 44px;
+    padding: 5px 14px 5px 5px;
+  }
+
+  #m-detail-overlay .m-detail-actions button i {
+    align-items: center;
+    background: rgba(148, 163, 184, .16);
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    display: flex;
+    flex-shrink: 0;
+    font-size: 16px;
+    height: 32px;
+    justify-content: center;
+    width: 32px;
+  }
+
+  #m-detail-overlay .m-detail-actions #m-detail-storno {
+    background: var(--color-out-bg);
+    border-color: var(--color-out-border, var(--color-out));
+    color: var(--color-out);
+  }
+
+  #m-detail-overlay .m-detail-actions #m-detail-storno i {
+    background: rgba(159, 29, 29, .14);
+    color: var(--color-out);
   }
 
   .m-tab.active { color: var(--color-primary); }
@@ -3761,12 +3963,12 @@
   }
 
   html.mobile-view .m-header {
-    padding: calc(12px * var(--mobile-scale)) calc(16px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
-    padding-top: max(calc(12px * var(--mobile-scale)), env(safe-area-inset-top));
+    padding: calc(9px * var(--mobile-scale)) calc(12px * var(--mobile-scale)) calc(7px * var(--mobile-scale));
+    padding-top: max(calc(9px * var(--mobile-scale)), env(safe-area-inset-top));
   }
 
   html.mobile-view .m-header-balance {
-    font-size: calc(24px * var(--mobile-scale));
+    font-size: calc(18px * var(--mobile-scale));
   }
 
   html.mobile-view .m-header-clock {
@@ -3787,7 +3989,7 @@
   html.mobile-view .m-header-meta,
   html.mobile-view .m-chip,
   html.mobile-view .m-chip select {
-    font-size: calc(12px * var(--mobile-scale));
+    font-size: calc(10px * var(--mobile-scale));
   }
 
   html.mobile-view .m-section {
@@ -3802,26 +4004,26 @@
   }
 
   html.mobile-view .m-entry {
-    gap: calc(10px * var(--mobile-scale));
-    padding: calc(12px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
+    gap: calc(8px * var(--mobile-scale));
+    padding: calc(9px * var(--mobile-scale)) calc(9px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-icon {
-    font-size: calc(17px * var(--mobile-scale));
-    height: calc(36px * var(--mobile-scale));
-    width: calc(36px * var(--mobile-scale));
+    font-size: calc(14px * var(--mobile-scale));
+    height: calc(29px * var(--mobile-scale));
+    width: calc(29px * var(--mobile-scale));
   }
 
   html.mobile-view .m-entry-desc {
-    font-size: calc(15px * var(--mobile-scale));
-  }
-
-  html.mobile-view .m-entry-meta {
     font-size: calc(12px * var(--mobile-scale));
   }
 
+  html.mobile-view .m-entry-meta {
+    font-size: calc(10px * var(--mobile-scale));
+  }
+
   html.mobile-view .m-entry-amt {
-    font-size: calc(16px * var(--mobile-scale));
+    font-size: calc(13px * var(--mobile-scale));
   }
 
   html.mobile-view .m-tab {
@@ -4454,21 +4656,20 @@
     }
 
     .m-header {
-      padding: calc(12px * var(--mobile-scale)) calc(16px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
-      padding-top: max(calc(12px * var(--mobile-scale)), env(safe-area-inset-top));
+      padding: calc(9px * var(--mobile-scale)) calc(12px * var(--mobile-scale)) calc(7px * var(--mobile-scale));
+      padding-top: max(calc(9px * var(--mobile-scale)), env(safe-area-inset-top));
     }
 
     .m-header-balance {
-      font-size: calc(24px * var(--mobile-scale));
+      font-size: calc(18px * var(--mobile-scale));
     }
 
     .m-header-meta {
-      font-size: calc(11px * var(--mobile-scale));
+      font-size: calc(10px * var(--mobile-scale));
     }
 
-    .m-header-chips {
-      gap: calc(6px * var(--mobile-scale));
-      margin-top: calc(8px * var(--mobile-scale));
+    .m-header-kpi {
+      margin-top: calc(7px * var(--mobile-scale));
     }
 
     .m-chip,
@@ -4495,26 +4696,26 @@
     }
 
     .m-entry {
-      gap: calc(8px * var(--mobile-scale));
-      padding: calc(12px * var(--mobile-scale)) calc(12px * var(--mobile-scale));
+      gap: calc(7px * var(--mobile-scale));
+      padding: calc(9px * var(--mobile-scale)) calc(9px * var(--mobile-scale));
     }
 
     .m-entry-icon {
-      font-size: calc(17px * var(--mobile-scale));
-      height: calc(36px * var(--mobile-scale));
-      width: calc(36px * var(--mobile-scale));
+      font-size: calc(14px * var(--mobile-scale));
+      height: calc(29px * var(--mobile-scale));
+      width: calc(29px * var(--mobile-scale));
     }
 
     .m-entry-desc {
-      font-size: calc(15px * var(--mobile-scale));
-    }
-
-    .m-entry-meta {
       font-size: calc(12px * var(--mobile-scale));
     }
 
+    .m-entry-meta {
+      font-size: calc(10px * var(--mobile-scale));
+    }
+
     .m-entry-amt {
-      font-size: calc(16px * var(--mobile-scale));
+      font-size: calc(13px * var(--mobile-scale));
     }
 
     .m-tab {

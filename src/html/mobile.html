@@ -46,12 +46,19 @@
 
     <div class="m-shell">
 
-      <!-- HEADER -->
+      <!-- HEADER - FAZA 3v: sveden na hamburger + saldo (klik na saldo otvara KPI
+           red ispod, isti podaci kao Blagajnicki list). Blagajna/valuta/tema/korisnik
+           su premesteni u hamburger fioku (#m-drawer-overlay), donja traka sa
+           tabovima je ukinuta - navigacija je takodje u fioci (isti data-m-nav
+           atributi, isti click handler u bindMobileNav_ - samo je markup preselo). -->
       <header class="m-header">
         <div class="m-header-top">
-          <div class="m-header-balance" id="m-balance" data-raw-value="0">— RSD</div>
-          <button class="m-header-settings-btn" id="m-header-settings-btn" type="button" aria-label="Podešavanja blagajne" aria-expanded="false" aria-controls="m-header-chips">
-            <i class="ti ti-adjustments-horizontal" aria-hidden="true"></i>
+          <button class="m-hamburger-btn" id="m-hamburger-btn" type="button" aria-label="Meni" aria-expanded="false" aria-controls="m-drawer-overlay">
+            <i class="ti ti-menu-2" aria-hidden="true"></i>
+          </button>
+          <button class="m-header-balance" id="m-balance" type="button" data-raw-value="0" aria-label="Prikazi KPI blagajnicke knjige">
+            <span id="m-balance-value">— RSD</span>
+            <i class="ti ti-chevron-down" aria-hidden="true"></i>
           </button>
         </div>
         <div class="m-header-meta">
@@ -61,35 +68,71 @@
           &nbsp;·&nbsp;
           <span data-current-user>...</span>
         </div>
-        <div class="m-header-chips" id="m-header-chips" hidden>
-          <span class="m-chip">
-            <i class="ti ti-building-bank" aria-hidden="true"></i>
-            <select data-session-cashbox-select aria-label="Blagajna"></select>
-          </span>
-          <span class="m-chip">
-            <i class="ti ti-coins" aria-hidden="true"></i>
-            <select data-session-currency-select aria-label="Valuta"></select>
-          </span>
-          <button class="m-chip theme-toggle" data-theme-toggle type="button" aria-label="Promeni temu">
-            <i class="ti ti-moon" aria-hidden="true"></i>
-          </button>
-          <button class="m-chip" id="m-all-balances-btn" type="button">
-            <i class="ti ti-coins" aria-hidden="true"></i>
-            Sve valute
-          </button>
-          <span class="m-chip m-chip-account" id="app-user-chip" hidden>
-            <i class="ti ti-user-circle" aria-hidden="true"></i>
-            <strong id="app-user-label">—</strong>
-          </span>
-          <button class="m-chip" id="app-switch-user-btn" type="button" hidden>
-            <i class="ti ti-switch-horizontal" aria-hidden="true"></i> Promeni korisnika
-          </button>
-          <button class="m-chip" id="app-logout-btn" type="button" hidden>
-            <i class="ti ti-logout" aria-hidden="true"></i> Odjava
-          </button>
-          <span class="m-chip m-chip-version" data-app-version>verzija...</span>
-        </div>
+        <div class="m-header-kpi m-traffic-summary" id="m-header-kpi" hidden></div>
       </header>
+
+      <!-- HAMBURGER FIOKA - zamena za staru donju traku sa tabovima + stari zupčanik
+           sa podešavanjima; isti obrazac position:fixed overlay-a kao m-detail-overlay
+           (ovo JESTE modalni overlay, ne stalni deo layout-a, pa position:fixed ovde
+           nije anti-pattern kao kod bar-ova iz FAZA 3q/3t). -->
+      <div id="m-drawer-overlay" class="m-drawer-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Meni">
+        <div class="m-drawer">
+          <div class="m-drawer-head">
+            <span>Blagajna</span>
+            <button class="btn-ghost small" id="m-drawer-close" type="button" aria-label="Zatvori meni">
+              <i class="ti ti-x" aria-hidden="true"></i>
+            </button>
+          </div>
+          <nav class="m-drawer-nav" aria-label="Sekcije">
+            <button class="m-drawer-nav-item active" data-m-nav="m-section-knjiga" type="button">
+              <i class="ti ti-book-2" aria-hidden="true"></i><span>Knjiga</span>
+            </button>
+            <button class="m-drawer-nav-item" data-m-nav="m-section-nalozi" type="button">
+              <i class="ti ti-file-invoice" aria-hidden="true"></i><span>Nalozi</span>
+              <span class="m-tab-badge" data-tab-count="m-section-nalozi" style="display:none"></span>
+            </button>
+            <button class="m-drawer-nav-item" data-m-nav="m-section-smena" type="button">
+              <i class="ti ti-transfer" aria-hidden="true"></i><span>Smena</span>
+            </button>
+            <button class="m-drawer-nav-item" data-m-nav="m-section-presek" type="button">
+              <i class="ti ti-calculator" aria-hidden="true"></i><span>Presek</span>
+            </button>
+            <button class="m-drawer-nav-item" data-m-nav="m-section-zakljucak" type="button">
+              <i class="ti ti-scale" aria-hidden="true"></i><span>Zaključak</span>
+            </button>
+          </nav>
+          <div class="m-drawer-divider"></div>
+          <div class="m-drawer-label">Podešavanja</div>
+          <div class="m-drawer-settings">
+            <span class="m-chip">
+              <i class="ti ti-building-bank" aria-hidden="true"></i>
+              <select data-session-cashbox-select aria-label="Blagajna"></select>
+            </span>
+            <span class="m-chip">
+              <i class="ti ti-coins" aria-hidden="true"></i>
+              <select data-session-currency-select aria-label="Valuta"></select>
+            </span>
+            <button class="m-chip theme-toggle" data-theme-toggle type="button" aria-label="Promeni temu">
+              <i class="ti ti-moon" aria-hidden="true"></i> Tema
+            </button>
+            <button class="m-chip" id="m-all-balances-btn" type="button">
+              <i class="ti ti-coins" aria-hidden="true"></i>
+              Sve valute
+            </button>
+            <span class="m-chip m-chip-account" id="app-user-chip" hidden>
+              <i class="ti ti-user-circle" aria-hidden="true"></i>
+              <strong id="app-user-label">—</strong>
+            </span>
+            <button class="m-chip" id="app-switch-user-btn" type="button" hidden>
+              <i class="ti ti-switch-horizontal" aria-hidden="true"></i> Promeni korisnika
+            </button>
+            <button class="m-chip" id="app-logout-btn" type="button" hidden>
+              <i class="ti ti-logout" aria-hidden="true"></i> Odjava
+            </button>
+            <span class="m-chip m-chip-version" data-app-version>verzija...</span>
+          </div>
+        </div>
+      </div>
 
       <!-- CONTENT -->
       <div class="m-content">
@@ -97,14 +140,10 @@
         <!-- KNJIGA -->
         <section id="m-section-knjiga" class="m-section active" data-section>
           <div class="m-book-tools">
-            <button id="m-traffic-summary-btn" type="button">
-              <i class="ti ti-chart-arrows-vertical" aria-hidden="true"></i> Pregled prometa
-            </button>
             <button id="m-knjiga-refresh" type="button" aria-label="Osveži knjigu">
-              <i class="ti ti-refresh" aria-hidden="true"></i>
+              <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
             </button>
           </div>
-          <div class="m-traffic-summary" id="m-traffic-summary" hidden></div>
           <div id="m-knjiga-list"></div>
         </section>
 
@@ -277,55 +316,41 @@
 
       </div><!-- /m-content -->
 
-      <!-- Uplata/Isplata/Trezor/Najava - FAZA 3s: umesto tri velika dugmeta u redu,
-           jedno okruglo "+" dugme koje otvara mali meni sa opcijama. I dalje deo
-           normalnog flex toka ljuske (bez position:fixed i nagađanja visine trake
-           ispod), samo desno poravnato - meni se širi NAGORE od dugmeta (bottom:100%
-           relativno na sam red, ne na viewport, pa ne zavisi od visine bottom nav-a). -->
-      <div class="m-fab-row" id="m-direct-actions" hidden>
+      <!-- FAB "+" - FAZA 3v: donja stalna traka sa tabovima je ukinuta (navigacija je
+           premestena u hamburger fioku), pa je ovo sada POSLEDNJI flex sibling u
+           m-shell-u - dugme ide u donji DESNI ugao (kao u Google Keep referenci),
+           umesto centrirano iznad trake (FAZA 3u). Meni i dalje "raste" nagore
+           (bottom:100% na sam red, ne na viewport), sada uz zatamnjenje pozadine
+           (#m-fab-backdrop) - klik van meni zatvara, isto kao Keep. Meni sada sadrzi
+           i "Novi nalog"/"Novi presek" (dogovoreno FAZA 3v) pored postojecih
+           Uplata/Isplata/Trezor/Najava - sve su to akcije "napravi NOVO", radnje nad
+           POSTOJECOM stavkom (Storno/Stampa/Slanje) su u detalj-listu stavke. -->
+      <div class="m-fab-backdrop" id="m-fab-backdrop" hidden></div>
+      <div class="m-fab-row" id="m-direct-actions">
         <div class="m-fab-menu" id="m-fab-menu" hidden>
-          <button class="m-fab-menu-item in" id="m-btn-uplata" type="button">
-            <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
+          <button class="m-fab-menu-item count" id="m-fab-new-count" type="button">
+            <i class="ti ti-calculator" aria-hidden="true"></i> Novi presek
           </button>
-          <button class="m-fab-menu-item out" id="m-btn-isplata" type="button">
-            <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Isplata
+          <button class="m-fab-menu-item order" id="m-fab-new-order" type="button">
+            <i class="ti ti-file-invoice" aria-hidden="true"></i> Novi nalog
+          </button>
+          <button class="m-fab-menu-item najava" id="m-fab-najava" type="button" hidden>
+            <i class="ti ti-bell-plus" aria-hidden="true"></i> Najava uplate
           </button>
           <button class="m-fab-menu-item out" id="m-btn-trezor" type="button">
             <i class="ti ti-building-bank" aria-hidden="true"></i> Trezor
           </button>
-          <button class="m-fab-menu-item najava" id="m-fab-najava" type="button" hidden>
-            <i class="ti ti-bell-plus" aria-hidden="true"></i> Najava uplate
+          <button class="m-fab-menu-item out" id="m-btn-isplata" type="button">
+            <i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Isplata
+          </button>
+          <button class="m-fab-menu-item in" id="m-btn-uplata" type="button">
+            <i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Uplata
           </button>
         </div>
         <button class="m-fab-btn" id="m-fab-btn" type="button" aria-label="Nova stavka" aria-haspopup="true" aria-expanded="false" aria-controls="m-fab-menu">
           <i class="ti ti-plus" aria-hidden="true"></i>
         </button>
       </div>
-
-      <!-- BOTTOM NAV -->
-      <nav class="m-bottom-nav" aria-label="Navigacija">
-        <button class="m-tab active" data-m-nav="m-section-knjiga" type="button">
-          <i class="ti ti-book-2" aria-hidden="true"></i>
-          <span>Knjiga</span>
-        </button>
-        <button class="m-tab" data-m-nav="m-section-nalozi" type="button">
-          <i class="ti ti-file-invoice" aria-hidden="true"></i>
-          <span>Nalozi</span>
-          <span class="m-tab-badge" data-tab-count="m-section-nalozi" style="display:none"></span>
-        </button>
-        <button class="m-tab" data-m-nav="m-section-smena" type="button">
-          <i class="ti ti-transfer" aria-hidden="true"></i>
-          <span>Smena</span>
-        </button>
-        <button class="m-tab" data-m-nav="m-section-presek" type="button">
-          <i class="ti ti-calculator" aria-hidden="true"></i>
-          <span>Presek</span>
-        </button>
-        <button class="m-tab" data-m-nav="m-section-zakljucak" type="button">
-          <i class="ti ti-scale" aria-hidden="true"></i>
-          <span>Zaključak</span>
-        </button>
-      </nav>
 
     </div><!-- /m-shell -->
 
@@ -339,6 +364,12 @@
           </button>
         </div>
         <div id="m-detail-body"></div>
+        <!-- FAZA 3v: pilule po uzoru na Google Keep (ikonica u kruzicu + naziv),
+             SAMO za ovaj staticni detalj-list (skopirano preko #m-detail-overlay
+             .m-detail-actions u CSS-u) - generička .m-detail-actions klasa se
+             koristi i u drugim, dinamicki generisanim dijalozima (najave, nalozi)
+             koji ostaju na starom dugme-u-mrezi izgledu, da se ne pokvari njihov
+             jednostavniji sadržaj (Otkaži/Sačuvaj). -->
         <div class="m-detail-actions">
           <button class="btn-ghost btn-lg" id="m-detail-receipt" type="button">
             <i class="ti ti-receipt" aria-hidden="true"></i> Priznanica
@@ -348,6 +379,9 @@
           </button>
           <button class="btn-ghost btn-lg" id="m-detail-print" type="button">
             <i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list
+          </button>
+          <button class="btn-ghost btn-lg" id="m-detail-share" type="button">
+            <i class="ti ti-share" aria-hidden="true"></i> Slanje
           </button>
           <button class="btn-out btn-lg" id="m-detail-storno" type="button">
             <i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno

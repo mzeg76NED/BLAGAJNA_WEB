@@ -2954,7 +2954,11 @@
 
   function applyDirectCashPermission_() {
     var canPost = canPostDirectCashEvents_();
-    ['d-quick-form-card','m-direct-actions'].forEach(function(id) {
+    // FAZA 3v: 'm-direct-actions' (ceo "+" red) namerno UKLONJEN iz ove liste -
+    // red mora ostati vidljiv i bez dozvole za direktno knjizenje jer sadrzi i
+    // "Novi nalog"/"Novi presek" koji tu dozvolu ne zahtevaju. Pojedinacno
+    // sakrivanje Uplata/Isplata/Trezor pilula radi updateMobileDirectActionsVisibility_.
+    ['d-quick-form-card'].forEach(function(id) {
       var el = document.getElementById(id);
       if (!el) return;
       if (canPost) {
@@ -2965,6 +2969,7 @@
         el.style.display = 'none';
       }
     });
+    updateMobileDirectActionsVisibility_();
     var permissionCard = document.getElementById('d-direct-permission-card');
     var permissionText = document.getElementById('d-direct-permission-text');
     if (permissionCard) {
@@ -3017,18 +3022,19 @@
     });
   }
 
+  // FAZA 3v: "+" red je sada UVEK vidljiv (Novi nalog/Novi presek rade na bilo
+  // kojoj sekciji, kao u Google Keep referenci) - ranije je ceo red bio sakriven
+  // van Knjiga taba/bez otvorene smene. Sada se SAMO Uplata/Isplata/Trezor
+  // pojedinacno sakrivaju kad direktno knjizenje nije dozvoljeno (Najava ima
+  // svoju vec postojecu logiku u bindAnnouncementButtons_, Novi nalog/Novi
+  // presek nemaju ovaj uslov jer ne pomeraju gotovinu direktno).
   function updateMobileDirectActionsVisibility_() {
-    var actions = document.getElementById('m-direct-actions');
-    if (!actions) return;
-    var activeTabIsBook = Boolean(document.querySelector('#m-section-knjiga.active'));
     var canPost = canPostDirectCashEvents_();
-    if (activeTabIsBook && canPost) {
-      actions.removeAttribute('hidden');
-      actions.style.display = '';
-    } else {
-      actions.setAttribute('hidden', 'hidden');
-      actions.style.display = 'none';
-    }
+    ['m-btn-uplata', 'm-btn-isplata', 'm-btn-trezor'].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.hidden = !canPost;
+    });
   }
 
   function canPostDirectCashEvents_() {
@@ -5607,8 +5613,10 @@
     renderMobileTrafficSummary_();
   }
 
+  // FAZA 3v: box je sada #m-header-kpi (u headeru, otvara se klikom na saldo),
+  // umesto ranijeg posebnog dugmeta "Pregled prometa" unutar Knjiga taba.
   function renderMobileTrafficSummary_() {
-    var box = document.getElementById('m-traffic-summary');
+    var box = document.getElementById('m-header-kpi');
     if (!box) return;
     var announcementTotals = computeAnnouncementTotals_();
     box.innerHTML = renderKnjigaTotalsHtml_(LAST_KNJIGA_TOTALS.totalIn, LAST_KNJIGA_TOTALS.totalOut, LAST_KNJIGA_TOTALS.finalBalance) +
@@ -5795,6 +5803,40 @@
     });
   }
 
+  // FAZA 3v: dugme "Slanje" u detalju stavke - deljenje sa drugim aplikacijama
+  // (mejl, Viber, itd.) preko ugradjenog Web Share API-ja (navigator.share),
+  // dogovoreno kao najjednostavnija opcija za citljiv format bez dodatnih
+  // biblioteka. Fallback (desktop Chrome, stariji browseri bez podrske) -
+  // kopiranje istog teksta u clipboard uz poruku korisniku.
+  function shareCashEventSummary_(ev) {
+    var isCount = ev.event_type === 'CASH_COUNT';
+    var isIn = ev.direction === 'IN';
+    var kind = isCount ? 'Presek' : isIn ? 'Uplata' : 'Isplata';
+    var refLabel = ev.ref_no != null ? '#' + ev.ref_no : (ev.event_id || '');
+    var lines = [
+      kind + ' ' + refLabel,
+      formatAmount_(ev.amount) + ' ' + (ev.currency || SESSION.currency || ''),
+      formatDateShort_(ev.event_date || ev.created_at) + ' ' + (formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date) || ''),
+      ev.partner_name ? 'Primalac/uplatilac: ' + ev.partner_name : '',
+      ev.description ? 'Opis: ' + ev.description : '',
+      'Blagajna: ' + (SESSION.cashboxName || SESSION.cashboxId || '')
+    ].filter(Boolean);
+    var text = lines.join('\n');
+    if (navigator.share) {
+      navigator.share({ title: kind + ' ' + refLabel, text: text }).catch(function() {});
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        showMessage('Podaci o stavci su kopirani - nalepite gde želite da podelite.', 'success');
+      }).catch(function() {
+        showMessage('Deljenje nije dostupno na ovom uređaju/pregledaču.', 'error');
+      });
+      return;
+    }
+    showMessage('Deljenje nije dostupno na ovom uređaju/pregledaču.', 'error');
+  }
+
   function openMobileDetailPanel_(ev) {
     var overlay = document.getElementById('m-detail-overlay');
     var title = document.getElementById('m-detail-title');
@@ -5838,6 +5880,10 @@
       documentsBtn.onclick = function() {
         openDocumentsDialog_('CASH_EVENT', ev.event_id, ev.ref_no != null ? '#' + ev.ref_no : ev.event_id);
       };
+    }
+    var shareBtn = document.getElementById('m-detail-share');
+    if (shareBtn) {
+      shareBtn.onclick = function() { shareCashEventSummary_(ev); };
     }
     if (printBtn) {
       printBtn.disabled = isCount;
@@ -6120,15 +6166,19 @@
     });
   }
 
-  /* ─── Mobile: FAB "+" meni (Uplata/Isplata/Trezor/Najava) ──────── */
-
+  /* ─── Mobile: FAB "+" meni (Uplata/Isplata/Trezor/Najava/Novi nalog/Novi
+     presek) ──────────────────────────────────────────────────────
+     FAZA 3v: dodato zatamnjenje pozadine (#m-fab-backdrop) kad je meni otvoren -
+     isti Google Keep obrazac (klik van pilula zatvara meni preko backdrop-a). */
   function bindMobileFab_() {
     var fabBtn = document.getElementById('m-fab-btn');
     var fabMenu = document.getElementById('m-fab-menu');
+    var backdrop = document.getElementById('m-fab-backdrop');
     if (!fabBtn || !fabMenu || fabBtn.dataset.bound === '1') return;
     fabBtn.dataset.bound = '1';
     var setOpen = function(open) {
       if (open) fabMenu.removeAttribute('hidden'); else fabMenu.setAttribute('hidden', 'hidden');
+      if (backdrop) backdrop.hidden = !open;
       fabBtn.classList.toggle('active', open);
       fabBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     };
@@ -6136,11 +6186,12 @@
       event.stopPropagation();
       setOpen(fabMenu.hasAttribute('hidden'));
     });
-    // Zatvori meni posle klika na bilo koju opciju unutra (Uplata/Isplata/Trezor/Najava
-    // otvaraju svoj dijalog preko postojećih handlera - meni sam ne treba da ostane otvoren).
+    // Zatvori meni posle klika na bilo koju opciju unutra (svaka pilula otvara
+    // svoj dijalog/sekciju preko postojećih handlera - meni sam ne treba da ostane otvoren).
     fabMenu.addEventListener('click', function(event) {
       if (event.target.closest('.m-fab-menu-item')) setOpen(false);
     });
+    if (backdrop) backdrop.addEventListener('click', function() { setOpen(false); });
     document.addEventListener('click', function(event) {
       if (!fabMenu.hasAttribute('hidden') && !event.target.closest('.m-fab-row')) setOpen(false);
     });
@@ -6153,6 +6204,8 @@
     var btnU   = document.getElementById('m-btn-uplata');
     var btnI   = document.getElementById('m-btn-isplata');
     var btnT   = document.getElementById('m-btn-trezor');
+    var btnNewOrder = document.getElementById('m-fab-new-order');
+    var btnNewCount = document.getElementById('m-fab-new-count');
     var submit = document.getElementById('sheet-submit');
     var cancel = document.getElementById('sheet-cancel');
     var overlay= document.getElementById('sheet-overlay');
@@ -6162,6 +6215,19 @@
       btnI.addEventListener('click', function() { openSheet_('OUT'); });
     }
     if (btnT)    btnT.addEventListener('click',    function() { openSheet_('TREASURY'); });
+    // FAZA 3v: dogovoreno da "Novi nalog"/"Novi presek" idu u isti "+" meni kao
+    // Uplata/Isplata/Trezor/Najava (sve su to akcije "napravi NOVO") - prebacuju
+    // na odgovarajucu sekciju i otvaraju postojecu formu/dijalog, isto sto rade
+    // i m-shift-action-count / m-new-order-btn na svojim tabovima.
+    if (btnNewOrder) btnNewOrder.addEventListener('click', function() {
+      openMobileSection_('m-section-nalozi');
+      loadMobileNalozi_();
+      openMobileNewOrderForm_(null);
+    });
+    if (btnNewCount) btnNewCount.addEventListener('click', function() {
+      openMobileSection_('m-section-presek');
+      loadCashCounts_();
+    });
     if (submit)  submit.addEventListener('click',  submitSheet_);
     if (cancel)  cancel.addEventListener('click',  closeSheet_);
     if (overlay) overlay.addEventListener('click', function(e) { if (e.target === overlay) closeSheet_(); });
@@ -6325,13 +6391,21 @@
     el.style.color = newVal >= 0 ? 'var(--color-in)' : 'var(--color-out)';
   }
 
+  // FAZA 3v: #m-balance je sada <button> sa <span id="m-balance-value"> + ikonicom
+  // (klik otvara KPI red ispod headera) - textContent NA SAMOM dugmetu bi obrisao
+  // ikonicu na svakom refresh-u, pa se tekst/boja upisuju u unutrasnji span, a
+  // dataset.rawValue i dalje zivi na spoljnom <button> (getDisplayedBalanceRaw_
+  // ga tako i cita, nepromenjeno).
   function updateMobileBalance_(delta) {
     var el = document.getElementById('m-balance');
+    var valueEl = document.getElementById('m-balance-value');
     if (!el) return;
     var newVal = (parseFloat(el.dataset.rawValue) || 0) + delta;
     el.dataset.rawValue = newVal;
-    el.textContent = formatAmount_(newVal) + ' ' + SESSION.currency;
-    el.style.color = newVal >= 0 ? 'var(--color-in)' : 'var(--color-out)';
+    var text = formatAmount_(newVal) + ' ' + SESSION.currency;
+    var color = newVal >= 0 ? 'var(--color-in)' : 'var(--color-out)';
+    if (valueEl) { valueEl.textContent = text; valueEl.style.color = color; }
+    else { el.textContent = text; el.style.color = color; }
   }
 
   function refreshBalance_() {
@@ -6339,13 +6413,17 @@
     if (hasPendingOptimisticForSession_()) return;
     callApi('apiCalculateCashboxBalance', [SESSION.cashboxId, SESSION.currency], function(result) {
       var val = Number(result) || 0;
-      ['d-topbar-balance','m-balance'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        el.dataset.rawValue = val;
-        el.textContent = formatAmount_(val) + ' ' + SESSION.currency;
-        el.style.color = val >= 0 ? 'var(--color-in)' : 'var(--color-out)';
-      });
+      var text = formatAmount_(val) + ' ' + SESSION.currency;
+      var color = val >= 0 ? 'var(--color-in)' : 'var(--color-out)';
+      var topbarEl = document.getElementById('d-topbar-balance');
+      if (topbarEl) { topbarEl.dataset.rawValue = val; topbarEl.textContent = text; topbarEl.style.color = color; }
+      var mobileEl = document.getElementById('m-balance');
+      var mobileValueEl = document.getElementById('m-balance-value');
+      if (mobileEl) {
+        mobileEl.dataset.rawValue = val;
+        if (mobileValueEl) { mobileValueEl.textContent = text; mobileValueEl.style.color = color; }
+        else { mobileEl.textContent = text; mobileEl.style.color = color; }
+      }
     }, { quiet: true });
   }
 
@@ -6728,25 +6806,59 @@
 
   /* ─── Mobile navigation ──────────────────────────────────────── */
 
-  function bindMobileHeaderSettings_() {
-    var toggleBtn = document.getElementById('m-header-settings-btn');
-    var panel = document.getElementById('m-header-chips');
+  // FAZA 3v: gear-dugme + kolaps-panel iz headera je ukinuto (svi ti chipovi
+  // - blagajna/valuta/tema/korisnik/odjava/verzija - su premesteni u hamburger
+  // fioku, uvek vidljivi tamo, vidi bindMobileDrawer_). Umesto toga, klik na
+  // sam saldo (#m-balance) otvara/zatvara KPI red ispod headera (isti podaci
+  // kao dugme "Pregled prometa" koje je ranije postojalo unutar Knjiga taba -
+  // ukinuto da ne bude duplo ulazno mesto za istu funkciju).
+  function bindMobileHeaderKpiToggle_() {
+    var toggleBtn = document.getElementById('m-balance');
+    var panel = document.getElementById('m-header-kpi');
     if (!toggleBtn || !panel || toggleBtn.dataset.bound === '1') return;
     toggleBtn.dataset.bound = '1';
     toggleBtn.addEventListener('click', function() {
       var isHidden = panel.hasAttribute('hidden');
       if (isHidden) {
+        renderMobileTrafficSummary_();
         panel.removeAttribute('hidden');
       } else {
         panel.setAttribute('hidden', 'hidden');
       }
-      toggleBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
-      toggleBtn.classList.toggle('active', isHidden);
+      toggleBtn.classList.toggle('open', isHidden);
+    });
+  }
+
+  // FAZA 3v: hamburger fioka - zamena za staru donju traku sa tabovima (navigacija
+  // sekcija je premestena unutra, kao Google Keep sidebar). Isti position:fixed
+  // overlay obrazac kao #m-detail-overlay (ovo JESTE modalni prekidac, ne stalna
+  // chrome traka - vidi napomenu uz .m-drawer-overlay u styles.html).
+  function bindMobileDrawer_() {
+    var openBtn = document.getElementById('m-hamburger-btn');
+    var overlay = document.getElementById('m-drawer-overlay');
+    var closeBtn = document.getElementById('m-drawer-close');
+    if (!openBtn || !overlay || openBtn.dataset.bound === '1') return;
+    openBtn.dataset.bound = '1';
+    var setOpen = function(open) {
+      overlay.style.display = open ? 'flex' : 'none';
+      openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    openBtn.addEventListener('click', function() { setOpen(true); });
+    if (closeBtn) closeBtn.addEventListener('click', function() { setOpen(false); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) setOpen(false); });
+    // Klik na sekciju u fioci (data-m-nav) zatvara fioku - sam prebacaj sekcije
+    // radi generički listener ispod (isti kod kao ranije za donju traku).
+    overlay.querySelectorAll('[data-m-nav]').forEach(function(btn) {
+      btn.addEventListener('click', function() { setOpen(false); });
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && overlay.style.display === 'flex') setOpen(false);
     });
   }
 
   function bindMobileNav_() {
-    bindMobileHeaderSettings_();
+    bindMobileHeaderKpiToggle_();
+    bindMobileDrawer_();
     document.querySelectorAll('[data-m-nav]').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var target = btn.getAttribute('data-m-nav');
@@ -6775,13 +6887,6 @@
     if (mobileRefreshBtn) mobileRefreshBtn.addEventListener('click', function() { loadKnjiga_(); });
     var mobileCountRefreshBtn = document.getElementById('m-count-refresh');
     if (mobileCountRefreshBtn) mobileCountRefreshBtn.addEventListener('click', loadCashCounts_);
-    var trafficBtn = document.getElementById('m-traffic-summary-btn');
-    if (trafficBtn) trafficBtn.addEventListener('click', function() {
-      var box = document.getElementById('m-traffic-summary');
-      if (!box) return;
-      renderMobileTrafficSummary_();
-      box.hidden = !box.hidden;
-    });
     var loadNaloziBtn = document.getElementById('m-load-nalozi-btn');
     if (loadNaloziBtn) loadNaloziBtn.addEventListener('click', function() { loadMobileNalozi_(); });
     var newOrderBtn = document.getElementById('m-new-order-btn');

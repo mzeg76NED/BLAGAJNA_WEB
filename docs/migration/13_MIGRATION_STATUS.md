@@ -1,6 +1,6 @@
 # Migration Status
 
-Datum poslednjeg azuriranja: 2026-07-10
+Datum poslednjeg azuriranja: 2026-07-11
 
 ## FAZA 0 - tehnicki inventar postojeceg sistema
 
@@ -888,3 +888,41 @@ Sta NIJE uradjeno:
 - Nema automatizovanog vizuelnog testa (screenshot diff) - verifikacija je rucni pregled izmenjenog CSS/JS koda; korisnik treba vizuelno da potvrdi na uredjaju posle deploy-a.
 
 Izmenjeni fajlovi: `src/html/styles.html` (`.m-entry*`, `.doc-row*` novo, `.m-bottom-nav`, `.m-tab`, `.m-fab-btn/.m-fab-row/.m-fab-menu`, oba `--mobile-scale` media-query bloka azurirana da skaliraju `.m-entry-icon` umesto obrisanog `.m-entry-dot`), `src/html/scripts.html` (`mEntryIconBadge_`, `docFileIcon_` nove helper funkcije; `renderMobileEntry_`, `renderCashCountsMobile_`, `prependMobileOptimistic_`, `renderMobileNalozi_`, `renderDocumentsListHtml_` azurirane).
+
+## FAZA 3v - Mobilni "+" meni i navigacija po uzoru na Google Keep (2026-07-11, Claude/Cowork sesija)
+
+Status: DONE (implementacija), CEKA vizuelnu proveru korisnika na uredjaju
+
+Kontekst: korisnik nije bio zadovoljan pozicijom "+" dugmeta iz FAZA 3u (centrirano iznad donje trake, delovalo je kao da pripada jednom tabu) niti time sto je meni sadrzao samo Uplata/Isplata/Trezor/Najava. Poslat je referentni snimak Google Keep aplikacije (41 frejm izvucen ffmpeg-om), iz kog je izvedena analiza: Keep nema donju traku sa tabovima (sekcije su u hamburger fioci), "+" dugme je slobodno u donjem desnom uglu, klik otvara vertikalnu kolonu obojenih pilula (ikonica-u-kruzicu + naziv) koja raste nagore uz zatamnjenu pozadinu, a svaka pilula pokrece NESTO NOVO (nijedna ne radi sa postojecom stavkom - to se radi kad se stavka otvori). Predlog je potvrdjen kroz dva mokapa (FAB pozicija/meni, header+hamburger fioka) pre implementacije. Dogovoreno u 5 tacaka:
+
+1. **FAB pozicija** - donji desni ugao (kao Keep), umesto centrirano iznad trake.
+2. **FAB meni sadrzaj** - SVE akcije "napravi NOVO" (Uplata, Isplata, Trezor, Najava uplate, + NOVO: Novi nalog za isplatu, Novi presek stanja) u jednom meniju koji raste nagore uz zatamnjenu pozadinu. Storno/Stampa/Slanje NISU u ovom meniju (to su akcije nad POSTOJECOM stavkom, ne "napravi novo") - ostaju u detalj-listu stavke, isto restilizovane u pilule.
+3. **Kartice liste** (Knjiga/Nalozi/Presek) - ostaju vizuelno iste (icon-bedz iz FAZA 3u), samo ~20% nize.
+4. **Header i navigacija** - header smanjen ~25%, sveden na hamburger + saldo; klik na saldo otvara/zatvara KPI red ispod (isti podaci kao "Blagajnicki list"/ranije dugme "Pregled prometa", sad ukinuto da ne bude duplo). Donja stalna traka sa 5 tabova je UKINUTA - navigacija (Knjiga/Nalozi/Smena/Presek/Zakljucak) i sve podesavanje (blagajna/valuta/tema/korisnik/odjava/verzija, ranije iza zupcanika u headeru) su premesteni u hamburger fioku (bocni panel, position:fixed overlay - ovo JESTE ispravna upotreba position:fixed, jer je modalni prekidac, ne stalna chrome traka koja se sudara sa flex layout-om kao sto je bio slucaj kod ranije resenih bagova iz FAZA 3q/3t).
+5. **Dugme "Slanje"** - u detalju stavke, koristi `navigator.share()` (Web Share API) sa citljivim tekstualnim rezimeom (vrsta, broj, iznos, datum/vreme, primalac/uplatilac, opis, blagajna); fallback na kopiranje teksta u clipboard ako Web Share API nije dostupan (desktop Chrome i sl.).
+
+Sta je uradjeno:
+
+- **`src/html/mobile.html`** - header prepravljen: `#m-hamburger-btn` (novo) + `#m-balance` sada `<button>` sa unutrasnjim `<span id="m-balance-value">` (zbog textContent-a koji bi inace obrisao ikonicu) i strelicom, `#m-header-kpi` (novo, klasa i `.m-traffic-summary` radi ponovne upotrebe postojeceg CSS-a) zamenjuje stari `#m-header-chips` panel i stari `#m-traffic-summary`/dugme "Pregled prometa" (obrisano iz Knjiga taba - jedno ulazno mesto umesto dva). Nov `#m-drawer-overlay` blok (hamburger fioka): `.m-drawer-nav` sa istim `data-m-nav` atributima kao stara `.m-bottom-nav` (JS se NIJE morao menjati za samo prebacivanje sekcija - `bindMobileNav_`-ov generic `[data-m-nav]` listener radi bez izmena) + `.m-drawer-settings` sa svim starim chip-ovima (blagajna/valuta/tema select, sve valute, korisnik, switch user, odjava, verzija - ISTI id/data-atributi, samo druga lokacija u DOM-u). Stara `.m-bottom-nav` markup blok OBRISAN. FAB red: dodata 2 nova dugmeta (`#m-fab-new-count`, `#m-fab-new-order`), poredak pilula (najblizi dugmetu = najcesce koriscen): Uplata, Isplata, Trezor, Najava, Novi nalog, Novi presek (odozgo nadole). Nov `#m-fab-backdrop` (zatamnjenje). Detalj-list stavke: dodato `#m-detail-share` dugme.
+- **`src/html/styles.html`** - `.m-header`/`.m-header-balance`/`.m-header-meta` velicine smanjene ~25% (i u oba `--mobile-scale` media-query bloka), `.m-header-settings-btn` zamenjeno sa `.m-hamburger-btn` + `.m-header-kpi`. Nov `.m-drawer-overlay`/`.m-drawer`/`.m-drawer-nav-item`/`.m-drawer-label`/`.m-drawer-settings` blok. `.m-entry*` visina smanjena ~20% (bedz 40→32px, padding 12→9px, font tanji). `.m-fab-row` premesten na `justify-content:flex-end` (bio `center` u FAZA 3u), dobija `padding-bottom: max(10px, safe-area-inset-bottom)` posto vise NEMA trake ispod njega. Nov `.m-fab-backdrop`. `.m-fab-menu-item` restilizovano u Keep-pilule (ikonica u obojenom kruzicu levo + naziv, `border-radius:999px`) sa novim `.order`/`.count` modifikatorima za dva nova dugmeta. Dodato eksplicitno `.m-fab-menu-item[hidden] { display:none }` - BEZ ovoga bi `hidden` atribut bio nadjacan autorskim `display:flex` pravilom (UA `[hidden]` je nize u cascade prioritetu od bilo kog autorskog pravila, bez obzira na specificnost) - ovo je latentna ispravka koja verovatno vazi i za vec postojece "Najava uplate" skrivanje, ne samo za novododata Uplata/Isplata/Trezor. Nov scoped `#m-detail-overlay .m-detail-actions button` blok (Keep-pilule SAMO za ovaj staticni detalj-list, generic `.m-detail-actions` iz drugih dinamickih dijaloga namerno netaknut).
+- **`src/html/scripts.html`**:
+  - `bindMobileHeaderSettings_` (gear toggle) zamenjeno sa `bindMobileHeaderKpiToggle_` (klik na `#m-balance` otvara/zatvara `#m-header-kpi`, poziva `renderMobileTrafficSummary_`).
+  - Nova `bindMobileDrawer_()` - hamburger otvara/zatvara `#m-drawer-overlay` (klik na backdrop, X dugme ili ESC zatvara; klik na bilo koji `[data-m-nav]` UNUTAR fioke dodatno zatvara fioku, ne dira postojeci sekcija-prebacivanje listener).
+  - `renderMobileTrafficSummary_` cilja `#m-header-kpi` umesto obrisanog `#m-traffic-summary`.
+  - `updateMobileBalance_`/`refreshBalance_` pisu tekst/boju u `#m-balance-value` (unutrasnji span) umesto direktno u `#m-balance` (koje je sada dugme sa ikonicom - `textContent` bi je obrisao).
+  - `updateMobileDirectActionsVisibility_` prepravljeno - VISE NE skriva ceo `#m-direct-actions` red (Novi nalog/Novi presek moraju raditi bez obzira na aktivni tab/dozvolu), nego pojedinacno sakriva SAMO `m-btn-uplata`/`m-btn-isplata`/`m-btn-trezor` na osnovu `canPostDirectCashEvents_()`.
+  - `applyDirectCashPermission_` - `'m-direct-actions'` UKLONJEN iz liste koja se sakriva (ista logika kao gore - bio bi regression koji bi sakrio ceo FAB red cim nema otvorene smene), sad na kraju poziva `updateMobileDirectActionsVisibility_()` za pojedinacno sakrivanje.
+  - `bindMobileFab_` - dodato `#m-fab-backdrop` show/hide uz otvaranje/zatvaranje menija (klik na backdrop zatvara, isto kao Keep).
+  - `bindMobileSheet_` - vezana 2 nova dugmeta: `m-fab-new-order` (`openMobileSection_('m-section-nalozi')` + `loadMobileNalozi_()` + `openMobileNewOrderForm_(null)`), `m-fab-new-count` (`openMobileSection_('m-section-presek')` + `loadCashCounts_()`).
+  - Nova `shareCashEventSummary_(ev)` - gradi citljiv tekstualni rezime (vrsta, broj, iznos, datum/vreme, primalac/uplatilac, opis, blagajna) i zove `navigator.share()`, sa fallback-om na `navigator.clipboard.writeText()`.
+  - `openMobileDetailPanel_` - vezano novo `#m-detail-share` dugme na `shareCashEventSummary_`.
+
+Sta NIJE uradjeno:
+
+- Desktop prikaz NIJE diran - ceo FAZA 3v zahtev je bio eksplicitno o mobilnoj aplikaciji (donja traka/hamburger/FAB su mobilni koncepti, desktop ima `.d-topbar`/`.d-shell` sa svojom navigacijom).
+- Stara `.m-bottom-nav`/`.m-tab`/`.m-tab.active` CSS pravila u `styles.html` NISU obrisana (markup koji ih koristi jeste obrisan, pa su ova pravila sada mrtav/neiskoriscen CSS) - ostavljena namerno da se ne rizikuje slucajno brisanje necega sto se jos koristi negde van vidokruga ove izmene; bez funkcionalnog uticaja.
+- `.m-detail-actions` generic stil (koriscen u dinamicki generisanim dijalozima - najave, uparivanje najave) NIJE presvucen u pilule - samo staticni detalj-list stavke (`#m-detail-overlay`) je dobio novi izgled, po dogovoru iz analize (izbegnuto rizicno globalno presvlacenje deljene klase).
+- "Slanje" dugme je dodato SAMO u glavni detalj-list obicne cash-event stavke (Uplata/Isplata/Storno/Presek) - nije dodato u posebne dijaloge za najave/naloge (van dogovorenog obima, moze se prosiriti naknadno ako zatreba).
+- Runtime test na produkciji (nijedan deo nije automatski testiran - rucni pregled CSS/JS izmena je jedina verifikacija u ovoj sesiji).
+
+Sledeci korak (korisnik): vizuelno potvrditi na uredjaju - pozicija/ponasanje "+" menija, izgled hamburger fioke (navigacija + podesavanja), KPI red na klik na saldo, manje kartice u listama, "Slanje" dugme (proveriti da li telefon otvara sistemski "podeli sa" meni sa ocekivanim tekstom).
