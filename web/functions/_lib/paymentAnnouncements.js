@@ -89,18 +89,22 @@ async function insertAuditLog(env, action, entityId, oldValue, newValue, comment
   });
 }
 
-// data: { cashbox_id, currency, announced_amount, partner_name, purpose, note }
+// data: { cashbox_id, currency, announced_amount, partner_name, driver_name, purpose, note }
 export async function createAnnouncementCore(env, data, actor, session) {
   data = data || {};
   const cashboxId = String(data.cashbox_id || session.cashbox_id || '').trim();
   const currency = String(data.currency || '').trim();
   const announcedAmount = safeNumber(data.announced_amount);
   const partnerName = String(data.partner_name || '').trim();
+  // FAZA 3w: VOZAČ je obavezno polje na najavi (ime vozača koji donosi uplatu) -
+  // korisnik ga eksplicitno traži, validacija mora biti i na backendu, ne samo u formi.
+  const driverName = String(data.driver_name || '').trim();
 
   if (!cashboxId) throw new BusinessError('Blagajna je obavezna.', 400);
   if (!currency) throw new BusinessError('Valuta je obavezna.', 400);
   if (!(announcedAmount > 0)) throw new BusinessError('Najavljeni iznos mora biti veći od nule.', 400);
   if (!partnerName) throw new BusinessError('Naziv uplatioca je obavezan.', 400);
+  if (!driverName) throw new BusinessError('Ime vozača je obavezno.', 400);
 
   const cashbox = await findCashbox(env, cashboxId);
   if (!cashbox || !cashbox.active) throw new BusinessError('Blagajna nije aktivna.', 400);
@@ -116,6 +120,7 @@ export async function createAnnouncementCore(env, data, actor, session) {
     currency,
     announced_amount: announcedAmount,
     partner_name: partnerName,
+    driver_name: driverName,
     purpose: String(data.purpose || '').trim() || null,
     note: String(data.note || '').trim() || null,
     // FAZA 3w: nova najava je NACRT (DRAFT), ne odmah OPEN - vidljiva je samo svom
@@ -134,7 +139,7 @@ export async function createAnnouncementCore(env, data, actor, session) {
   return created;
 }
 
-// data: { announced_amount, partner_name, purpose, note, currency }
+// data: { announced_amount, partner_name, driver_name, purpose, note, currency }
 // `canOverride` is decided by the caller (endpoint layer, which already knows via
 // verifySession whether the actor holds payment_announcements:match) - a supervisor
 // with :match may edit/send on the original author's behalf; a plain :create-only
@@ -164,6 +169,11 @@ export async function updateAnnouncementCore(env, announcementId, data, actor, s
     const partnerName = String(data.partner_name || '').trim();
     if (!partnerName) throw new BusinessError('Naziv uplatioca je obavezan.', 400);
     updates.partner_name = partnerName;
+  }
+  if (data.driver_name !== undefined) {
+    const driverName = String(data.driver_name || '').trim();
+    if (!driverName) throw new BusinessError('Ime vozača je obavezno.', 400);
+    updates.driver_name = driverName;
   }
   if (data.purpose !== undefined) updates.purpose = String(data.purpose || '').trim() || null;
   if (data.note !== undefined) updates.note = String(data.note || '').trim() || null;
@@ -262,8 +272,13 @@ export async function listAnnouncementsCore(env, user, filters) {
   } else if (!filters.created_by) {
     path += '&status=in.(OPEN,MATCHED,CANCELLED)';
   }
-  if (filters.date_from) path += '&created_at=gte.' + encodeEq(filters.date_from + 'T00:00:00');
-  if (filters.date_to) path += '&created_at=lte.' + encodeEq(filters.date_to + 'T23:59:59.999');
+  // NAPOMENA (bug fix): encodeEq() dodaje "eq." prefiks (za jednakost) - ovde treba
+  // "gte."/"lte." prefiks, pa se koristi cist encodeURIComponent. encodeEq() ovde je
+  // pravio "gte.eq.<datum>", nevazeci PostgREST operator, sto je svaki upit sa
+  // datumskim filterom pretvaralo u gresku (i na mobilnom i desktopu - otud "zaglavljivanje"
+  // posle izbora perioda, jer je apiListPaymentAnnouncements tiho failovao).
+  if (filters.date_from) path += '&created_at=gte.' + encodeURIComponent(filters.date_from + 'T00:00:00');
+  if (filters.date_to) path += '&created_at=lte.' + encodeURIComponent(filters.date_to + 'T23:59:59.999');
   path += '&order=created_at.desc&limit=500';
   return (await supabaseRest(env, path)) || [];
 }

@@ -55,6 +55,24 @@
     box-sizing: border-box;
   }
 
+  /* KRITIČNA ISPRAVKA (FAZA 3w): bilo koji element koji ima [hidden] atribut MORA
+     ostati stvarno sakriven, bez obzira na to koje klase ima. Bez ovog pravila,
+     autorski CSS koji na tom elementu eksplicitno postavlja "display" (npr.
+     .po-primary-btn/.po-secondary-btn/.cash-count-action { display:inline-flex },
+     .empty-state { display:flex }, .card { display:... } i slicno) uvek nadjača
+     UA podrazumevano "[hidden] { display:none }" pravilo - poreklo (author vs.
+     user-agent) odlučuje bez obzira na specifičnost selektora. Posledica je bila
+     niz "duh" bagova ove sesije: dugmad i poruke koje JS ispravno postavlja na
+     hidden=true/false ostaju vidljive/nevidljive pogrešno (npr. "Nemate
+     ovlašćenje..." poruka na Korisnicima/Valutama koja se preklapala sa sadržajem
+     iako je sadržaj ispravno bio dozvoljen/zabranjen, ili dugmad za akcije kojima
+     korisnik ne sme da pristupi a ostaju prikazana). Ovo pravilo mora biti iznad
+     (ili bar ne oborено niže u fajlu) svih drugih pravila koja postavljaju
+     "display" - !important garantuje prevagu bez obzira na redosled/specifičnost. */
+  [hidden] {
+    display: none !important;
+  }
+
   html {
     color-scheme: light;
   }
@@ -646,6 +664,18 @@
     gap: 8px;
     padding: 32px 16px;
     text-align: center;
+  }
+
+  /* FAZA 3w bugfix: bez ovoga je [hidden] atribut na "denied" porukama
+     (#d-users-admin-denied, #d-currencies-denied - klasa "empty-state") bio
+     nadjacan ".empty-state { display:flex }" pravilom (autorski CSS uvek bije
+     UA podrazumevano [hidden] pravilo, bez obzira na specificnost) - poruka
+     "Nemate ovlašćenje..." je ostajala vidljiva/preklopljena preko sadržaja
+     i kad je hidden=true postavljen, sto je izgledalo kao da ADMIN nema
+     privilegije iako je JS provera bila ispravna i sadržaj ispod je i dalje
+     radio (video se paradoks: "nemate prava" + izmena/dodavanje i dalje rade). */
+  .empty-state[hidden] {
+    display: none;
   }
 
   .empty-state i { font-size: 32px; }
@@ -3009,14 +3039,24 @@
   .amount-negative { color: var(--color-out) !important; }
   .amount-neutral { color: var(--color-text) !important; }
 
+  /* FAZA 3w fix (#103): desni panel (komande) vise NE skroluje kao jedna celina -
+     ranije je "Brze akcije" (Uplata/Isplata/Trezor) moglo da nestane sa ekrana
+     prostim skrolovanjem ka dnu detalja, sto korisnik eksplicitno ne zeli
+     ("sve mora biti fiksno, a skroluje se samo prikaz stavki na knjizi"). Sada je
+     ovo fleks kolona: "Brze akcije" karta ima svoju prirodnu visinu (flex-shrink:0,
+     vidi .cashbook-quick-actions nize), a "Detalji stavke" karta popunjava ostatak
+     prostora i sama iznutra skroluje samo svoj sadrzaj (#d-detail-body), dok dugmad
+     (.cashbook-panel-actions) ostaju fiksirana na dnu te karte. */
   .cashbook-details-panel {
     background: transparent;
     border: 0;
     box-shadow: none;
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 14px;
     max-height: calc(100dvh - 140px);
-    overflow: auto;
+    min-height: 0;
+    overflow: hidden;
     position: sticky;
     top: 0;
   }
@@ -3026,10 +3066,31 @@
     padding: 14px;
   }
 
+  .cashbook-quick-actions {
+    flex-shrink: 0;
+    max-height: 100%;
+    overflow: auto;
+  }
+
+  .cashbook-transaction-details {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 220px;
+    overflow: hidden;
+  }
+
+  #d-detail-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
   .cashbook-panel-title {
     align-items: center;
     color: var(--color-text);
     display: flex;
+    flex-shrink: 0;
     font-size: 14px;
     font-weight: 900;
     gap: 8px;
@@ -3248,6 +3309,7 @@
 
   .cashbook-panel-actions {
     display: grid;
+    flex-shrink: 0;
     gap: 10px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-top: 14px;
@@ -3766,11 +3828,24 @@
     margin-top: 8px;
   }
 
+  /* FAZA 3w fix (#104): "Isto važi i za formu smene, primeni iste visuale" - dugmad
+     ostaju vidljiva na dnu panela dok se .shift-detail-panel skroluje (sticky footer
+     unutar scroll kontejnera), umesto da se odvuku van ekrana zajedno sa sadržajem
+     iznad njih. Pozadina mora da se poklopi sa .shift-detail-panel da tekst ispod
+     ne "probija" kroz providnu traku dugmadi dok se skroluje. */
   .shift-actions-grid {
+    background: linear-gradient(145deg, rgba(10, 34, 58, 0.9), rgba(8, 25, 43, 0.94));
+    bottom: -14px;
     display: grid;
     gap: 10px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-top: 14px;
+    padding: 10px 0 14px;
+    position: sticky;
+  }
+
+  :root:not([data-theme="dark"]) .shift-actions-grid {
+    background: #ffffff;
   }
 
   .shift-actions-grid button {
@@ -5215,12 +5290,15 @@
 
   .po-panel-actions {
     border-top: 1px solid rgba(120, 170, 220, .16);
+    /* FAZA 3w: Zahtevi detalj ima do 6 dugmadi (vs. 4 na Nalogu za isplatu) - dozvoli
+       prelom u drugi red umesto sabijanja/prelivanja u jednu usku traku. */
+    flex-wrap: wrap;
     margin-top: 18px;
     padding-top: 14px;
   }
 
   .po-panel-actions button {
-    flex: 1;
+    flex: 1 1 140px;
   }
 
   .po-panel-actions button:disabled {
@@ -5304,9 +5382,42 @@
     max-height: calc(100dvh - 405px);
   }
 
+  /* FAZA 3w fix (#104): "Deo sa desne strane sa komandama na zahtevu ne sme da se
+     skroluje... dugmad pozicioniraj na dno tog dela, a sadržaj unutra, detalje, to
+     skroluj" - panel vise ne skroluje kao celina (sto je ranije guralo dugmad van
+     ekrana), vec samo aktivni tab (.request-detail-tabs-panel) unutra skroluje, dok
+     zaglavlje/tabovi ostaju fiksni na vrhu i .po-panel-actions fiksno na dnu. */
   .payment-requests-page .po-detail-panel {
+    display: flex;
+    flex-direction: column;
     max-height: calc(100dvh - 260px);
+    overflow: hidden;
+  }
+
+  .payment-requests-page #d-request-detail-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .payment-requests-page .po-detail-head,
+  .payment-requests-page .po-detail-amount,
+  .payment-requests-page .po-detail-grid,
+  .payment-requests-page .request-detail-note,
+  .payment-requests-page .po-tabs {
+    flex-shrink: 0;
+  }
+
+  .payment-requests-page .request-detail-tabs-panel {
+    flex: 1;
+    min-height: 0;
     overflow: auto;
+  }
+
+  .payment-requests-page .po-panel-actions {
+    flex-shrink: 0;
   }
 
   .request-filters {
@@ -5501,9 +5612,38 @@
     max-height: calc(100dvh - 330px);
   }
 
+  /* FAZA 3w fix (#105): isti obrazac kao kod Zahteva - panel vise ne skroluje kao
+     celina (sto je guralo dugmad Izmeni/Aktiviraj-Deaktiviraj van ekrana), vec samo
+     aktivni tab (.users-admin-tab-panel) skroluje, a zaglavlje/tabovi/dugmad ostaju
+     fiksni. */
   .users-admin-detail-panel {
+    display: flex;
+    flex-direction: column;
     max-height: calc(100dvh - 226px);
+    overflow: hidden;
+  }
+
+  .users-admin-page #d-users-detail-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .users-admin-page .po-detail-head,
+  .users-admin-page .po-tabs {
+    flex-shrink: 0;
+  }
+
+  .users-admin-tab-panel {
+    flex: 1;
+    min-height: 0;
     overflow: auto;
+  }
+
+  .users-admin-page .po-panel-actions {
+    flex-shrink: 0;
   }
 
   .users-admin-table td:first-child {

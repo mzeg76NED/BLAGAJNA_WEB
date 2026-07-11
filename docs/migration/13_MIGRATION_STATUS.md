@@ -1,6 +1,6 @@
 # Migration Status
 
-Datum poslednjeg azuriranja: 2026-07-11
+Datum poslednjeg azuriranja: 2026-07-12
 
 ## FAZA 0 - tehnicki inventar postojeceg sistema
 
@@ -979,3 +979,37 @@ Sta NIJE uradjeno / ostaje otvoreno:
 - Runtime test na uredjaju/produkciji nije radjen (Node `--check` sintaksna provera je prosla za sav izmenjeni JS, HTML tag balans provera je prosla, ali nema zamene za stvarno testiranje u browseru).
 
 Sledeci korak (korisnik): (1) primeniti SQL migraciju na Supabase, (2) vizuelno/funkcionalno potvrditi mobilne dorade (FAB pozicija, hamburger velicina, header visina, obavezan presek u meniju), (3) provuci ceo Najava uplate tok end-to-end (kreiraj nacrt → posalji → upari/vrati na doradu → otkazi), (4) potvrditi da je desktop regresija (verzija/smena/Knjiga posle logovanja) resena, (5) ponovo proveriti Knjiga/Blagajnicki list numeraciju i korisnika sa stvarnim podacima.
+
+## FAZA 3w-2 - Korisnicki prijavljeni bagovi posle FAZA 3w (2026-07-12, Claude/Cowork sesija)
+
+Status: DONE (implementacija), CEKA korisnicku potvrdu + primenu dopunske SQL izmene na Supabase
+
+Kontekst: posle FAZA 3w korisnik je u jednoj poruci prijavio 8 odvojenih problema: (1) desktop Najava forma/KPI slomljeni; (2) mobilna Najava se zaglavljuje posle datumskog filtera; (3) privilegije se proveravaju tek na upisu, ne pri otvaranju menija/forme (ANNOUNCER vidi Uplatu/Isplatu); (4) nedostaje obavezno polje VOZAC na najavi; (5) Knjiga desktop se skroluje kao celina umesto samo lista stavki; (6) Zahtevi/Smena dugmad nemaju isti vizual kao Nalog za isplatu, i desni panel se skroluje kao celina; (7) ADMIN dobija "nemate prava" na Korisnici i prava iako MOZE da menja/dodaje (kontradiktorno), vizual polomljen; (8) isti problem na formi Valute.
+
+### Koren dva najveca bagova (2, 3, 7, 8 dele isti uzrok)
+
+- **`encodeEq()` pogresno koriscen za `gte`/`lte` filtere** (`_lib/paymentAnnouncements.js`, `listAnnouncementsCore`) - `encodeEq()` uvek dodaje `eq.` prefiks, pa je datumski filter pravio nevazeci PostgREST upit `created_at=gte.eq.2026-07-01...`. Kombinovano sa `{quiet:true}` (koji NE zove `onSuccess` niti prikazuje gresku pri neuspehu), ovo je ostavljalo ekran zaglavljen na "Ucitavam najave..." zauvek - to je bio uzrok bagova (2) i verovatno dela (1). Ispravljeno na plain `encodeURIComponent(...)`. Dodatno, `loadDesktopAnnouncements_`/`loadMobileNajave_` sada imaju `onComplete` granu koja prikazuje vidljivu poruku o gresci ako tihi poziv ipak padne (odbrana u dubinu, ne samo popravka uzroka).
+- **KRITICNO, siri uzrok od najave**: `[hidden]` HTML atribut je bio nadjacan autorskim CSS pravilima koja na tom istom elementu postavljaju `display` (npr. `.po-primary-btn/.po-secondary-btn/.cash-count-action{display:inline-flex}`, `.empty-state{display:flex}`, `.nav-item{display:flex}` itd.) - poreklo pravila (autorski CSS uvek nadjacava UA podrazumevano `[hidden]{display:none}`, bez obzira na specificnost) je uzrok, ne slucajnost. Ovo je JEDAN bag koji je objasnjavao TRI odvojeno prijavljena simptoma:
+  - (3) `restrictNavToNajave_()` je ispravno postavljao `btn.hidden = true` na `.nav-item` dugmadima, ali se ona nisu stvarno sakrivala - otud utisak da su "svi pregledi dozvoljeni".
+  - (7)/(8) `#d-users-admin-denied`/`#d-currencies-denied` (klasa `empty-state`, `hidden` atribut) su se prikazivali PREKO sadrzaja cak i kad je JS ispravno postavio `hidden=true` za ADMIN-a - otud paradoks "kaze da nemam prava, ali mi dozvoljava izmenu/dodavanje" (obe poruke i sadrzaj su bili vidljivi istovremeno, preklopljeni).
+  - Verovatno i deo (1) - dugme "Najava uplate" (`.po-primary-btn`) ostajalo je vidljivo bez obzira na `bindAnnouncementButtons_()` privilegijsku proveru.
+  - **Ispravka**: dodato globalno `[hidden] { display: none !important; }` odmah posle box-sizing reset-a u `styles.html` - garantuje da `hidden` atribut UVEK pobedi, bez obzira koje klase element ima. Postojeca punktualna resenja istog problema (`.m-fab-menu-item[hidden]`, `.request-detail-tabs-panel[hidden]`, `.users-admin-tab-panel[hidden]`, itd.) ostaju netaknuta (sad redundantna, ali bezopasna).
+
+### Pojedinacne ispravke
+
+1. **Desktop Najava forma/KPI** (`desktop.html`) - sekcija je koristila `.users-admin-page` (dvokolonski wrapper namenjen ekranima sa detalj-panelom sa strane), a Najava nema takav layout - zamenjeno sa `.payment-orders-page` (isti jednokolonski obrazac kao Nalog za isplatu, bez nepotrebne fiksne visine/grid pravila koja nisu odgovarala sadrzaju). Ispravljen i neusaglasen `grid-template-columns` (5 kolona definisano, 4 elementa filtera) u inline stilu filter reda.
+2. **Mobilna Najava - zaglavljivanje po datumu** - vidi "Koren" iznad.
+3. **Privilegije - sakrivanje umesto samo blokade upisa** - resava se globalnim `[hidden]` bagfix-om iznad (koji je i objasnjavao zasto `restrictNavToNajave_()` nije radio); backend privilegijska provera po endpointu ostaje nepromenjena (vec postoji, dupliran red odbrane).
+4. **VOZAC polje na najavi** - novo obavezno polje: `web/functions/_lib/paymentAnnouncements.js` (`createAnnouncementCore`/`updateAnnouncementCore` sada validiraju i cuvaju `driver_name`), `scripts.html` forma (`openAnnouncementFormDialog_`) i detalj prikaz (`openAnnouncementDetail_`) dobijaju polje "Vozac". **SQL**: nova kolona `payment_announcements.driver_name text` dodata na kraj `supabase/migrations/202607090001_initial_schema.sql` (nullable na nivou baze da ne polomi postojece redove, obavezno na nivou aplikacije za nove/izmenjene najave) - vidi SQL blok ispod, JOS NIJE PRIMENJENA NA SUPABASE REMOTE.
+5. **Desktop Knjiga - fiksni paneli** (`styles.html`) - `.cashbook-details-panel` promenjen iz "skroluje kao jedna celina" (`display:grid;overflow:auto`) u flex kolonu: `.cashbook-quick-actions` (Uplata/Isplata/Trezor + cekanje isplate) zadrzava prirodnu visinu i nikad ne nestaje sa ekrana, `.cashbook-transaction-details` popunjava ostatak i SAMO njen `#d-detail-body` skroluje iznutra, dok `.cashbook-panel-actions` (Priznanica/Dokumenti/Blagajnicki list/Presek/Storno) ostaju fiksni na dnu.
+6. **Zahtevi + Smena - vizual i fiksni panel** - `renderPaymentRequestDetail_` dugmad (`scripts.html`) dobijaju iste `cash-count-action draft/save/cancel` klase kao Nalog za isplatu (ranije bez ikakve klase, plain dugmad); `.payment-requests-page .po-detail-panel` prepravljen na isti fleks-kolona obrazac kao Knjiga (fiksno zaglavlje/tabovi/dugmad, skroluje samo aktivni `.request-detail-tabs-panel`). `renderShiftDetail_` dugmad dobijaju iste klase, a `.shift-actions-grid` postaje "sticky" traka na dnu skroluje-celog `.shift-detail-panel` (drugaciji, jednostavniji obrazac od Zahteva jer Smena nema odvojene tabove - ali isti vizuelni rezultat: dugmad se ne odvlace sa sadrzajem).
+7. **Korisnici i prava - kontradikcija i vizual** - resava se globalnim `[hidden]` bagfix-om (koren-uzrok). Dodatno, `.users-admin-detail-panel` dobija isti fiksni-panel/skroluj-samo-tab obrazac kao Zahtevi (dugmad Izmeni/Aktiviraj-Deaktiviraj vec su koristila ispravne `cash-count-action` klase, tako da tu nije bilo potrebno menjati vizual dugmadi).
+8. **Valute - isti problem kao Korisnici** - resava se istim globalnim `[hidden]` bagfix-om (Valute koristi identican `empty-state`/`hidden` obrazac za poruku o zabrani); ekran je jednostavna lista bez detalj-panela, tako da nije bilo potrebno za fiksni-panel obrazac.
+
+### Sta NIJE uradjeno / ostaje otvoreno
+
+- **Dopunska SQL izmena NIJE primenjena na Supabase remote** - `alter table payment_announcements add column if not exists driver_name text;` (kraj `202607090001_initial_schema.sql`) mora se pokrenuti pre koriscenja VOZAC polja, inace ce upis najave sa tim poljem pasti na "column does not exist".
+- Runtime test na uredjaju/produkciji nije radjen (izmene su rucno pregledane, CSS/JS sintaksa vizuelno provereno citanjem izmenjenih regiona).
+- Globalni `[hidden]` bagfix je namerno primenjen kao SIROK, jedan-red popravak (a ne pojedinacno po klasi) - teorijski moze uticati na bilo koji drugi element u aplikaciji koji kombinuje `hidden` atribut sa klasom koja postavlja `display` - ovo je NAMERNO (pokriva celu klasu bagova odjednom), ali vredi obratiti paznju ako se posle ove izmene pojavi NEKI element koji se sad sakriva a ranije nije trebalo (malo verovatno, jer `hidden` atribut po definiciji znaci "ovo treba da bude sakriveno").
+
+Sledeci korak (korisnik): (1) pokrenuti dopunski SQL (`alter table payment_announcements add column if not exists driver_name text;`) na Supabase, (2) vizuelno potvrditi Najava desktop/mobilni ekran, Knjiga/Zahtevi/Smena/Korisnici/Valute layout i dugmad, (3) potvrditi da ANNOUNCER/ASSISTANT_CASHIER vise ne vidi tudju navigaciju, (4) potvrditi da ADMIN normalno otvara Korisnici i prava bez lazne poruke o zabrani.

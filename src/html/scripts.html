@@ -2817,13 +2817,13 @@
       '<section class="shift-detail-section"><h4>Pregled po valutama</h4><div id="d-shift-detail-currencies">' + renderShiftCurrencySummary_(shift, []) + '</div></section>' +
       '<section class="shift-detail-section"><h4>Rezultati preseka</h4><div id="d-shift-detail-counts">' + renderShiftCountResults_(shift, []) + '</div></section>' +
       '<section class="shift-detail-section"><h4>Pregled po unosima</h4><div id="d-shift-detail-entries"><div class="shift-muted">Učitavam stavke smene...</div></div></section>' +
-      '<div class="shift-actions-grid">' +
-        '<button type="button" data-shift-detail-presek-view><i class="ti ti-list-details" aria-hidden="true"></i> Pregled preseka</button>' +
-        (uiState.activeShift && uiState.activeShift.shift_id ? '' : '<button type="button" data-shift-detail-open><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>') +
-        '<button class="btn-primary" type="button" data-shift-detail-count' + (!isActive ? ' disabled' : '') + '><i class="ti ti-calculator" aria-hidden="true"></i> Novi presek</button>' +
-        '<button class="btn-out" type="button" data-shift-detail-close' + (!canClose ? ' disabled' : '') + '><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
-        '<button type="button" data-shift-detail-book><i class="ti ti-book" aria-hidden="true"></i> Knjiga</button>' +
-        '<button type="button" data-shift-detail-sheet><i class="ti ti-file-invoice" aria-hidden="true"></i> Blagajnički list</button>' +
+      '<div class="shift-actions-grid po-panel-actions">' +
+        '<button type="button" class="cash-count-action draft" data-shift-detail-presek-view><i class="ti ti-list-details" aria-hidden="true"></i> Pregled preseka</button>' +
+        (uiState.activeShift && uiState.activeShift.shift_id ? '' : '<button type="button" class="cash-count-action save" data-shift-detail-open><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>') +
+        '<button type="button" class="cash-count-action save" data-shift-detail-count' + (!isActive ? ' disabled' : '') + '><i class="ti ti-calculator" aria-hidden="true"></i> Novi presek</button>' +
+        '<button type="button" class="cash-count-action cancel" data-shift-detail-close' + (!canClose ? ' disabled' : '') + '><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
+        '<button type="button" class="cash-count-action draft" data-shift-detail-book><i class="ti ti-book" aria-hidden="true"></i> Knjiga</button>' +
+        '<button type="button" class="cash-count-action draft" data-shift-detail-sheet><i class="ti ti-file-invoice" aria-hidden="true"></i> Blagajnički list</button>' +
       '</div>';
     attachShiftDetailActions_(target, shift);
     renderShiftPageKpis_(shift, []);
@@ -5022,10 +5022,18 @@
       return;
     }
     target.innerHTML = '<div class="empty-state compact"><p>Učitavam najave...</p></div>';
+    // FAZA 3w fix: "quiet" pozivi ne pozivaju onSuccess pri gresci (namerno, da ne
+    // prekidaju korisnika porukama za pozadinske osvežavanja) - ali su ranije ostavljali
+    // ekran zaglavljen na "Učitavam..." zauvek ako poziv padne (npr. bag u datumskom
+    // filteru). onComplete sad eksplicitno prikazuje grešku ako rows nikad nije stigao.
     callApi('apiListPaymentAnnouncements', [withUiDefaults(najaveActiveFilters_('d'))], function(rows) {
       LAST_NAJAVE_ROWS = rows || [];
       renderDesktopAnnouncementsList_(LAST_NAJAVE_ROWS);
-    }, { quiet: true });
+    }, { quiet: true, onComplete: function(response) {
+      if (!response || response.ok !== true) {
+        target.innerHTML = '<div class="empty-state"><i class="ti ti-alert-triangle" aria-hidden="true"></i><p>Učitavanje najava nije uspelo. Pokušajte ponovo ili osvežite stranicu.</p></div>';
+      }
+    } });
   }
 
   function renderDesktopAnnouncementsList_(rows) {
@@ -5076,10 +5084,16 @@
       return;
     }
     target.innerHTML = '<div class="empty-state compact"><p>Učitavam najave...</p></div>';
+    // FAZA 3w fix: vidi komentar u loadDesktopAnnouncements_ - ovo je bio uzrok
+    // "zaglavljivanja" mobilne aplikacije posle izbora datumskog filtera.
     callApi('apiListPaymentAnnouncements', [withUiDefaults(najaveActiveFilters_('m'))], function(rows) {
       LAST_NAJAVE_ROWS = rows || [];
       renderMobileNajaveList_(LAST_NAJAVE_ROWS);
-    }, { quiet: true });
+    }, { quiet: true, onComplete: function(response) {
+      if (!response || response.ok !== true) {
+        target.innerHTML = '<div class="empty-state"><i class="ti ti-alert-triangle" aria-hidden="true"></i><p>Učitavanje najava nije uspelo. Pokušajte ponovo ili osvežite stranicu.</p></div>';
+      }
+    } });
   }
 
   function renderMobileNajaveList_(rows) {
@@ -5331,6 +5345,7 @@
             return '<option value="' + escapeHtml(code) + '"' + (selected ? ' selected' : '') + '>' + escapeHtml(code) + '</option>';
           }).join('') + '</select></label>' +
           '<label>Uplatilac <input name="partner_name" type="text" value="' + escapeHtml(isEdit ? (existing.partner_name || '') : '') + '" required></label>' +
+          '<label>Vozač <input name="driver_name" type="text" value="' + escapeHtml(isEdit ? (existing.driver_name || '') : '') + '" required></label>' +
           '<label>Najavljeni iznos <input name="announced_amount" type="text" inputmode="decimal" value="' + escapeHtml(isEdit ? String(existing.announced_amount || '') : '') + '" required></label>' +
           '<label>Osnov <input name="purpose" type="text" value="' + escapeHtml(isEdit ? (existing.purpose || '') : '') + '"></label>' +
           '<label>Napomena <textarea name="note">' + escapeHtml(isEdit ? (existing.note || '') : '') + '</textarea></label>' +
@@ -5352,11 +5367,13 @@
         cashbox_id: form.elements.cashbox_id.value,
         currency: form.elements.currency.value,
         partner_name: form.elements.partner_name.value.trim(),
+        driver_name: form.elements.driver_name.value.trim(),
         announced_amount: parseAmountInput_(form.elements.announced_amount.value),
         purpose: form.elements.purpose.value.trim(),
         note: form.elements.note.value.trim()
       };
       if (!data.partner_name) { showMessage('Unesite uplatioca.', 'error'); return; }
+      if (!data.driver_name) { showMessage('Unesite ime vozača.', 'error'); return; }
       if (!(data.announced_amount > 0)) { showMessage('Unesite iznos veći od nule.', 'error'); return; }
       function afterSave() {
         close();
@@ -5413,6 +5430,7 @@
     var statusLabel = announcementStatusLabel_(a.status);
     var rows = [
       ['Uplatilac', a.partner_name || '—'],
+      ['Vozač', a.driver_name || '—'],
       ['Blagajna', a.cashbox_id || '—'],
       ['Valuta', a.currency || '—'],
       ['Najavljeni iznos', formatAmount_(a.announced_amount) + ' ' + escapeHtml(a.currency || '')],
@@ -9802,12 +9820,12 @@
       '<div class="request-detail-tabs-panel" data-request-panel="docs" hidden>' + renderPaymentRequestDocuments_(req) + '</div>' +
       '<div class="request-detail-tabs-panel" data-request-panel="activity" hidden>' + renderPaymentRequestActivities_(req) + '</div>' +
       '<div class="po-panel-actions">' +
-        '<button type="button" id="d-request-open-detail"><i class="ti ti-external-link" aria-hidden="true"></i> Otvori detalje</button>' +
-        '<button type="button" id="d-request-edit" ' + (canEdit ? '' : 'disabled title="Izmena je dostupna samo za nacrt."') + '><i class="ti ti-pencil" aria-hidden="true"></i> Edituj nacrt</button>' +
-        '<button type="button" id="d-request-submit-draft" ' + (canSubmit ? '' : 'disabled title="Slanje je dostupno samo za nacrt."') + '><i class="ti ti-send" aria-hidden="true"></i> Pošalji zahtev</button>' +
-        '<button type="button" id="d-request-create-order" ' + (canCreateOrder ? '' : 'disabled title="' + escapeHtml(req.linkedPaymentOrderId ? 'Nalog je već kreiran.' : 'Kreiranje naloga nije dostupno za ovaj zahtev.') + '"') + '><i class="ti ti-file-invoice" aria-hidden="true"></i> ' + escapeHtml(createOrderLabel) + '</button>' +
-        '<button type="button" id="d-request-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
-        '<button type="button" id="d-request-return" ' + (canReturn ? '' : 'disabled') + '><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Vrati na dopunu</button>' +
+        '<button type="button" class="cash-count-action draft" id="d-request-open-detail"><i class="ti ti-external-link" aria-hidden="true"></i> Otvori detalje</button>' +
+        '<button type="button" class="cash-count-action draft" id="d-request-edit" ' + (canEdit ? '' : 'disabled title="Izmena je dostupna samo za nacrt."') + '><i class="ti ti-pencil" aria-hidden="true"></i> Edituj nacrt</button>' +
+        '<button type="button" class="cash-count-action save" id="d-request-submit-draft" ' + (canSubmit ? '' : 'disabled title="Slanje je dostupno samo za nacrt."') + '><i class="ti ti-send" aria-hidden="true"></i> Pošalji zahtev</button>' +
+        '<button type="button" class="cash-count-action save" id="d-request-create-order" ' + (canCreateOrder ? '' : 'disabled title="' + escapeHtml(req.linkedPaymentOrderId ? 'Nalog je već kreiran.' : 'Kreiranje naloga nije dostupno za ovaj zahtev.') + '"') + '><i class="ti ti-file-invoice" aria-hidden="true"></i> ' + escapeHtml(createOrderLabel) + '</button>' +
+        '<button type="button" class="cash-count-action cancel" id="d-request-reject" ' + (canReject ? '' : 'disabled') + '><i class="ti ti-circle-x" aria-hidden="true"></i> Odbij</button>' +
+        '<button type="button" class="cash-count-action draft" id="d-request-return" ' + (canReturn ? '' : 'disabled') + '><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Vrati na dopunu</button>' +
       '</div>';
     bindPaymentRequestDetailActions_(req);
   }
