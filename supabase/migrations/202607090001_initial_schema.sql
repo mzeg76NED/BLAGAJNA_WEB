@@ -513,3 +513,34 @@ create unique index if not exists mandatory_cash_counts_one_open_per_cashbox_idx
   on mandatory_cash_counts(cashbox_id) where status = 'OPEN';
 create index if not exists mandatory_cash_counts_cashbox_idx
   on mandatory_cash_counts(cashbox_id, requested_at desc);
+
+-- FAZA 3w: Najava uplate - dodat DRAFT/RETURNED radni tok ispred postojeceg
+-- OPEN/MATCHED/CANCELLED. Dok je nacrt (DRAFT) ili vracena na doradu (RETURNED),
+-- najava je vidljiva SAMO svom autoru - ne "postoji" jos za blagajnu/Knjigu i ne
+-- proizvodi nikakvu akciju (vidi listAnnouncementsCore u _lib/paymentAnnouncements.js).
+-- Tek kad autor eksplicitno "posalje u blagajnu" (send.js), status prelazi u OPEN i
+-- najava postaje vidljiva/uparljiva. Blagajnik (payment_announcements:match) moze,
+-- umesto da je upari, da je vrati autoru na doradu (return.js) - tada ide RETURNED,
+-- ponovo editabilna, dok se ponovo ne posalje.
+alter table payment_announcements drop constraint if exists payment_announcements_status_check;
+alter table payment_announcements add constraint payment_announcements_status_check
+  check (status in ('DRAFT', 'OPEN', 'MATCHED', 'CANCELLED', 'RETURNED'));
+alter table payment_announcements alter column status set default 'DRAFT';
+
+alter table payment_announcements add column if not exists sent_by text;
+alter table payment_announcements add column if not exists sent_at timestamptz;
+alter table payment_announcements add column if not exists returned_by text;
+alter table payment_announcements add column if not exists returned_at timestamptz;
+alter table payment_announcements add column if not exists return_reason text;
+
+-- Vec postojece najave (sve su do sada imale status OPEN cim su kreirane, bez DRAFT
+-- koraka) tretiramo kao da su vec "poslate" - postavljamo sent_by/sent_at iz created_by/
+-- created_at retroaktivno, cisto da polja nisu prazna za stariju istoriju.
+update payment_announcements
+  set sent_by = created_by, sent_at = created_at
+  where status in ('OPEN', 'MATCHED', 'CANCELLED') and sent_at is null;
+
+-- Prilog (dokument) uz najavu - isti documents mehanizam kao za cash_events/naloge.
+alter table documents drop constraint if exists documents_entity_type_check;
+alter table documents add constraint documents_entity_type_check
+  check (entity_type in ('PAYMENT_REQUEST','PAYMENT_ORDER','CASH_EVENT','SHIFT','DAILY_CLOSING','PAYMENT_ANNOUNCEMENT'));

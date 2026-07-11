@@ -173,7 +173,8 @@
               <div class="cashbook-page-head">
                 <div class="cashbook-title">
                   <i class="ti ti-book-2" aria-hidden="true"></i>
-                  <h2>Blagajnička knjiga</h2>
+                  <!-- FAZA 3w: naslov velikim slovima ("BLAGAJNIČKA KNJIGA piši velikim slovima") -->
+                  <h2>BLAGAJNIČKA KNJIGA</h2>
                 </div>
                 <div class="cashbook-filters">
                   <label class="cashbook-filter"><input type="date" id="d-date-from"></label>
@@ -185,6 +186,12 @@
                     <i class="ti ti-search" aria-hidden="true"></i>
                     <input type="search" id="d-knjiga-search" placeholder="Pretraga po opisu ili primaocu...">
                   </label>
+                  <!-- FAZA 3w: premesteno ovde iz bočnog panela ("dugme OTVORI SMENU
+                       spakuj tako ide gore u red pored dugmeta za osvežavanje, gore desno") -
+                       vidljivost/disabled i dalje vodi updateDesktopDirectActionsVisibility_. -->
+                  <button class="cash-count-action draft" id="d-open-shift-from-book" type="button" hidden>
+                    <i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu
+                  </button>
                   <button class="cashbook-refresh" id="d-knjiga-refresh" type="button" title="Osveži">
                     <i class="ti ti-refresh" aria-hidden="true"></i>
                   </button>
@@ -267,9 +274,6 @@
                       <button class="quick-action-button quick-action-button--najava" id="d-new-announcement-btn" type="button" hidden>
                         <i class="ti ti-bell-plus" aria-hidden="true"></i><span>Najava uplate</span>
                       </button>
-                    </div>
-                    <div class="cashbook-lock-note" id="d-quick-lock-message" hidden>
-                      <button class="cash-count-action draft" id="d-open-shift-from-book" type="button"><i class="ti ti-door-enter" aria-hidden="true"></i> Otvori smenu</button>
                     </div>
                     <div class="card permission-card" id="d-direct-permission-card" hidden>
                       <p id="d-direct-permission-text">Direktne uplate, isplate i predaju u trezor može knjižiti samo glavni blagajnik aktivne smene.</p>
@@ -1157,23 +1161,36 @@
             </div>
           </section>
 
-          <!-- NAJAVE (i ogranicen ekran za Pomocnog blagajnika) -->
+          <!-- NAJAVE (i ogranicen ekran za Pomocnog blagajnika/Najavljivaca uplate) -->
           <section id="d-section-najave" class="d-section">
             <div class="users-admin-page">
               <div class="po-page-head">
                 <div>
                   <h2>Najave uplate</h2>
-                  <p>Najave ne menjaju stanje blagajne dok se ne uparé sa stvarnom uplatom (UPLATA akcija). Ovo je ista lista koja se prikazuje i kao informativni red u Knjizi.</p>
+                  <p>Najava je prvo NACRT - vidljiva samo autoru. Tek kad se pošalje u blagajnu ("Pošalji u blagajnu") postaje vidljiva blagajniku i može se upariti sa stvarnom uplatom (UPLATA akcija) ili vratiti autoru na doradu.</p>
                 </div>
                 <div class="po-head-actions">
                   <button id="d-najave-add-btn" class="po-primary-btn cash-count-action save" type="button" hidden>
                     <i class="ti ti-bell-plus" aria-hidden="true"></i> Najava uplate
+                  </button>
+                  <button id="d-najave-print-btn" class="po-secondary-btn cash-count-action draft" type="button">
+                    <i class="ti ti-printer" aria-hidden="true"></i> Štampaj period
                   </button>
                   <button id="d-najave-refresh-btn" class="po-secondary-btn cash-count-action draft" type="button">
                     <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
                   </button>
                 </div>
               </div>
+              <!-- FAZA 3w: filter po periodu i korisniku ("u najavu dodati filter po
+                   periodu i korisniku"); korisnik-select se popunjava iz iste liste kao
+                   d-user-filter na Knjizi (loadCashbookFilterOptions_). -->
+              <div class="cashbook-filters" style="grid-template-columns:130px auto 130px minmax(150px,1fr) auto;margin-bottom:12px">
+                <label class="cashbook-filter"><input type="date" id="d-najave-date-from"></label>
+                <span class="cashbook-filter-sep">—</span>
+                <label class="cashbook-filter"><input type="date" id="d-najave-date-to"></label>
+                <label class="cashbook-filter"><select id="d-najave-user-filter" title="Filter po korisniku"><option value="">Svi korisnici</option></select></label>
+              </div>
+              <div class="knjiga-total-strip" id="d-najave-kpi" style="margin-bottom:12px"></div>
               <div id="d-najave-list" class="po-table-wrap"></div>
             </div>
           </section>

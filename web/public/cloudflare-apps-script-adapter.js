@@ -77,7 +77,10 @@
     return {
       appName: 'BLAGAJNA WEB',
       version: 'cloudflare-migration',
-      appVersion: 'cloudflare-migration-0.1.0',
+      // NAPOMENA: ovaj string se vidi u headeru (desktop) i hamburger fioci (mobilni) -
+      // korisnik ga koristi da vizuelno potvrdi da gleda najnoviji deploy (a ne stari
+      // keširan build). BUMP-ovati ovaj broj uz svaku FAZA izmenu koja dira frontend.
+      appVersion: 'cloudflare-migration-0.5.0',
       environment: 'Cloudflare/Supabase migracija',
       currencies: currencies.map(function (row) { return row.currency_code; }),
       currencyDetails: currencies,
@@ -551,11 +554,33 @@
     apiListPaymentAnnouncements: async function (filters, sessionId) {
       filters = filters || {};
       var query = new URLSearchParams();
-      ['cashbox_id', 'currency', 'status'].forEach(function (field) {
+      // FAZA 3w: date_from/date_to (period) i created_by/user (filter po korisniku).
+      ['cashbox_id', 'currency', 'status', 'date_from', 'date_to', 'created_by', 'user'].forEach(function (field) {
         if (filters[field]) query.set(field, filters[field]);
       });
       var response = await apiFetch('/api/payment-announcements/list?' + query.toString(), { sessionId: sessionId });
       return response.announcements || [];
+    },
+    apiUpdatePaymentAnnouncement: async function (announcementId, data, sessionId) {
+      return apiFetch('/api/payment-announcements/update', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ announcement_id: announcementId, data: data || {} })
+      });
+    },
+    apiSendPaymentAnnouncementToCashier: async function (announcementId, sessionId) {
+      return apiFetch('/api/payment-announcements/send', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ announcement_id: announcementId })
+      });
+    },
+    apiReturnPaymentAnnouncementForRevision: async function (announcementId, reason, sessionId) {
+      return apiFetch('/api/payment-announcements/return', {
+        method: 'POST',
+        sessionId: sessionId,
+        body: JSON.stringify({ announcement_id: announcementId, reason: reason || '' })
+      });
     },
     apiMatchPaymentAnnouncement: async function (announcementId, data, sessionId) {
       return apiFetch('/api/payment-announcements/match', {

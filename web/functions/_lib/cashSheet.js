@@ -139,7 +139,13 @@ function buildEventRow(event, index, runningBalance) {
     event_date: event.event_date || event.created_at || '',
     event_id: event.event_id || '',
     ref_no: event.ref_no || null,
-    entry_number: index + 1,
+    // FAZA 3w: entry_number se VIŠE NE računa ovde (bio je globalan indeks kroz
+    // CELU istoriju blagajne, pa je brojanje "nastavljalo od juče" i kad je prikaz
+    // ograničen na today - "za današnji datum prikazuje stavke, ali broji sa
+    // stavkama od juče"). Pravi redni broj (od 1 po danu) se sada dodeljuje na
+    // kraju, u assignDailyEntryNumbers(), nad KONAČNIM filtriranim/sortiranim
+    // nizom - vidi poziv u getCashSheetReportCore.
+    entry_number: null,
     event_type: event.event_type || '',
     direction: event.direction || '',
     amount,
@@ -215,6 +221,33 @@ function isInformationalEvent(event) {
   return false;
 }
 
+// FAZA 3w: numeriše STVARNE stavke (source_type CASH_EVENT - CASH_COUNT redovi
+// zadrže entry_number '' kao i pre) OD POČETKA SVAKOG DANA ("ako je na prikazu
+// 3 dana u opsegu, onda svaki datum počinje od 1"). rows mora već biti sortiran
+// opadajuće po event_date (najnoviji prvi, isti redosled u kom se štampa) - u tom
+// redosledu je prva stavka jednog dana najnovija tog dana (dobija najveći broj za
+// taj dan), a poslednja je najstarija (dobija 1).
+function assignDailyEntryNumbers(rows) {
+  const dayTotals = {};
+  rows.forEach((row) => {
+    if (row.source_type !== 'CASH_EVENT') return;
+    const key = normalizeDateKey(row.event_date);
+    dayTotals[key] = (dayTotals[key] || 0) + 1;
+  });
+  const dayCounters = {};
+  rows.forEach((row) => {
+    if (row.source_type !== 'CASH_EVENT') {
+      row.entry_number = '';
+      return;
+    }
+    const key = normalizeDateKey(row.event_date);
+    if (dayCounters[key] === undefined) dayCounters[key] = dayTotals[key];
+    row.entry_number = dayCounters[key];
+    dayCounters[key] -= 1;
+  });
+  return rows;
+}
+
 function selectPhysicalCount(counts, isShiftSheet) {
   const rows = counts || [];
   if (!rows.length) return null;
@@ -268,7 +301,7 @@ export async function getCashSheetReportCore(env, user, filters) {
 
   // Scope + sort desc, exactly like getCashMovementsReport: shift range (if any) AND
   // date range both apply, balance-affecting cash events only (count rows always pass).
-  const events = eventRowsAll
+  const events = assignDailyEntryNumbers(eventRowsAll
     .concat(countRowsAll)
     .filter((row) => {
       if (row.source_type === 'CASH_EVENT' && !isBalanceAffecting({ status: row.status })) return false;
@@ -277,7 +310,7 @@ export async function getCashSheetReportCore(env, user, filters) {
       return inShiftRange && isDateInRange(row.event_date, dateFrom, dateTo);
     })
     .sort((left, right) => toTime(right.event_date) - toTime(left.event_date))
-    .slice(0, 500);
+    .slice(0, 500));
 
   const openingBalances = shift && shift.opening_balance_json && typeof shift.opening_balance_json === 'object'
     ? shift.opening_balance_json

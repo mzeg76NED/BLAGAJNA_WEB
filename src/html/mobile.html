@@ -100,6 +100,12 @@
             <button class="m-drawer-nav-item" data-m-nav="m-section-zakljucak" type="button">
               <i class="ti ti-scale" aria-hidden="true"></i><span>Zaključak</span>
             </button>
+            <!-- FAZA 3w: sakriveno/prikazano JS-om (bindAnnouncementButtons_), kao i
+                 desktop ekvivalent d-nav-najave - vidljivo samo sa payment_announcements
+                 privilegijom. -->
+            <button class="m-drawer-nav-item" id="m-nav-najave" data-m-nav="m-section-najave" type="button" hidden>
+              <i class="ti ti-bell-ringing" aria-hidden="true"></i><span>Najave</span>
+            </button>
           </nav>
           <div class="m-drawer-divider"></div>
           <div class="m-drawer-label">Podešavanja</div>
@@ -123,9 +129,8 @@
               <i class="ti ti-user-circle" aria-hidden="true"></i>
               <strong id="app-user-label">—</strong>
             </span>
-            <button class="m-chip" id="app-switch-user-btn" type="button" hidden>
-              <i class="ti ti-switch-horizontal" aria-hidden="true"></i> Promeni korisnika
-            </button>
+            <!-- FAZA 3w: "Promeni korisnika" uklonjeno - postoji Odjava, logicno je
+                 da se promena korisnika radi kroz odjavu pa novu prijavu. -->
             <button class="m-chip" id="app-logout-btn" type="button" hidden>
               <i class="ti ti-logout" aria-hidden="true"></i> Odjava
             </button>
@@ -138,12 +143,10 @@
       <div class="m-content">
 
         <!-- KNJIGA -->
+        <!-- FAZA 3w: rucno dugme za osvezavanje uklonjeno na mobilnom - podaci se
+             osvezavaju automatski (live refresh + posle svake akcije), rucni klik
+             je bio suvisan ("podatke osveži normalno sam"). -->
         <section id="m-section-knjiga" class="m-section active" data-section>
-          <div class="m-book-tools">
-            <button id="m-knjiga-refresh" type="button" aria-label="Osveži knjigu">
-              <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
-            </button>
-          </div>
           <div id="m-knjiga-list"></div>
         </section>
 
@@ -273,9 +276,6 @@
           <div class="card">
             <div class="card-head">
               <h3 style="flex:1">Pregled preseka</h3>
-              <button id="m-count-refresh" type="button" aria-label="Osveži preseke">
-                <i class="ti ti-refresh" aria-hidden="true"></i>
-              </button>
             </div>
             <div id="m-counts-list"></div>
           </div>
@@ -314,6 +314,21 @@
           <div id="m-daily-result" class="result-box"></div>
         </section>
 
+        <!-- NAJAVE - FAZA 3w: dedikovan mobilni ekran (ranije su najave postojale SAMO
+             kao stavke spojene u Knjigu, koje se sada NE prikazuju dok nisu poslate u
+             blagajnu - ANNOUNCER bez pristupa Knjizi nije imao kako da vidi/posalje
+             sopstveni nacrt na mobilnom). Deli iste dijaloge (kreiranje/detalji/izmena)
+             sa desktop verzijom - vidi openCreateAnnouncementDialog_/openAnnouncementDetail_. -->
+        <section id="m-section-najave" class="m-section" data-section>
+          <h2>Najave uplate</h2>
+          <div class="m-section-actions">
+            <input type="date" id="m-najave-date-from" aria-label="Period od">
+            <input type="date" id="m-najave-date-to" aria-label="Period do">
+          </div>
+          <div class="m-header-kpi m-traffic-summary" id="m-najave-kpi"></div>
+          <div id="m-najave-list"></div>
+        </section>
+
       </div><!-- /m-content -->
 
       <!-- FAB "+" - FAZA 3v: donja stalna traka sa tabovima je ukinuta (navigacija je
@@ -328,6 +343,14 @@
       <div class="m-fab-backdrop" id="m-fab-backdrop" hidden></div>
       <div class="m-fab-row" id="m-direct-actions">
         <div class="m-fab-menu" id="m-fab-menu" hidden>
+          <!-- FAZA 3w: ranija plutajuća pilula "Obavezan presek" (admin/direktor,
+               vidi renderMandatoryCountBar_ - admin-hint stanje) je premeštena
+               ovde na mobilnom (na desktopu ostaje kao pre - manje dragoceno mesto
+               na ekranu). Prikazuje se/skriva JS-om, ne CSS-om (samo ADMIN/DIREKTOR
+               kad blagajna NIJE već zaključana). -->
+          <button class="m-fab-menu-item lock" id="m-fab-mandatory-count" type="button" hidden>
+            <i class="ti ti-shield-lock" aria-hidden="true"></i> Obavezan presek
+          </button>
           <button class="m-fab-menu-item count" id="m-fab-new-count" type="button">
             <i class="ti ti-calculator" aria-hidden="true"></i> Novi presek
           </button>

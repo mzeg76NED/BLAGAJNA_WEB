@@ -759,15 +759,17 @@
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border-light);
     flex-shrink: 0;
-    padding: 9px 12px 7px;
-    padding-top: max(9px, env(safe-area-inset-top));
+    /* FAZA 3w: jos -30% visine trake ("elemente ostavi iste velicine" - samo
+       razmaci/padding su smanjeni, font/ikonice ispod su netaknuti). */
+    padding: 6px 12px 5px;
+    padding-top: max(6px, env(safe-area-inset-top));
     z-index: 20;
   }
 
   .m-header-top {
     align-items: center;
     display: flex;
-    gap: 8px;
+    gap: 6px;
     justify-content: space-between;
   }
 
@@ -778,10 +780,11 @@
     color: var(--color-text);
     display: inline-flex;
     flex-shrink: 0;
-    font-size: 17px;
-    height: 26px;
+    /* FAZA 3w: uvecano ("Hamburger je premali, sama oznaka mora biti malo veca") */
+    font-size: 23px;
+    height: 34px;
     justify-content: center;
-    width: 26px;
+    width: 34px;
   }
 
   /* Saldo je sad dugme (ne div) - klik otvara/zatvara #m-header-kpi red ispod
@@ -822,7 +825,7 @@
   /* KPI red - isti podaci kao renderKnjigaTotalsHtml_ (Blagajnicki list stil),
      otvara se klikom na saldo umesto ranijeg posebnog dugmeta "Pregled prometa". */
   .m-header-kpi {
-    margin-top: 7px;
+    margin-top: 5px;
   }
 
   .m-header-kpi[hidden] {
@@ -970,10 +973,11 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    /* .m-fab-row and .m-bottom-nav are real flex siblings below this element now
-       (not a position:fixed overlay), so this only needs a little scroll breathing
-       room at the end of the list, not a large guess at "how tall is the stuff below". */
-    padding-bottom: 16px;
+    /* FAZA 3w: .m-fab-row je sada position:fixed (LEBDI preko sadrzaja, ne redak u
+       flex toku - dogovoreno da vise ne "jede" deo ekrana kao stalan red ispod
+       liste). Zato ovde treba dovoljno dna-razmaka da poslednja stavka u listi ne
+       ostane TRAJNO ispod dugmeta (i dalje se moze skrolovati iznad njega). */
+    padding-bottom: 84px;
   }
 
   .m-section {
@@ -1143,20 +1147,22 @@
      komentar - bez position:fixed nagadjanja). Meni se otvara position:absolute
      bottom:100% RELATIVNO na sam red (ne na viewport), pa se automatski naslanja
      tacno iznad dugmeta bez obzira na visinu bilo cega ispod. */
-  /* FAZA 3v: donja stalna traka je ukinuta (hamburger fioka je zamenjuje), pa je
-     .m-fab-row sada POSLEDNJI flex sibling u m-shell-u - dugme ide u DONJI DESNI
-     ugao (kao pravi Google Keep FAB), umesto centrirano iznad trake (FAZA 3u).
-     Meni i dalje "raste" nagore (position:absolute bottom:100% na sam red, ne na
-     viewport), sada uz #m-fab-backdrop zatamnjenje (isti Keep obrazac - klik van
-     pilula zatvara meni, vidi bindMobileFab_ u scripts.html). */
+  /* FAZA 3w: korisnik je primetio da .m-fab-row (iako je poslednji flex sibling,
+     ne bar preko celog ekrana) i dalje REZERVISE sopstveni red i "jede" deo
+     ekrana. Trazeno je da dugme stvarno LEBDI PREKO sadrzaja - zato je ovo sada
+     position:fixed (VISE NIJE flex sibling u m-shell-u). Ovo NIJE isti anti-pattern
+     kao stari mandatory-count-bar bag (FAZA 3q/3t) - taj je bio PUNA SIRINA traka
+     koja se stalno prikazuje i sudara sa STVARNIM flex siblinzima (bottom nav);
+     ovo je mali krug u jednom uglu, ne postoji nikakva traka ispod njega sa kojom
+     bi se sudario (donja stalna traka je ukinuta u FAZA 3v), a .m-content ima
+     dovoljno padding-bottom (gore) da poslednja stavka ostane dostupna skrolom. */
   .m-fab-row {
     align-items: center;
+    bottom: max(14px, env(safe-area-inset-bottom));
     display: flex;
-    flex-shrink: 0;
     justify-content: flex-end;
-    padding: 10px 14px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    position: relative;
+    position: fixed;
+    right: 14px;
     z-index: 210;
   }
 
@@ -1257,6 +1263,8 @@
   .m-fab-menu-item.order i { background: var(--color-primary-bg); }
   .m-fab-menu-item.count { color: #d99a00; }
   .m-fab-menu-item.count i { background: rgba(217,154,0,.15); }
+  .m-fab-menu-item.lock { color: var(--color-out); }
+  .m-fab-menu-item.lock i { background: var(--color-out-bg); }
 
   .m-detail-overlay {
     align-items: flex-end;
@@ -2634,7 +2642,26 @@
     align-items: center;
     display: grid;
     gap: 8px;
-    grid-template-columns: 130px auto 130px minmax(150px, 1fr) minmax(150px, 1fr) minmax(230px, 1.25fr) 42px;
+    /* FAZA 3w: dodata kolona za #d-open-shift-from-book (premesteno ovde iz
+       bočnog panela), pre dugmeta za osvežavanje. */
+    grid-template-columns: 130px auto 130px minmax(150px, 1fr) minmax(150px, 1fr) minmax(230px, 1.25fr) auto 42px;
+  }
+
+  /* FAZA 3w: "Otvori smenu" dugme premešteno iz .cashbook-lock-note u gornji
+     filter red - kompaktna inline varijanta iste visine kao ostali filteri,
+     umesto pune (60px) .cash-count-action forme. */
+  .cashbook-filters .cash-count-action {
+    display: inline-flex;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 14px;
+    text-align: center;
+    white-space: nowrap;
+    width: auto;
+  }
+
+  .cashbook-filters .cash-count-action i {
+    font-size: 16px;
   }
 
   .cashbook-filter,
@@ -3963,8 +3990,8 @@
   }
 
   html.mobile-view .m-header {
-    padding: calc(9px * var(--mobile-scale)) calc(12px * var(--mobile-scale)) calc(7px * var(--mobile-scale));
-    padding-top: max(calc(9px * var(--mobile-scale)), env(safe-area-inset-top));
+    padding: calc(6px * var(--mobile-scale)) calc(12px * var(--mobile-scale)) calc(5px * var(--mobile-scale));
+    padding-top: max(calc(6px * var(--mobile-scale)), env(safe-area-inset-top));
   }
 
   html.mobile-view .m-header-balance {
@@ -4656,8 +4683,8 @@
     }
 
     .m-header {
-      padding: calc(9px * var(--mobile-scale)) calc(12px * var(--mobile-scale)) calc(7px * var(--mobile-scale));
-      padding-top: max(calc(9px * var(--mobile-scale)), env(safe-area-inset-top));
+      padding: calc(6px * var(--mobile-scale)) calc(12px * var(--mobile-scale)) calc(5px * var(--mobile-scale));
+      padding-top: max(calc(6px * var(--mobile-scale)), env(safe-area-inset-top));
     }
 
     .m-header-balance {
@@ -4669,7 +4696,7 @@
     }
 
     .m-header-kpi {
-      margin-top: calc(7px * var(--mobile-scale));
+      margin-top: calc(5px * var(--mobile-scale));
     }
 
     .m-chip,
@@ -5035,6 +5062,9 @@
   .po-status-rejected { background: rgba(239, 68, 68, .22); color: #ff7676; }
   .po-status-cancelled { background: rgba(148, 163, 184, .20); color: #d5dde8; }
   .po-status-processing { background: rgba(245, 158, 11, .22); color: #f8c35b; }
+  /* FAZA 3w: Nacrt/Vraćena na doradu (najava uplate pre slanja u blagajnu) - siva/
+     neutralna, da se vizuelno ne pobrka sa "Čeka uplatu" (žuta, već poslata). */
+  .po-status-draft { background: rgba(148, 163, 184, .20); color: #b7c3d2; border: 1px dashed rgba(148, 163, 184, .4); }
 
   .po-pagination {
     align-items: center;

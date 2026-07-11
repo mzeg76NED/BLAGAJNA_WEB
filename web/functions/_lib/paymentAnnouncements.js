@@ -118,7 +118,10 @@ export async function createAnnouncementCore(env, data, actor, session) {
     partner_name: partnerName,
     purpose: String(data.purpose || '').trim() || null,
     note: String(data.note || '').trim() || null,
-    status: 'OPEN'
+    // FAZA 3w: nova najava je NACRT (DRAFT), ne odmah OPEN - vidljiva je samo svom
+    // autoru dok se eksplicitno ne "posalje u blagajnu" (vidi sendAnnouncementToCashierCore).
+    // Do tada ne proizvodi nikakvu akciju i ne pojavljuje se u Knjizi/kod blagajnika.
+    status: 'DRAFT'
   };
 
   const rows = await supabaseRest(env, '/payment_announcements', {
@@ -131,20 +134,136 @@ export async function createAnnouncementCore(env, data, actor, session) {
   return created;
 }
 
-// filters: { cashbox_id, currency, status, created_by }
+// data: { announced_amount, partner_name, purpose, note, currency }
+// `canOverride` is decided by the caller (endpoint layer, which already knows via
+// verifySession whether the actor holds payment_announcements:match) - a supervisor
+// with :match may edit/send on the original author's behalf; a plain :create-only
+// actor (ANNOUNCER) may only touch their own drafts.
+// Editable only while DRAFT or RETURNED (not yet sent, or sent back for revision) -
+// once OPEN/MATCHED/CANCELLED the item is either live for the cashier or finished, and
+// per spec "kada se pošalje na blagajnu nema više menjanja niti ažuriranja".
+export async function updateAnnouncementCore(env, announcementId, data, actor, session, canOverride) {
+  data = data || {};
+  const announcement = await findAnnouncement(env, announcementId);
+  if (!announcement) throw new BusinessError('Najava nije pronađena: ' + announcementId, 404);
+  if (!['DRAFT', 'RETURNED'].includes(announcement.status)) {
+    throw new BusinessError('Najava se može menjati samo dok je nacrt ili vraćena na doradu (trenutni status: ' + announcement.status + ').', 409);
+  }
+  const email = actor.email || actor.user_code || '';
+  if (announcement.created_by !== email && !canOverride) {
+    throw new BusinessError('Možete menjati samo sopstvene najave.', 403);
+  }
+
+  const updates = { updated_at: new Date().toISOString() };
+  if (data.announced_amount !== undefined) {
+    const amount = safeNumber(data.announced_amount);
+    if (!(amount > 0)) throw new BusinessError('Najavljeni iznos mora biti veći od nule.', 400);
+    updates.announced_amount = amount;
+  }
+  if (data.partner_name !== undefined) {
+    const partnerName = String(data.partner_name || '').trim();
+    if (!partnerName) throw new BusinessError('Naziv uplatioca je obavezan.', 400);
+    updates.partner_name = partnerName;
+  }
+  if (data.purpose !== undefined) updates.purpose = String(data.purpose || '').trim() || null;
+  if (data.note !== undefined) updates.note = String(data.note || '').trim() || null;
+  if (data.currency !== undefined && String(data.currency).trim()) {
+    const currencyRow = await findCurrency(env, String(data.currency).trim());
+    if (!currencyRow || !currencyRow.active) throw new BusinessError('Valuta nije aktivna.', 400);
+    updates.currency = String(data.currency).trim();
+  }
+
+  const rows = await supabaseRest(env, '/payment_announcements?announcement_id=' + encodeEq(announcementId), {
+    method: 'PATCH',
+    headers: { prefer: 'return=representation' },
+    body: JSON.stringify(updates)
+  });
+  const updated = rows && rows.length ? rows[0] : Object.assign({}, announcement, updates);
+  await insertAuditLog(env, 'UPDATE', announcementId, announcement, updated, 'PAYMENT_ANNOUNCEMENT_UPDATED', actor, session, announcement.cashbox_id);
+  return updated;
+}
+
+// DRAFT/RETURNED -> OPEN. From this point the announcement is visible to whoever has
+// payment_announcements:view/:match and can be matched against a real inflow.
+export async function sendAnnouncementToCashierCore(env, announcementId, actor, session, canOverride) {
+  const announcement = await findAnnouncement(env, announcementId);
+  if (!announcement) throw new BusinessError('Najava nije pronađena: ' + announcementId, 404);
+  if (!['DRAFT', 'RETURNED'].includes(announcement.status)) {
+    throw new BusinessError('Najava je već poslata u blagajnu (trenutni status: ' + announcement.status + ').', 409);
+  }
+  const email = actor.email || actor.user_code || '';
+  if (announcement.created_by !== email && !canOverride) {
+    throw new BusinessError('Možete slati u blagajnu samo sopstvene najave.', 403);
+  }
+
+  const now = new Date().toISOString();
+  const updates = {
+    status: 'OPEN',
+    sent_by: email,
+    sent_at: now,
+    updated_at: now
+  };
+  const rows = await supabaseRest(env, '/payment_announcements?announcement_id=' + encodeEq(announcementId), {
+    method: 'PATCH',
+    headers: { prefer: 'return=representation' },
+    body: JSON.stringify(updates)
+  });
+  const updated = rows && rows.length ? rows[0] : Object.assign({}, announcement, updates);
+  await insertAuditLog(env, 'SEND', announcementId, announcement, updated, 'PAYMENT_ANNOUNCEMENT_SENT_TO_CASHIER', actor, session, announcement.cashbox_id);
+  return updated;
+}
+
+// OPEN -> RETURNED (blagajnik/supervizor odbija najavu i vraća je autoru na doradu,
+// umesto da je upari) - postaje ponovo editabilna za autora, treba je ponovo poslati.
+export async function returnAnnouncementForRevisionCore(env, announcementId, reason, actor, session) {
+  const announcement = await findAnnouncement(env, announcementId);
+  if (!announcement) throw new BusinessError('Najava nije pronađena: ' + announcementId, 404);
+  if (announcement.status !== 'OPEN') {
+    throw new BusinessError('Samo najava koja čeka uplatu (OPEN) može biti vraćena na doradu (trenutni status: ' + announcement.status + ').', 409);
+  }
+
+  const now = new Date().toISOString();
+  const updates = {
+    status: 'RETURNED',
+    returned_by: actor.email || actor.user_code || '',
+    returned_at: now,
+    return_reason: String(reason || '').trim() || null,
+    updated_at: now
+  };
+  const rows = await supabaseRest(env, '/payment_announcements?announcement_id=' + encodeEq(announcementId), {
+    method: 'PATCH',
+    headers: { prefer: 'return=representation' },
+    body: JSON.stringify(updates)
+  });
+  const updated = rows && rows.length ? rows[0] : Object.assign({}, announcement, updates);
+  await insertAuditLog(env, 'RETURN', announcementId, announcement, updated, 'PAYMENT_ANNOUNCEMENT_RETURNED_FOR_REVISION', actor, session, announcement.cashbox_id);
+  return updated;
+}
+
+// filters: { cashbox_id, currency, status, created_by, date_from, date_to }
 // `created_by` is set by the caller (api/payment-announcements/list.js) when the acting
 // user only has payment_announcements:create (the ANNOUNCER role) - they may not browse
 // everyone's announcements, but they SHOULD be able to see the ones they themselves
-// submitted (status Čeka uplatu / Uparena / Otkazana), otherwise a najava disappears
-// into a void the moment it's created with no way to confirm it went through.
+// submitted (including DRAFT/RETURNED - that IS their working list), otherwise a najava
+// disappears into a void the moment it's created with no way to confirm it went through.
+//
+// FAZA 3w: without an explicit status AND without a specific created_by filter (e.g. the
+// Knjiga merge, or a supervisor's unscoped browse), DRAFT/RETURNED rows are hidden
+// entirely - per spec they "don't exist yet" for anyone but their author until sent.
 export async function listAnnouncementsCore(env, user, filters) {
   filters = filters || {};
   const cashboxId = scopeCashboxForAnnouncements(user, filters.cashbox_id);
   let path = '/payment_announcements?select=*';
   if (cashboxId) path += '&cashbox_id=' + encodeEq(cashboxId);
   if (filters.currency) path += '&currency=' + encodeEq(filters.currency);
-  if (filters.status) path += '&status=' + encodeEq(filters.status);
   if (filters.created_by) path += '&created_by=' + encodeEq(filters.created_by);
+  if (filters.status) {
+    path += '&status=' + encodeEq(filters.status);
+  } else if (!filters.created_by) {
+    path += '&status=in.(OPEN,MATCHED,CANCELLED)';
+  }
+  if (filters.date_from) path += '&created_at=gte.' + encodeEq(filters.date_from + 'T00:00:00');
+  if (filters.date_to) path += '&created_at=lte.' + encodeEq(filters.date_to + 'T23:59:59.999');
   path += '&order=created_at.desc&limit=500';
   return (await supabaseRest(env, path)) || [];
 }
@@ -267,7 +386,11 @@ export async function matchAnnouncementCore(env, announcementId, data, actor, se
 export async function cancelAnnouncementCore(env, announcementId, reason, actor, session) {
   const announcement = await findAnnouncement(env, announcementId);
   if (!announcement) throw new BusinessError('Najava nije pronađena: ' + announcementId, 404);
-  if (announcement.status !== 'OPEN') throw new BusinessError('Samo najava u statusu OPEN može biti otkazana.', 409);
+  // FAZA 3w: otkazivanje dozvoljeno u bilo kom stanju PRE uparivanja (DRAFT/OPEN/
+  // RETURNED) - nakon MATCHED je vec proizvela stvarno knjizenje i ne moze se otkazati.
+  if (!['DRAFT', 'OPEN', 'RETURNED'].includes(announcement.status)) {
+    throw new BusinessError('Najava u statusu ' + announcement.status + ' ne može biti otkazana.', 409);
+  }
 
   const now = new Date().toISOString();
   const updates = {
