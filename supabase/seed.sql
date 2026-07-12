@@ -116,19 +116,33 @@ values
   ('ADMIN', 'users:create', true),
   ('ADMIN', 'users:disable', true),
   ('ADMIN', 'users:update', true),
+  -- FAZA 3w-9: DIREKTOR = "pregled svih dokumenata, samo pregled" + obavezan presek
+  -- (hardkodovano u _lib/mandatoryCount.js, ne ide kroz permisije) + nova najava +
+  -- novi nalog, sa svim akcijama nad SOPSTVENIM najavama (ownership provera vec
+  -- postoji u _lib/paymentAnnouncements.js preko :match, zato ga DIREKTOR NEMA), a na
+  -- Nalogu za isplatu sve akcije bez obzira na vlasnika (payment_orders nema ownership
+  -- proveru u kodu, pa pun set = trazeno ponasanje) - videti migraciju
+  -- 202607121300_director_permissions_fix.sql za detaljno obrazlozenje.
   ('DIRECTOR', 'audit:view', true),
   ('DIRECTOR', 'cash_events:view', true),
-  ('DIRECTOR', 'documents:attach', true),
-  ('DIRECTOR', 'documents:cancel', true),
+  ('DIRECTOR', 'documents:attach', false),
+  ('DIRECTOR', 'documents:cancel', false),
   ('DIRECTOR', 'documents:view', true),
+  ('DIRECTOR', 'payment_orders:cancel', true),
   ('DIRECTOR', 'payment_orders:create', true),
+  ('DIRECTOR', 'payment_orders:execute', true),
   ('DIRECTOR', 'payment_orders:issue', true),
+  ('DIRECTOR', 'payment_orders:reject', true),
+  ('DIRECTOR', 'payment_orders:reverse', true),
   ('DIRECTOR', 'payment_orders:view', true),
-  ('DIRECTOR', 'payment_requests:approve', true),
-  ('DIRECTOR', 'payment_requests:create', true),
-  ('DIRECTOR', 'payment_requests:reject', true),
-  ('DIRECTOR', 'payment_requests:return_for_correction', true),
+  ('DIRECTOR', 'payment_requests:approve', false),
+  ('DIRECTOR', 'payment_requests:create', false),
+  ('DIRECTOR', 'payment_requests:reject', false),
+  ('DIRECTOR', 'payment_requests:return_for_correction', false),
   ('DIRECTOR', 'payment_requests:view_all', true),
+  ('DIRECTOR', 'payment_announcements:view', true),
+  ('DIRECTOR', 'payment_announcements:create', true),
+  ('DIRECTOR', 'payment_announcements:match', false),
   ('DIRECTOR', 'shifts:view', true),
   ('FINANCE', 'audit:view', true),
   ('FINANCE', 'cash_events:create', true),
