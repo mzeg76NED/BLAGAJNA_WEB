@@ -5263,6 +5263,22 @@
     overflow: hidden;
   }
 
+  /* FAZA 3w-6: PRAVI uzrok "dugmad i dalje skacu" i posle FAZA 3w-5 ispravke -
+     .po-order-detail-scroll (flex:1;overflow:auto) i .po-panel-actions
+     (flex-shrink:0) su deca #d-order-detail-body, NE direktna deca
+     .po-detail-panel - a #d-order-detail-body (obican <div> u koji JS ubacuje
+     innerHTML) NIJE bio flex kontejner, pa su flex:1/flex-shrink:0 na njegovoj
+     deci potpuno bez efekta (te osobine rade samo unutar flex/grid roditelja).
+     Bez ovoga se ceo sadrzaj samo secirao (overflow:hidden na .po-detail-panel)
+     umesto da skroluje, a dugmad su ostajala na mestu gde ih je "Tok naloga"
+     gurnuo pre secenja - otud utisak skakanja pri prebacivanju izmedju naloga. */
+  .payment-orders-page #d-order-detail-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .payment-orders-page .po-order-detail-scroll {
     flex: 1;
     min-height: 0;
