@@ -10636,4 +10636,164 @@
         '<p>' + escapeHtml(options.message || '') + '</p>' +
         '<textarea rows="4" data-dialog-input placeholder="' + escapeHtml(options.placeholder || options.label || '') + '"></textarea>' +
         '<div class="app-dialog-actions">' +
-          '<button type="button" class="b
+          '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
+          '<button type="button" class="' + (options.danger ? 'btn-out' : 'btn-primary') + '" data-dialog-ok>' + escapeHtml(options.confirmText || 'Potvrdi') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var input = overlay.querySelector('[data-dialog-input]');
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-dialog-ok]').addEventListener('click', function() {
+      var value = (input.value || '').trim();
+      if (!value) {
+        input.focus();
+        showMessage('Unesite razlog pre potvrde.', 'error');
+        return;
+      }
+      close();
+      onConfirm(value);
+    });
+    window.setTimeout(function() { input.focus(); }, 50);
+  }
+
+  function appConfirm_(options, onConfirm) {
+    options = options || {};
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>' + escapeHtml(options.title || 'Potvrda') + '</h3>' +
+        '<p>' + escapeHtml(options.message || 'Da li želite da nastavite?') + '</p>' +
+        '<div class="app-dialog-actions">' +
+          '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
+          '<button type="button" class="' + (options.danger ? 'btn-out' : 'btn-primary') + '" data-dialog-ok>' + escapeHtml(options.confirmText || 'Potvrdi') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-dialog-ok]').addEventListener('click', function() {
+      close();
+      onConfirm();
+    });
+  }
+
+  function appHtmlDialog_(options) {
+    options = options || {};
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<h3>' + escapeHtml(options.title || 'Pregled') + '</h3>' +
+        '<div>' + (options.html || '') + '</div>' +
+        '<div class="app-dialog-actions" style="margin-top:12px">' +
+          '<button type="button" class="btn-primary" data-dialog-ok>' + escapeHtml(options.confirmText || 'Zatvori') + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-dialog-ok]').addEventListener('click', close);
+  }
+
+  function updateHeaderClock_() {
+    var now = new Date();
+    var dateText = now.toLocaleDateString('sr-RS', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    var timeText = now.toLocaleTimeString('sr-RS', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    var dDate = document.getElementById('d-current-date');
+    var dTime = document.getElementById('d-current-time');
+    var mDate = document.getElementById('m-current-date');
+    var mTime = document.getElementById('m-current-time');
+    if (dDate) dDate.textContent = dateText;
+    if (dTime) dTime.textContent = timeText;
+    if (mDate) mDate.textContent = dateText;
+    if (mTime) mTime.textContent = timeText;
+  }
+
+  function startHeaderClock_() {
+    updateHeaderClock_();
+    if (window.__blagajnaClockTimer) return;
+    window.__blagajnaClockTimer = window.setInterval(updateHeaderClock_, 1000);
+  }
+
+  function startLiveRefresh_(isDesktop, isMobile) {
+    if (window.__blagajnaLiveRefreshTimer) {
+      window.clearInterval(window.__blagajnaLiveRefreshTimer);
+    }
+    window.__blagajnaLiveRefreshTimer = window.setInterval(function() {
+      if (document.hidden) return;
+      refreshActiveShiftState_({ enforce: false, refreshKnjiga: false });
+      refreshBalance_();
+      loadKnjiga_(true);
+      refreshCashboxesMandatoryStatus_();
+      if (isMobile) loadMobileNalozi_();
+      if (isDesktop) loadDesktopNavBadges_();
+    }, 15000);
+  }
+
+  function registerPwa_() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      navigator.serviceWorker.register('?view=sw').catch(function() {});
+    } catch (err) {}
+  }
+
+  /* ─── Bootstrap: prošireni DOMContentLoaded ──────────────────── */
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var isMobile  = Boolean(document.querySelector('.m-shell'));
+    var isDesktop = Boolean(document.querySelector('.d-shell'));
+
+    if (isMobile)  { bindMobileNav_();  bindMobileSheet_(); }
+    if (isDesktop) { bindDesktopNav_(); bindDesktopQuickForm_(); }
+    if (isMobile)  { bindModernShellForms_(); }
+    bindBalanceOverviewButtons_();
+    bindShiftWorkActions_();
+    bindAmountFormatting_();
+    bindDesktopEnterFlow_();
+    startHeaderClock_();
+    registerPwa_();
+
+    // Današnji datum u date inputima
+    var today = new Date().toISOString().split('T')[0];
+    ['d-date-from','d-date-to'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.value = today;
+    });
+    document.querySelectorAll('[data-today]').forEach(function(el) { if (!el.value) el.value = today; });
+
+    // Datum u mobilnom headeru
+    var dateEl = document.getElementById('m-date');
+    if (dateEl) {
+      var now = new Date();
+      dateEl.textContent = now.getDate() + '.' + (now.getMonth()+1) + '.' + now.getFullYear() + '.';
+    }
+
+    if (isDesktop || isMobile) {
+      // FAZA 3s: mobilni prikaz je ranije preskakao login gate potpuno (pretpostavljao
+      // je da je sesija već uspostavljena preko desktop prijave na istom browseru) - sada
+      // oba prikaza prolaze kroz isti generički login/logout mehanizam.
+      initDesktopAppLogin_(function() {
+        callApi('apiGetUiBootstrap', [isDesktop], function(data) {
+          bootstrapShellAfterAppSession_(isDesktop, isMobile, data);
+        }, { quiet: true });
+      });
+      return;
+    }
+
+    // Bootstrap API call (fallback za slučaj da ni .d-shell ni .m-shell nisu prisutni)
+    callApi('apiGetUiBootstrap', [isDesktop], function(data) {
+      bootstrapShellAfterAppSession_(isDesktop, isMobile, data);
+    }, { quiet: true });
+  });
+
+</script>

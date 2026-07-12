@@ -6440,4 +6440,304 @@
 
     html.printing-cashsheet-overlay #print-cashsheet-overlay {
       background: #ffffff !important;
-      color: #111827 !impor
+      color: #111827 !important;
+      display: block !important;
+      padding: 16px !important;
+      width: 100% !important;
+    }
+
+    #print-cashsheet-overlay .book-table {
+      border-collapse: collapse !important;
+      color: #111827 !important;
+      font-size: 11px !important;
+      width: 100% !important;
+    }
+
+    #print-cashsheet-overlay .book-table th,
+    #print-cashsheet-overlay .book-table td {
+      background: #ffffff !important;
+      border: 1px solid #d1d5db !important;
+      color: #111827 !important;
+      padding: 5px 6px !important;
+    }
+
+    #print-cashsheet-overlay .book-table th {
+      background: #f3f4f6 !important;
+      font-weight: 800 !important;
+    }
+
+    /* Priznanica (buildReceiptPrintHtml_) - dva primerka (arhiva/korisnik) na jednoj
+       strani, po uzoru na stari GAS print-cash-event.html izlaz koji je korisnik
+       priložio kao referencu. Isti overlay mehanizam kao Blagajnički list iznad. */
+    .receipt-sheet {
+      display: block !important;
+    }
+
+    .receipt-copy {
+      border: 1px dashed #9ca3af !important;
+      break-inside: avoid !important;
+      margin-bottom: 14px !important;
+      padding: 14px !important;
+      position: relative !important;
+    }
+
+    .receipt-copy-label {
+      color: #6b7280 !important;
+      font-size: 10px !important;
+      font-weight: 800 !important;
+      letter-spacing: .04em !important;
+      position: absolute !important;
+      right: 14px !important;
+      text-transform: uppercase !important;
+      top: 10px !important;
+    }
+
+    .receipt-head {
+      align-items: flex-start !important;
+      border-bottom: 1px solid #d1d5db !important;
+      display: flex !important;
+      justify-content: space-between !important;
+      padding-bottom: 8px !important;
+    }
+
+    .receipt-head strong {
+      color: #111827 !important;
+      display: block !important;
+      font-size: 14px !important;
+    }
+
+    .receipt-head span {
+      color: #4b5563 !important;
+      display: block !important;
+      font-size: 10px !important;
+    }
+
+    .receipt-head-right {
+      text-align: right !important;
+    }
+
+    .receipt-box {
+      border: 1px solid #16a34a !important;
+      border-radius: 4px !important;
+      margin: 10px 0 !important;
+      padding: 10px 12px !important;
+    }
+
+    .receipt-box h3 {
+      color: #111827 !important;
+      font-size: 13px !important;
+      margin: 0 0 6px !important;
+    }
+
+    .receipt-meta {
+      color: #374151 !important;
+      display: flex !important;
+      font-size: 11px !important;
+      gap: 16px !important;
+      margin-bottom: 2px !important;
+    }
+
+    .receipt-amount {
+      color: #16a34a !important;
+      font-size: 24px !important;
+      font-weight: 800 !important;
+      margin: 6px 0 2px !important;
+    }
+
+    .receipt-words {
+      color: #4b5563 !important;
+      font-size: 11px !important;
+      font-style: italic !important;
+    }
+
+    .receipt-details {
+      display: grid !important;
+      font-size: 11px !important;
+      gap: 4px !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      margin-bottom: 10px !important;
+    }
+
+    .receipt-details strong {
+      color: #374151 !important;
+      display: block !important;
+      font-size: 10px !important;
+    }
+
+    .receipt-details span {
+      color: #111827 !important;
+    }
+
+    .receipt-sign-row {
+      display: flex !important;
+      gap: 40px !important;
+      justify-content: space-between !important;
+      margin: 20px 0 8px !important;
+    }
+
+    .receipt-sign {
+      border-top: 1px solid #9ca3af !important;
+      color: #6b7280 !important;
+      flex: 1 !important;
+      font-size: 10px !important;
+      padding-top: 3px !important;
+      text-align: center !important;
+    }
+
+    .receipt-footer {
+      color: #9ca3af !important;
+      font-size: 8px !important;
+      text-align: center !important;
+    }
+  }
+
+  @media print {
+    html,
+    body {
+      background: #ffffff !important;
+      color: #111827 !important;
+    }
+
+    .d-sidebar,
+    .d-topbar,
+    .knjiga-side,
+    .status-toast,
+    .message,
+    #d-section-blagajnicki-list .card-head input,
+    #d-section-blagajnicki-list .card-head select,
+    #d-section-blagajnicki-list .card-head button {
+      display: none !important;
+    }
+
+    .d-shell,
+    .d-content,
+    #d-section-blagajnicki-list,
+    #d-section-blagajnicki-list.active,
+    #d-section-blagajnicki-list .knjiga-layout,
+    #d-section-blagajnicki-list .knjiga-main,
+    #d-section-blagajnicki-list .card {
+      background: #ffffff !important;
+      color: #111827 !important;
+      display: block !important;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+      padding: 0 !important;
+      width: 100% !important;
+    }
+
+    .d-section:not(#d-section-blagajnicki-list) {
+      display: none !important;
+    }
+
+    #d-section-blagajnicki-list .card {
+      border: 0 !important;
+      box-shadow: none !important;
+    }
+
+    #d-section-blagajnicki-list .card-head {
+      border: 0 !important;
+      display: block !important;
+      padding: 0 0 8px !important;
+    }
+
+    #d-section-blagajnicki-list h2 {
+      color: #111827 !important;
+      font-size: 22px !important;
+      margin: 0 0 10px !important;
+    }
+
+    .cashsheet-header,
+    .cashsheet-calc {
+      display: grid !important;
+      gap: 6px !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      padding: 0 0 10px !important;
+    }
+
+    .cashsheet-header div,
+    .cashsheet-calc-row {
+      background: #ffffff !important;
+      border: 1px solid #d1d5db !important;
+      color: #111827 !important;
+      padding: 7px 9px !important;
+    }
+
+    .cashsheet-header span,
+    .cashsheet-calc-row span {
+      color: #4b5563 !important;
+    }
+
+    /* Ekranski prikaz (renderCashSheet_) sada koristi .cashbook-kpi-card umesto
+       .cashsheet-calc-row (FAZA 3s) - kad se štampa direktno preko "Štampa / PDF (ceo
+       list)" dugmeta (window.print() nad vidljivom sekcijom, ne overlay), spljošti
+       kartice u iste jednostavne redove kao gore, bez gradijenata/senki/ikonica koje
+       se loše štampaju. */
+    #d-section-blagajnicki-list .cashsheet-kpis {
+      display: grid !important;
+      gap: 6px !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      padding: 0 0 10px !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-kpis .cashbook-kpi-card {
+      background: #ffffff !important;
+      border: 1px solid #d1d5db !important;
+      box-shadow: none !important;
+      color: #111827 !important;
+      display: block !important;
+      padding: 7px 9px !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-kpis .cashbook-kpi-icon {
+      display: none !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-kpis span {
+      color: #4b5563 !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-kpis strong {
+      color: #111827 !important;
+    }
+
+    #d-section-blagajnicki-list .cashsheet-row-print-btn {
+      display: none !important;
+    }
+
+    .cashbook-row-clip,
+    .m-entry-clip {
+      display: none !important;
+    }
+
+    #d-section-blagajnicki-list .table-wrap {
+      max-height: none !important;
+      overflow: visible !important;
+    }
+
+    #d-section-blagajnicki-list .book-table {
+      border-collapse: collapse !important;
+      color: #111827 !important;
+      font-size: 11px !important;
+      width: 100% !important;
+    }
+
+    #d-section-blagajnicki-list .book-table th,
+    #d-section-blagajnicki-list .book-table td {
+      background: #ffffff !important;
+      border: 1px solid #d1d5db !important;
+      color: #111827 !important;
+      padding: 5px 6px !important;
+    }
+
+    #d-section-blagajnicki-list .book-table th {
+      background: #f3f4f6 !important;
+      font-weight: 800 !important;
+    }
+
+    @page {
+      margin: 10mm;
+      size: A4;
+    }
+  }
+</style>
