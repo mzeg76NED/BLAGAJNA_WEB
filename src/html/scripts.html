@@ -1539,6 +1539,14 @@
       }
     };
     safeStep_('applyAnnouncerRestriction_', applyAnnouncerRestriction_);
+    // FAZA 3w-9: isti "prazan hamburger meni pri prvom ucitavanju" bag prijavljen
+    // i za DIRECTOR (i, po svemu sudeci, sve ostale role) - "Najave" stavka u
+    // mobilnoj fioci (m-nav-najave) ostaje sakrivena dok korisnik ne otvori "+" >
+    // Nova najava, sto tek TADA ponovo pokrene bindAnnouncementButtons_(). Ista
+    // odbrambena mera kao gore za applyAnnouncerRestriction_: ponoviti
+    // bindAnnouncementButtons_() posle kratke pauze, za SVE role, ne samo
+    // ANNOUNCER/ASSISTANT_CASHIER - bezopasno ako je prvi prolaz vec bio ispravan.
+    window.setTimeout(function() { safeStep_('bindAnnouncementButtons_(retry)', bindAnnouncementButtons_); }, 600);
     window.setTimeout(function() { safeStep_('applyAnnouncerRestriction_(retry)', applyAnnouncerRestriction_); }, 600);
     safeStep_('loadCashbookFilterOptions_', loadCashbookFilterOptions_);
     safeStep_('bindBalanceOverviewButtons_', bindBalanceOverviewButtons_);
