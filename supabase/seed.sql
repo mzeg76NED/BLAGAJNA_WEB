@@ -204,7 +204,13 @@ values
   ('CASHIER', 'payment_announcements:create', true),
   ('CASHIER', 'payment_announcements:view', true),
   ('CASHIER', 'payment_announcements:match', true),
+  -- FAZA 3w-10: ANNOUNCER (Mika, Pera, Zika) treba da vidi SVE najave, ali da
+  -- edituje/salje SAMO svoje - dodeljeno :view BEZ :match (ista logika kao za
+  -- DIRECTOR, oslanja se na postojecu ownership proveru u
+  -- _lib/paymentAnnouncements.js: created_by !== email && !canOverride).
   ('ANNOUNCER', 'payment_announcements:create', true),
+  ('ANNOUNCER', 'payment_announcements:view', true),
+  ('ANNOUNCER', 'payment_announcements:match', false),
   ('ASSISTANT_CASHIER', 'payment_announcements:view', true),
   ('APPROVER', 'documents:attach', true),
   ('APPROVER', 'documents:view', true),

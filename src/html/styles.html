@@ -18,6 +18,7 @@
     --color-border-light: #eef0f4;
     --color-primary: #165dff;
     --color-primary-bg: #eef4ff;
+    --color-primary-border: #b8d0f7;
     --color-warning: #8a5a00;
     --color-warning-bg: #fff6d8;
     --color-warning-border: #f0c85d;
@@ -44,6 +45,7 @@
     --color-border-light: #242c38;
     --color-primary: #7aa2ff;
     --color-primary-bg: #172543;
+    --color-primary-border: #3a5a99;
     --color-warning: #ffd36a;
     --color-warning-bg: #31270f;
     --color-warning-border: #7b6422;
@@ -194,6 +196,19 @@
   }
   .btn-out:hover { background: #fde0e0; }
   :root[data-theme="dark"] .btn-out:hover { background: #482023; }
+
+  /* FAZA 3w-10: blago obojeno "providno" dugme - ista tonalna logika kao .btn-in/
+     .btn-out (bg/border/color trio), samo u plavoj nijansi, za neutralne mobilne
+     akcije (Priznanica/Dokumenti/Blagajnicki list/Slanje) koje ne treba da budu
+     ni potpuno sive (.btn-ghost) ni zelene/crvene (in/out su rezervisane za
+     uplatu/isplatu i storno). */
+  .btn-blue {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary-border);
+    color: var(--color-primary);
+  }
+  .btn-blue:hover { background: #dce8fd; }
+  :root[data-theme="dark"] .btn-blue:hover { background: #1f3252; }
 
   .btn-primary, button.primary {
     background: var(--color-primary);
