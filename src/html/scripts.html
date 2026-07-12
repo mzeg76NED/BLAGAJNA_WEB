@@ -1548,6 +1548,11 @@
     // ANNOUNCER/ASSISTANT_CASHIER - bezopasno ako je prvi prolaz vec bio ispravan.
     window.setTimeout(function() { safeStep_('bindAnnouncementButtons_(retry)', bindAnnouncementButtons_); }, 600);
     window.setTimeout(function() { safeStep_('applyAnnouncerRestriction_(retry)', applyAnnouncerRestriction_); }, 600);
+    // FAZA 3w-10: isti odbrambeni ponovni pokusaj i za "+" meni (Uplata/Isplata/
+    // Trezor/Novi presek/Novi nalog) - ako privilegije nisu bile spremne u trenutku
+    // prvog prolaza kroz applyDirectCashPermission_, ovo ih ispravno sakriva/prikazuje
+    // posle kratke pauze umesto da ostanu pogresno vidljive do sledece rucne akcije.
+    window.setTimeout(function() { safeStep_('applyDirectCashPermission_(retry)', applyDirectCashPermission_); }, 600);
     safeStep_('loadCashbookFilterOptions_', loadCashbookFilterOptions_);
     safeStep_('bindBalanceOverviewButtons_', bindBalanceOverviewButtons_);
     safeStep_('bindShiftWorkActions_', bindShiftWorkActions_);
@@ -2890,8 +2895,8 @@
       '</div>' +
       '<div class="shift-actions-grid po-panel-actions">' +
         '<button type="button" class="cash-count-action draft" data-shift-detail-presek-view><i class="ti ti-list-details" aria-hidden="true"></i> Pregled preseka</button>' +
-        (uiState.activeShift && uiState.activeShift.shift_id ? '' : '<button type="button" class="cash-count-action save" data-shift-detail-open><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>') +
-        '<button type="button" class="cash-count-action save" data-shift-detail-count' + (!isActive ? ' disabled' : '') + '><i class="ti ti-calculator" aria-hidden="true"></i> Novi presek</button>' +
+        ((uiState.activeShift && uiState.activeShift.shift_id) || !currentUserHasPrivilege_('shifts:open') ? '' : '<button type="button" class="cash-count-action save" data-shift-detail-open><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>') +
+        '<button type="button" class="cash-count-action save" data-shift-detail-count' + (!isActive || !currentUserHasPrivilege_('shifts:count') ? ' disabled' : '') + '><i class="ti ti-calculator" aria-hidden="true"></i> Novi presek</button>' +
         '<button type="button" class="cash-count-action cancel" data-shift-detail-close' + (!canClose ? ' disabled' : '') + '><i class="ti ti-lock" aria-hidden="true"></i> Zatvori smenu</button>' +
         '<button type="button" class="cash-count-action draft" data-shift-detail-book><i class="ti ti-book" aria-hidden="true"></i> Knjiga</button>' +
         '<button type="button" class="cash-count-action draft" data-shift-detail-sheet><i class="ti ti-file-invoice" aria-hidden="true"></i> Blagajnički list</button>' +
@@ -3159,13 +3164,46 @@
   // pojedinacno sakrivaju kad direktno knjizenje nije dozvoljeno (Najava ima
   // svoju vec postojecu logiku u bindAnnouncementButtons_, Novi nalog/Novi
   // presek nemaju ovaj uslov jer ne pomeraju gotovinu direktno).
+  // FAZA 3w-10: "+" meni na mobilnom je pravio Uplatu/Isplatu/Trezor VIDLJIVIM za
+  // DIREKTORA (i svaku drugu ulogu bez cash_events:create) ako je ta osoba slucajno
+  // opened_by trenutne (deljene) smene - canPostDirectCashEvents_() ima namernu
+  // "vlasnik smene" izuzetak za operativne uloge (npr. zamenski blagajnik bez
+  // formalne privilegije koji je otvorio smenu). Za DIREKTORA (rola za NADZOR, ne
+  // za fizicko rukovanje gotovinom) taj izuzetak ne sme da vazi - dugmad ovde MORAJU
+  // da prate CISTO privilegiju, bez obzira ko je otvorio smenu. Backend ionako vec
+  // trazi cash_events:create bez izuzetka (cash-events/inflow.js i dr.), pa ovo samo
+  // usaglasava front-end prikaz sa onim sto bi server ionako odbio.
+  // "Novi presek" (m-fab-new-count, DOBROVOLJNI presek) NIJE u DIREKTOROVOJ listi
+  // dozvoljenih komandi (NOVA NAJAVA/NALOG ZA ISPLATU/OBAVEZAN PRESEK) - gate-uje se
+  // sa shifts:count, za razliku od "Obavezan presek" koji ostaje posebno hardkodovan
+  // na ADMIN/DIREKTOR (bindMobileMandatoryCountFabItem_).
   function updateMobileDirectActionsVisibility_() {
-    var canPost = canPostDirectCashEvents_();
+    var canPostPrivileged = currentUserHasPrivilege_('cash_events:create');
+    var hasShift = Boolean(uiState.activeShift && uiState.activeShift.shift_id);
     ['m-btn-uplata', 'm-btn-isplata', 'm-btn-trezor'].forEach(function(id) {
       var btn = document.getElementById(id);
       if (!btn) return;
-      btn.hidden = !canPost;
+      btn.hidden = !(hasShift && canPostPrivileged);
     });
+    var newCountBtn = document.getElementById('m-fab-new-count');
+    if (newCountBtn) newCountBtn.hidden = !currentUserHasPrivilege_('shifts:count');
+    var newOrderBtn = document.getElementById('m-fab-new-order');
+    if (newOrderBtn) newOrderBtn.hidden = !currentUserHasPrivilege_('payment_orders:create');
+    applyMobileClosingFormPermission_();
+  }
+
+  // FAZA 3w-10: "Zaključi dan" forma na mobilnom (m-daily-close-form) nije imala
+  // nikakvu proveru privilegije - DIREKTOR (koji nema shifts:close) je i dalje
+  // video popunjivu formu sa dugmetom "Zaključi dan", iako bi je server odbio.
+  // "Pripremi zaključak" (samo pregled/racunica, ne menja nista) ostaje dostupan svima
+  // ko uopste vidi ovaj tab - samo sama akcija zakljucivanja se sakriva.
+  function applyMobileClosingFormPermission_() {
+    var closeForm = document.getElementById('m-daily-close-form');
+    if (!closeForm) return;
+    var card = closeForm.closest('.card') || closeForm;
+    var canClose = currentUserHasPrivilege_('shifts:close');
+    card.hidden = !canClose;
+    card.style.display = canClose ? '' : 'none';
   }
 
   function canPostDirectCashEvents_() {
@@ -6284,7 +6322,7 @@
           '<button type="button" class="cash-count-action draft" id="d-detail-documents"><i class="ti ti-paperclip" aria-hidden="true"></i> Dokumenti</button>' +
           '<button type="button" class="cash-count-action draft" id="d-detail-print"><i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list</button>' +
           '<button type="button" class="cash-count-action draft" id="d-detail-presek"><i class="ti ti-calculator" aria-hidden="true"></i> Presek blagajne</button>' +
-          '<button type="button" class="cash-count-action cancel" id="d-detail-storno"><i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno stavke</button>' +
+          '<button type="button" class="cash-count-action cancel" id="d-detail-storno"' + (currentUserHasPrivilege_('cash_events:reverse') ? '' : ' disabled') + '><i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno stavke</button>' +
         '</div>' +
         '<button type="button" class="btn-ghost btn-full" id="d-detail-close">Zatvori</button>' +
       '</div>';
