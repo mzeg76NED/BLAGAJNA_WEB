@@ -2565,6 +2565,28 @@
     });
     renderShiftDetail_(shifts[0]);
     renderShiftPageKpis_(uiState.activeShift || shifts[0], []);
+    // FAZA 3w-7: KPI red mora da prikaze PRAVE ucitane brojeve (promet/broj
+    // preseka) za aktivnu smenu, ne samo placeholder "0,00" - i to bez obzira
+    // koji red korisnik trenutno gleda u desnom panelu (vidi refreshActiveShiftKpis_).
+    if (targetId === 'd-shifts-list') refreshActiveShiftKpis_();
+  }
+
+  // FAZA 3w-7: cist helper - refresuje SAMO KPI red na vrhu Smena stranice sa
+  // dogadjajima tekuce AKTIVNE smene, bez diranja desnog detalj-panela (koji
+  // moze u tom trenutku da prikazuje NEKU DRUGU, istorijsku smenu koju je
+  // korisnik izabrao - ne sme se prepisati tudjim podacima).
+  function refreshActiveShiftKpis_() {
+    var shift = uiState.activeShift;
+    if (!shift || !shift.shift_id) return;
+    var filters = withUiDefaults({
+      cashbox_id: shift.cashbox_id || SESSION.cashboxId,
+      shift_id: shift.shift_id,
+      limit: 500
+    });
+    delete filters.currency;
+    callApi('apiGetCashMovementsReport', [filters], function(result) {
+      renderShiftPageKpis_(shift, result || []);
+    }, { quiet: true });
   }
 
   function filterDesktopShifts_(shifts) {
@@ -2789,7 +2811,8 @@
     delete filters.currency;
     callApi('apiGetCashMovementsReport', [filters], function(result) {
       var events = result || [];
-      renderShiftPageKpis_(shift, events);
+      var isActiveShift = Boolean(uiState.activeShift && uiState.activeShift.shift_id === shift.shift_id);
+      if (isActiveShift) renderShiftPageKpis_(shift, events);
       var timeline = document.getElementById('d-shift-detail-timeline');
       var currencies = document.getElementById('d-shift-detail-currencies');
       var counts = document.getElementById('d-shift-detail-counts');
@@ -2820,6 +2843,16 @@
         '</div>' +
         '<span class="shift-status-badge ' + shiftStatusClass_(shift.status) + '">' + escapeHtml(shiftStatusLabel_(shift.status)) + '</span>' +
       '</div>' +
+      // FAZA 3w-7: isti "fiksni panel, skroluje samo sadrzaj" obrazac kao Nalog
+      // za isplatu (.po-order-detail-scroll). Ranije je ceo .shift-detail-panel
+      // imao overflow:auto (jedna velika skrol-zona) sa dugmadima "sticky bottom"
+      // UNUTAR nje - sticky se aktivira tek kad se skroluje do kraja te zone, pa
+      // je pri svakom prebacivanju izmedju smena (razlicita duzina timeline-a/
+      // rezultata preseka/unosa) sadrzaj pocinjao od vrha, a dugmad su bila na
+      // razlicitoj poziciji (ponekad odmah ispod sadrzaja, ponekad van ekrana dok
+      // se ne skroluje do dna) - otud utisak da "sadrzaj skace". Sad su dugmad
+      // VAN skrolujuce zone, kao fiksni podnozje - uvek na istom mestu.
+      '<div class="shift-detail-scroll">' +
       '<div class="shift-detail-info-grid">' +
         '<div><i class="ti ti-user" aria-hidden="true"></i><span>Blagajnik</span><strong>' + escapeHtml(shortUserLabel_(shift.opened_by || '')) + '</strong></div>' +
         '<div><i class="ti ti-calendar-event" aria-hidden="true"></i><span>Početak smene</span><strong>' + escapeHtml(formatDateTimeShort_(shift.opened_at)) + '</strong></div>' +
@@ -2830,6 +2863,7 @@
       '<section class="shift-detail-section"><h4>Pregled po valutama</h4><div id="d-shift-detail-currencies">' + renderShiftCurrencySummary_(shift, []) + '</div></section>' +
       '<section class="shift-detail-section"><h4>Rezultati preseka</h4><div id="d-shift-detail-counts">' + renderShiftCountResults_(shift, []) + '</div></section>' +
       '<section class="shift-detail-section"><h4>Pregled po unosima</h4><div id="d-shift-detail-entries"><div class="shift-muted">Učitavam stavke smene...</div></div></section>' +
+      '</div>' +
       '<div class="shift-actions-grid po-panel-actions">' +
         '<button type="button" class="cash-count-action draft" data-shift-detail-presek-view><i class="ti ti-list-details" aria-hidden="true"></i> Pregled preseka</button>' +
         (uiState.activeShift && uiState.activeShift.shift_id ? '' : '<button type="button" class="cash-count-action save" data-shift-detail-open><i class="ti ti-circle-plus" aria-hidden="true"></i> Otvori smenu</button>') +
@@ -2839,7 +2873,14 @@
         '<button type="button" class="cash-count-action draft" data-shift-detail-sheet><i class="ti ti-file-invoice" aria-hidden="true"></i> Blagajnički list</button>' +
       '</div>';
     attachShiftDetailActions_(target, shift);
-    renderShiftPageKpis_(shift, []);
+    // FAZA 3w-7: KPI red na vrhu (AKTIVNA SMENA/POCETNO STANJE/PROMET/...) treba
+    // UVEK da prikazuje tekucu AKTIVNU smenu, ne onu koju korisnik trenutno gleda
+    // u desnom panelu - inace brojevi u KPI redu "skacu" pri svakom kliku na
+    // drugu (zatvorenu/istorijsku) smenu, sto je delovalo kao dodatni bag pored
+    // pomeranja dugmadi. "AKTIVNA SMENA" kartica je vec uvek koristila
+    // uiState.activeShift (vidi renderShiftPageKpis_) - ostale kartice sad rade
+    // isto, umesto da prate izabrani red u tabeli.
+    if (isActive) renderShiftPageKpis_(shift, []);
     loadShiftEventsForDetail_(shift);
   }
 

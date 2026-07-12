@@ -3532,12 +3532,28 @@
     flex: 1;
   }
 
+  /* FAZA 3w-7: fiksni panel (kao .payment-orders-page .po-detail-panel) - skroluje
+     SAMO unutrasnji .shift-detail-scroll omotac, ne ceo panel (vidi komentar u
+     scripts.html renderShiftDetail_ za puno objasnjenje uzroka "sadrzaj skace"). */
   .shift-detail-panel {
+    display: flex;
+    flex-direction: column;
     max-height: 100%;
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .shifts-page #d-shift-detail-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .shift-detail-panel .shift-detail-scroll {
+    flex: 1;
+    min-height: 0;
     overflow: auto;
-    position: sticky;
-    top: 0;
   }
 
   .shifts-panel-head {
@@ -3866,27 +3882,17 @@
     margin-top: 8px;
   }
 
-  /* FAZA 3w fix (#104): "Isto važi i za formu smene, primeni iste visuale" - dugmad
-     ostaju vidljiva na dnu panela dok se .shift-detail-panel skroluje (sticky footer
-     unutar scroll kontejnera), umesto da se odvuku van ekrana zajedno sa sadržajem
-     iznad njih. Pozadina mora da se poklopi sa .shift-detail-panel da tekst ispod
-     ne "probija" kroz providnu traku dugmadi dok se skroluje. */
-  /* FAZA 3w-2: display/grid-template-columns/gap namerno UKLONJENI odavde - ova
-     traka sad dobija SVOJ layout iskljucivo od .po-panel-actions (dodato kao
-     druga klasa u renderShiftDetail_, isto kao Zahtevi/Nalog za isplatu), da ne
-     bi dve konkurentske definicije (grid ovde vs flex tamo) nepredvidivo odlucivale
-     ko pobedjuje po redosledu u fajlu - to je bio uzrok neujednacenog izgleda na
-     Smeni. Ovde ostaju SAMO sticky-footer specificne osobine (pozicija/pozadina). */
+  /* FAZA 3w-7: dugmad VISE NISU "sticky" unutar jedne velike skrol-zone (taj
+     pristup je bio stvarni uzrok "sadrzaj skace" - sticky se aktivira tek na
+     kraju skrola, pa je pozicija dugmadi zavisila od duzine sadrzaja tekuce
+     smene). Sad su .shift-detail-scroll (skroluje) i .shift-actions-grid
+     (fiksno) odvojena rodjena braca van skrol zone (vidi .shift-detail-panel
+     i #d-shift-detail-body flex pravila gore) - isti obrazac kao Nalog za
+     isplatu (.po-order-detail-scroll / .po-panel-actions). */
   .shift-actions-grid {
     background: linear-gradient(145deg, rgba(10, 34, 58, 0.9), rgba(8, 25, 43, 0.94));
-    /* FAZA 3w-5 fix: bio je "bottom: -14px" (negativna vrednost) - to gura
-       lepljivi element 14px ISPOD donje ivice scroll kontejnera, sto moze da
-       ga delimicno iseca ili ga spreci da se ispravno "zalepi" pri skrolovanju
-       (razlog "dugmad se pomeraju/nestaju" na Smeni). "bottom: 0" je ispravan,
-       standardan nacin da se element zalepi tacno uz donju ivicu kontejnera. */
-    bottom: 0;
+    flex-shrink: 0;
     padding: 10px 0 14px;
-    position: sticky;
   }
 
   :root:not([data-theme="dark"]) .shift-actions-grid {

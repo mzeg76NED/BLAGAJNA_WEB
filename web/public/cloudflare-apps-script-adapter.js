@@ -80,7 +80,7 @@
       // NAPOMENA: ovaj string se vidi u headeru (desktop) i hamburger fioci (mobilni) -
       // korisnik ga koristi da vizuelno potvrdi da gleda najnoviji deploy (a ne stari
       // keširan build). BUMP-ovati ovaj broj uz svaku FAZA izmenu koja dira frontend.
-      appVersion: 'cloudflare-migration-0.9.0',
+      appVersion: 'cloudflare-migration-0.10.0',
       environment: 'Cloudflare/Supabase migracija',
       currencies: currencies.map(function (row) { return row.currency_code; }),
       currencyDetails: currencies,
