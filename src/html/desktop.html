@@ -244,12 +244,14 @@
                           <th class="num" style="width:130px">Uplata</th>
                           <th class="num" style="width:130px">Isplata</th>
                           <th class="num" style="width:130px">Stanje</th>
+                          <th style="width:56px">Akcije</th>
                         </tr>
                         <tr class="total-row total-row-top cashbook-total-row" id="d-knjiga-total-row">
                           <td colspan="3">UKUPNO</td>
                           <td class="cell-in">0,00</td>
                           <td class="cell-out">0,00</td>
                           <td class="cell-bal">0,00</td>
+                          <td></td>
                         </tr>
                       </thead>
                       <tbody id="d-knjiga-tbody"></tbody>
@@ -312,7 +314,12 @@
                     </div>
                   </div>
 
-                  <div class="cashbook-transaction-details" id="d-detail-panel">
+                  <!-- FAZA 3w-4: Detalji stavke su premesteni u modalni dijalog
+                       (otvara se preko "oko" ikonice u redu, videti openDetailPanel_
+                       u scripts.html). Ovaj staticki panel se vise ne prikazuje, cime
+                       "Brze akcije" iznad postaju jedini - i time potpuno fiksni -
+                       sadrzaj bocnog panela, kako korisnik zahteva. -->
+                  <div class="cashbook-transaction-details" id="d-detail-panel" hidden>
                     <div class="cashbook-panel-title">
                       <span id="d-detail-title">Detalji stavke</span>
                       <button class="btn-ghost small" id="d-detail-close" type="button" aria-label="Zatvori">
@@ -892,7 +899,7 @@
                   <div class="presek-kpi-value" id="d-count-kpi-pending">0</div>
                   <div class="presek-kpi-sub presek-warning" id="d-count-kpi-pending-pct">0%</div>
                 </div>
-                <button id="d-count-new-btn" class="presek-primary-action" type="button">
+                <button id="d-count-new-btn" class="presek-primary-action cash-count-action save" type="button">
                   <i class="ti ti-plus" aria-hidden="true"></i> Novi presek
                 </button>
               </div>
@@ -1206,15 +1213,4 @@
     <div id="balance-result" style="display:none"></div>
     <div id="shift-result" style="display:none"></div>
     <div id="daily-closing-result" style="display:none"></div>
-    <div id="waiting-orders-list" style="display:none"></div>
-    <div id="approval-requests-list" style="display:none"></div>
-    <div id="my-requests-list" style="display:none"></div>
-    <div id="desktop-table-result" style="display:none"></div>
-    <div id="desktop-table-result-orders" style="display:none"></div>
-    <div id="execute-payment-result" style="display:none"></div>
-    <div id="desktop-user-card" style="display:none"></div>
-    <div id="document-result" style="display:none"></div>
-
-    <?!= include('html/scripts'); ?>
-  </body>
-</html>
+    <div id="waiting-o

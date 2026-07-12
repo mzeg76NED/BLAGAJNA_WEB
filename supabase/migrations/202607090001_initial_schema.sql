@@ -544,9 +544,3 @@ update payment_announcements
 alter table documents drop constraint if exists documents_entity_type_check;
 alter table documents add constraint documents_entity_type_check
   check (entity_type in ('PAYMENT_REQUEST','PAYMENT_ORDER','CASH_EVENT','SHIFT','DAILY_CLOSING','PAYMENT_ANNOUNCEMENT'));
-
--- FAZA 3w: obavezno polje VOZAC (ime vozaca koji donosi uplatu) na najavi -
--- trazeno naknadno, dodato kao nullable kolona (da ne polomi postojece redove),
--- ali je obavezno na nivou aplikacije (createAnnouncementCore/updateAnnouncementCore
--- u _lib/paymentAnnouncements.js) za sve NOVE i IZMENJENE najave.
-alter table payment_announcements add column if not exists driver_name text;

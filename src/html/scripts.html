@@ -5668,7 +5668,7 @@
 
     if (!events.length) {
       var empty = '<div class="empty-state"><i class="ti ti-inbox-off" aria-hidden="true"></i><p>Nema transakcija za izabrani period.</p></div>';
-      container.innerHTML = isMobile ? empty : '<tr><td colspan="6">' + empty + '</td></tr>';
+      container.innerHTML = isMobile ? empty : '<tr><td colspan="7">' + empty + '</td></tr>';
       if (tfoot) tfoot.innerHTML = '';
       updateKnjigaTotals_(0, 0, 0, 0);
       renderCashbookKpis_([], 0, 0, 0, 0, 0, 0);
@@ -5738,20 +5738,47 @@
     updateKnjigaTotals_(totalIn, totalOut, finalBalance, events.length);
     renderCashbookKpis_(events, totalIn, totalOut, finalBalance, openingBalance, netChange, events.length);
 
-    container.querySelectorAll('[data-event-id]').forEach(function(row) {
-      row.addEventListener('click', function() {
-        var eid = row.getAttribute('data-event-id');
-        var ev = events.find(function(e) { return e.event_id === eid; });
-        if (ev) openDetailPanel_(ev);
+    if (isMobile) {
+      // Mobilni prikaz i dalje otvara detalje dodirom na karticu (već ide u
+      // openMobileDetailPanel_, koji je već jasna pregledna forma preko cele
+      // strane) - korisnikova primedba se odnosi na DESKTOP uski bočni panel,
+      // ne na mobilni prikaz, pa se ovo ponašanje ne menja.
+      container.querySelectorAll('[data-event-id]').forEach(function(row) {
+        row.addEventListener('click', function() {
+          var eid = row.getAttribute('data-event-id');
+          var ev = events.find(function(e) { return e.event_id === eid; });
+          if (ev) openDetailPanel_(ev);
+        });
       });
-    });
-    container.querySelectorAll('[data-announcement-id]').forEach(function(row) {
-      row.addEventListener('click', function() {
-        var aid = row.getAttribute('data-announcement-id');
-        var announcement = LAST_KNJIGA_ANNOUNCEMENTS.find(function(a) { return a.announcement_id === aid; });
-        if (announcement) openAnnouncementDetail_(announcement);
+      container.querySelectorAll('[data-announcement-id]').forEach(function(row) {
+        row.addEventListener('click', function() {
+          var aid = row.getAttribute('data-announcement-id');
+          var announcement = LAST_KNJIGA_ANNOUNCEMENTS.find(function(a) { return a.announcement_id === aid; });
+          if (announcement) openAnnouncementDetail_(announcement);
+        });
       });
-    });
+    } else {
+      // FAZA 3w-4: na desktopu se detalji otvaraju ISKLJUČIVO preko "oko"
+      // dugmeta u koloni Akcije (data-event-open / data-announcement-open),
+      // ne više klikom bilo gde na red - korisnik je izričito tražio uklanjanje
+      // klika-na-red ("detalje ukloniti iz sada postojeće pozicije").
+      container.querySelectorAll('[data-event-open]').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var eid = btn.getAttribute('data-event-open');
+          var ev = events.find(function(e) { return e.event_id === eid; });
+          if (ev) openDetailPanel_(ev);
+        });
+      });
+      container.querySelectorAll('[data-announcement-open]').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var aid = btn.getAttribute('data-announcement-open');
+          var announcement = LAST_KNJIGA_ANNOUNCEMENTS.find(function(a) { return a.announcement_id === aid; });
+          if (announcement) openAnnouncementDetail_(announcement);
+        });
+      });
+    }
   }
 
   function mergeOptimisticEvents_(events) {
@@ -5998,6 +6025,10 @@
     var clipBtn = (!isAnnouncement && KNJIGA_DOCS_WITH_FILES_[ev.event_id])
       ? ' <button type="button" class="cashbook-row-clip" title="Ima prilog - klikni za pregled" onclick="event.stopPropagation();openDocumentsDialogForEventId_(\'' + escapeHtml(ev.event_id) + '\')"><i class="ti ti-paperclip" aria-hidden="true"></i></button>'
       : '';
+    // FAZA 3w-4: klik na red vise ne otvara detalje (korisnik: "detalje ukloniti
+    // iz sada postojece pozicije") - jedini nacin da se otvore detalji je "oko"
+    // dugme u koloni Akcije, isto kao na Zahtevima.
+    var eyeAttr = isAnnouncement ? 'data-announcement-open="' + escapeHtml(ev.__announcement.announcement_id) + '"' : 'data-event-open="' + escapeHtml(ev.event_id) + '"';
     return '<tr class="' + rowClass + ' cashbook-row" ' + idAttr + '>' +
       '<td><span class="cashbook-rb">' + refDisplay + '</span></td>' +
       '<td><span class="cashbook-row-date">' + dateStr + '</span><strong class="cashbook-row-time">' + timeStr + '</strong></td>' +
@@ -6005,6 +6036,7 @@
       '<td class="' + (isIn  ? 'cell-in'   : 'cell-dash') + '">' + (isIn  ? '<span class="amount-pill in">' + amtFmt + '</span>' : isAnnouncement ? '<span class="amount-pill" style="background:rgba(148,163,184,.18);color:#94a3b8">' + amtFmt + '</span>' : '—') + '</td>' +
       '<td class="' + (isOut ? 'cell-out'  : 'cell-dash') + '">' + (isOut ? '<span class="amount-pill out">' + amtFmt + '</span>' : '—') + '</td>' +
       '<td class="cell-bal">' + balFmt + '</td>' +
+      '<td><button type="button" class="small cashbook-row-eye" title="Pregled detalja" ' + eyeAttr + '><i class="ti ti-eye" aria-hidden="true"></i></button></td>' +
     '</tr>';
   }
 
@@ -6014,6 +6046,7 @@
       '<td class="cell-in">'  + formatAmount_(totalIn)      + '</td>' +
       '<td class="cell-out">' + formatAmount_(totalOut)     + '</td>' +
       '<td class="cell-bal">' + formatAmount_(finalBalance) + '</td>' +
+      '<td></td>' +
     '</tr>';
   }
 
@@ -6100,11 +6133,15 @@
 
   /* ─── Detail panel (desktop) ─────────────────────────────────── */
 
+  // FAZA 3w-3 (bugfix): detalji stavke vise NE idu u uski desni panel (korisnik:
+  // "detalje ukloniti iz sada postojece pozicije... otvoriti jasnu preglednu
+  // formu sa svim detaljima") - sada je to isti .app-dialog-overlay obrazac kao
+  // Najava/Zahtevi detalji, otvoren preko "oko" ikonice u redu (ne vise klikom
+  // bilo gde na red). Desni panel (#d-detail-panel, "Detalji stavke" karta) je
+  // trajno sakriven u desktop.html - "Brze akcije" ostaju JEDINI (i time
+  // potpuno fiksni) sadrzaj tog panela.
   function openDetailPanel_(ev) {
-    var panel = document.getElementById('d-detail-panel');
-    var title = document.getElementById('d-detail-title');
-    var body  = document.getElementById('d-detail-body');
-    if (!panel || !title || !body) {
+    if (!document.querySelector('.d-shell')) {
       openMobileDetailPanel_(ev);
       return;
     }
@@ -6123,8 +6160,6 @@
     var dirLabel = isCount ? 'PRESEK' : isTreasury ? 'TREZOR' : isIn ? '↓ UPLATA' : '↑ ISPLATA';
     var dirColor = isCount || isTreasury ? '#d99a00' : isIn ? 'var(--color-in)' : 'var(--color-out)';
 
-    title.innerHTML = 'Detalji stavke ' + renderStatusBadge_(ev.status);
-
     var balanceAfter = Number(ev.__balanceAfter !== undefined ? ev.__balanceAfter : ev.running_balance || 0);
     var balanceBefore = Number(ev.__balanceBefore !== undefined ? ev.__balanceBefore : balanceAfter - (isIn ? displayAmount : isOut ? -displayAmount : 0));
     var signedChange = isIn ? displayAmount : isOut || isTreasury ? -displayAmount : 0;
@@ -6142,63 +6177,75 @@
       ['Referenca', ev.reversal_of_event_id ? escapeHtml('Storno stavke ' + refNoForEventId_(ev.reversal_of_event_id)) : escapeHtml(ev.source_id || ev.payment_order_id || '—')]
     ];
 
-    body.innerHTML =
-      '<div class="cashbook-detail-hero">' +
-        '<div class="cashbook-detail-icon" style="color:' + dirColor + '"><i class="ti ' + (isIn ? 'ti-arrow-down-circle' : isTreasury ? 'ti-building-bank' : 'ti-arrow-up-circle') + '" aria-hidden="true"></i></div>' +
-        '<div><span>' + escapeHtml(dirLabel.replace(/[↓↑]/g, '').trim()) + '</span><strong class="' + amountClass + '">' +
-          (signedChange > 0 ? '+' : signedChange < 0 ? '−' : '') + formatAmount_(Math.abs(displayAmount)) + ' ' + currencyLabel +
-        '</strong><small>Rb. ' + escapeHtml(String(ev.__displayIndex || '—')) + ' · ' + escapeHtml(formatDateLong_(ev.event_date || ev.created_at)) + ' u ' + escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) + '</small></div>' +
-      '</div>' +
-      '<div class="cashbook-detail-grid">' + detailRows.map(function(r) {
-        return '<div><span>' + r[0] + '</span><strong>' + r[1] + '</strong></div>';
-      }).join('') +
-        '<div><span>Uplata</span><strong class="amount-positive">' + (isIn ? formatAmount_(displayAmount) + ' ' + currencyLabel : '—') + '</strong></div>' +
-        '<div><span>Isplata</span><strong class="amount-negative">' + (isOut ? formatAmount_(displayAmount) + ' ' + currencyLabel : '—') + '</strong></div>' +
-        '<div><span>Stanje nakon stavke</span><strong>' + formatAmount_(balanceAfter) + ' ' + currencyLabel + '</strong></div>' +
-      '</div>' +
-      '<div class="cashbook-balance-history">' +
-        '<h4>Istorija stanja <span>(pre i posle)</span></h4>' +
-        '<div><span>Stanje pre stavke</span><strong>' + formatAmount_(balanceBefore) + ' ' + currencyLabel + '</strong></div>' +
-        '<div><span>Stanje posle stavke</span><strong>' + formatAmount_(balanceAfter) + ' ' + currencyLabel + '</strong></div>' +
-        '<div><span>Promena</span><strong class="' + amountClass + '">' + (signedChange > 0 ? '+' : signedChange < 0 ? '−' : '') + formatAmount_(Math.abs(signedChange)) + ' ' + currencyLabel + '</strong></div>' +
+    var overlay = document.createElement('div');
+    overlay.className = 'app-dialog-overlay';
+    overlay.innerHTML =
+      '<div class="app-dialog" role="dialog" aria-modal="true">' +
+        '<div class="po-detail-head"><h3>Detalji stavke</h3>' + renderStatusBadge_(ev.status) + '</div>' +
+        '<div class="cashbook-detail-hero">' +
+          '<div class="cashbook-detail-icon" style="color:' + dirColor + '"><i class="ti ' + (isIn ? 'ti-arrow-down-circle' : isTreasury ? 'ti-building-bank' : 'ti-arrow-up-circle') + '" aria-hidden="true"></i></div>' +
+          '<div><span>' + escapeHtml(dirLabel.replace(/[↓↑]/g, '').trim()) + '</span><strong class="' + amountClass + '">' +
+            (signedChange > 0 ? '+' : signedChange < 0 ? '−' : '') + formatAmount_(Math.abs(displayAmount)) + ' ' + currencyLabel +
+          '</strong><small>Rb. ' + escapeHtml(String(ev.__displayIndex || '—')) + ' · ' + escapeHtml(formatDateLong_(ev.event_date || ev.created_at)) + ' u ' + escapeHtml(formatTimeShort_(ev.posted_at || ev.created_at || ev.event_date)) + '</small></div>' +
+        '</div>' +
+        '<div class="cashbook-detail-grid">' + detailRows.map(function(r) {
+          return '<div><span>' + r[0] + '</span><strong>' + r[1] + '</strong></div>';
+        }).join('') +
+          '<div><span>Uplata</span><strong class="amount-positive">' + (isIn ? formatAmount_(displayAmount) + ' ' + currencyLabel : '—') + '</strong></div>' +
+          '<div><span>Isplata</span><strong class="amount-negative">' + (isOut ? formatAmount_(displayAmount) + ' ' + currencyLabel : '—') + '</strong></div>' +
+          '<div><span>Stanje nakon stavke</span><strong>' + formatAmount_(balanceAfter) + ' ' + currencyLabel + '</strong></div>' +
+        '</div>' +
+        '<div class="cashbook-balance-history">' +
+          '<h4>Istorija stanja <span>(pre i posle)</span></h4>' +
+          '<div><span>Stanje pre stavke</span><strong>' + formatAmount_(balanceBefore) + ' ' + currencyLabel + '</strong></div>' +
+          '<div><span>Stanje posle stavke</span><strong>' + formatAmount_(balanceAfter) + ' ' + currencyLabel + '</strong></div>' +
+          '<div><span>Promena</span><strong class="' + amountClass + '">' + (signedChange > 0 ? '+' : signedChange < 0 ? '−' : '') + formatAmount_(Math.abs(signedChange)) + ' ' + currencyLabel + '</strong></div>' +
+        '</div>' +
+        '<div class="po-panel-actions">' +
+          '<button type="button" class="cash-count-action draft" id="d-detail-receipt"><i class="ti ti-receipt" aria-hidden="true"></i> Priznanica</button>' +
+          '<button type="button" class="cash-count-action draft" id="d-detail-documents"><i class="ti ti-paperclip" aria-hidden="true"></i> Dokumenti</button>' +
+          '<button type="button" class="cash-count-action draft" id="d-detail-print"><i class="ti ti-printer" aria-hidden="true"></i> Blagajnički list</button>' +
+          '<button type="button" class="cash-count-action draft" id="d-detail-presek"><i class="ti ti-calculator" aria-hidden="true"></i> Presek blagajne</button>' +
+          '<button type="button" class="cash-count-action cancel" id="d-detail-storno"><i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno stavke</button>' +
+        '</div>' +
+        '<button type="button" class="btn-ghost btn-full" id="d-detail-close">Zatvori</button>' +
       '</div>';
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    var closeBtn = overlay.querySelector('#d-detail-close');
+    if (closeBtn) closeBtn.addEventListener('click', close);
 
-    var receiptBtn = document.getElementById('d-detail-receipt');
+    var receiptBtn = overlay.querySelector('#d-detail-receipt');
     if (receiptBtn) {
       receiptBtn.disabled = isCount || ev.event_type === 'ANNOUNCEMENT';
       receiptBtn.title = receiptBtn.disabled ? 'Priznanica je dostupna samo za uplate/isplate/storno.' : '';
-      receiptBtn.onclick = function() {
+      receiptBtn.addEventListener('click', function() {
         if (receiptBtn.disabled) return;
         printReceiptForEvent_(ev);
-      };
+      });
     }
-    var documentsBtn = document.getElementById('d-detail-documents');
+    var documentsBtn = overlay.querySelector('#d-detail-documents');
     if (documentsBtn) {
-      documentsBtn.onclick = function() {
+      documentsBtn.addEventListener('click', function() {
         openDocumentsDialog_('CASH_EVENT', ev.event_id, 'stavka ' + (ev.ref_no != null ? '#' + ev.ref_no : ev.event_id));
-      };
+      });
     }
-    var printBtn  = document.getElementById('d-detail-print');
-    var stornoBtn = document.getElementById('d-detail-storno');
+    var printBtn  = overlay.querySelector('#d-detail-print');
+    var stornoBtn = overlay.querySelector('#d-detail-storno');
     if (printBtn) {
       printBtn.disabled = isCount;
       printBtn.title = isCount ? 'Popis se evidentira u preseku smene, bez blagajničkog lista za uplatu/isplatu.' : '';
-      // Dugme je oznaceno "Blagajnički list" ali je ranije otvaralo print-cash-event
-      // (pojedinacni vaucer stavke) preko openPrintView(), koji je uz to gradio
-      // neispravan URL (?view=... umesto pravog /print-cash-event.html). Ispravljeno
-      // da vodi na vec ispravno radeci d-section-blagajnicki-list ekran (window.print()
-      // na trenutnoj stranici, ne kroz odvojeni print-view fajl), skopiran na dan/smenu
-      // izabrane stavke.
-      printBtn.onclick  = function() {
+      printBtn.addEventListener('click', function() {
         if (isCount) return;
         openCashSheetForEvent_(ev);
-      };
+      });
     }
     if (stornoBtn) {
       var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !isEventAlreadyReversed_(ev.event_id);
       stornoBtn.disabled = !canReverse;
       stornoBtn.title = canReverse ? '' : 'Ova stavka je već storno ili storno događaj.';
-      stornoBtn.onclick = function() {
+      stornoBtn.addEventListener('click', function() {
         if (!canReverse) return;
         appPrompt_({
           title: 'Storno stavke',
@@ -6211,7 +6258,7 @@
           stornoBtn.disabled = true;
           stornoBtn.textContent = 'Storniram...';
           callApi('apiReverseCashEvent', [ev.event_id, reason], function() {
-            panel.style.display = 'none';
+            close();
             loadKnjiga_(true);
             refreshBalance_();
           }, {
@@ -6222,13 +6269,8 @@
             }
           });
         });
-      };
+      });
     }
-
-    panel.style.display = '';
-    document.querySelectorAll('#d-knjiga-tbody tr').forEach(function(r) {
-      r.classList.toggle('selected', r.getAttribute('data-event-id') === ev.event_id);
-    });
   }
 
   // FAZA 3v: dugme "Slanje" u detalju stavke - deljenje sa drugim aplikacijama
@@ -9775,6 +9817,17 @@
         PAYMENT_REQUESTS_STATE.selectedId = btn.getAttribute('data-request-open') || '';
         renderPaymentRequestTable_();
         renderPaymentRequestDetail_(PAYMENT_REQUESTS_STATE.filtered.find(function(r) { return r.id === PAYMENT_REQUESTS_STATE.selectedId; }) || null);
+        // FAZA 3w-4: klik na "oko" ranije nije davao VIDLJIVU potvrdu kad je red
+        // već bio izabran (panel se re-renderuje identičnim sadržajem) - sada
+        // uvek skrolujemo panel u prikaz i kratko ga istaknemo, da klik nikad ne
+        // izgleda kao da "ništa se ne dešava".
+        var detailPanel = document.getElementById('d-request-detail-body');
+        if (detailPanel) {
+          detailPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          detailPanel.classList.remove('flash-highlight');
+          void detailPanel.offsetWidth;
+          detailPanel.classList.add('flash-highlight');
+        }
       });
     });
     target.querySelectorAll('[data-pr-page]').forEach(function(btn) {
@@ -10583,164 +10636,4 @@
         '<p>' + escapeHtml(options.message || '') + '</p>' +
         '<textarea rows="4" data-dialog-input placeholder="' + escapeHtml(options.placeholder || options.label || '') + '"></textarea>' +
         '<div class="app-dialog-actions">' +
-          '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
-          '<button type="button" class="' + (options.danger ? 'btn-out' : 'btn-primary') + '" data-dialog-ok>' + escapeHtml(options.confirmText || 'Potvrdi') + '</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(overlay);
-    var input = overlay.querySelector('[data-dialog-input]');
-    var close = function() { overlay.remove(); };
-    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
-    overlay.querySelector('[data-dialog-ok]').addEventListener('click', function() {
-      var value = (input.value || '').trim();
-      if (!value) {
-        input.focus();
-        showMessage('Unesite razlog pre potvrde.', 'error');
-        return;
-      }
-      close();
-      onConfirm(value);
-    });
-    window.setTimeout(function() { input.focus(); }, 50);
-  }
-
-  function appConfirm_(options, onConfirm) {
-    options = options || {};
-    var overlay = document.createElement('div');
-    overlay.className = 'app-dialog-overlay';
-    overlay.innerHTML =
-      '<div class="app-dialog" role="dialog" aria-modal="true">' +
-        '<h3>' + escapeHtml(options.title || 'Potvrda') + '</h3>' +
-        '<p>' + escapeHtml(options.message || 'Da li želite da nastavite?') + '</p>' +
-        '<div class="app-dialog-actions">' +
-          '<button type="button" class="btn-ghost" data-dialog-cancel>Otkaži</button>' +
-          '<button type="button" class="' + (options.danger ? 'btn-out' : 'btn-primary') + '" data-dialog-ok>' + escapeHtml(options.confirmText || 'Potvrdi') + '</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(overlay);
-    var close = function() { overlay.remove(); };
-    overlay.querySelector('[data-dialog-cancel]').addEventListener('click', close);
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
-    overlay.querySelector('[data-dialog-ok]').addEventListener('click', function() {
-      close();
-      onConfirm();
-    });
-  }
-
-  function appHtmlDialog_(options) {
-    options = options || {};
-    var overlay = document.createElement('div');
-    overlay.className = 'app-dialog-overlay';
-    overlay.innerHTML =
-      '<div class="app-dialog" role="dialog" aria-modal="true">' +
-        '<h3>' + escapeHtml(options.title || 'Pregled') + '</h3>' +
-        '<div>' + (options.html || '') + '</div>' +
-        '<div class="app-dialog-actions" style="margin-top:12px">' +
-          '<button type="button" class="btn-primary" data-dialog-ok>' + escapeHtml(options.confirmText || 'Zatvori') + '</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(overlay);
-    var close = function() { overlay.remove(); };
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
-    overlay.querySelector('[data-dialog-ok]').addEventListener('click', close);
-  }
-
-  function updateHeaderClock_() {
-    var now = new Date();
-    var dateText = now.toLocaleDateString('sr-RS', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    var timeText = now.toLocaleTimeString('sr-RS', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    var dDate = document.getElementById('d-current-date');
-    var dTime = document.getElementById('d-current-time');
-    var mDate = document.getElementById('m-current-date');
-    var mTime = document.getElementById('m-current-time');
-    if (dDate) dDate.textContent = dateText;
-    if (dTime) dTime.textContent = timeText;
-    if (mDate) mDate.textContent = dateText;
-    if (mTime) mTime.textContent = timeText;
-  }
-
-  function startHeaderClock_() {
-    updateHeaderClock_();
-    if (window.__blagajnaClockTimer) return;
-    window.__blagajnaClockTimer = window.setInterval(updateHeaderClock_, 1000);
-  }
-
-  function startLiveRefresh_(isDesktop, isMobile) {
-    if (window.__blagajnaLiveRefreshTimer) {
-      window.clearInterval(window.__blagajnaLiveRefreshTimer);
-    }
-    window.__blagajnaLiveRefreshTimer = window.setInterval(function() {
-      if (document.hidden) return;
-      refreshActiveShiftState_({ enforce: false, refreshKnjiga: false });
-      refreshBalance_();
-      loadKnjiga_(true);
-      refreshCashboxesMandatoryStatus_();
-      if (isMobile) loadMobileNalozi_();
-      if (isDesktop) loadDesktopNavBadges_();
-    }, 15000);
-  }
-
-  function registerPwa_() {
-    if (!('serviceWorker' in navigator)) return;
-    try {
-      navigator.serviceWorker.register('?view=sw').catch(function() {});
-    } catch (err) {}
-  }
-
-  /* ─── Bootstrap: prošireni DOMContentLoaded ──────────────────── */
-
-  document.addEventListener('DOMContentLoaded', function() {
-    var isMobile  = Boolean(document.querySelector('.m-shell'));
-    var isDesktop = Boolean(document.querySelector('.d-shell'));
-
-    if (isMobile)  { bindMobileNav_();  bindMobileSheet_(); }
-    if (isDesktop) { bindDesktopNav_(); bindDesktopQuickForm_(); }
-    if (isMobile)  { bindModernShellForms_(); }
-    bindBalanceOverviewButtons_();
-    bindShiftWorkActions_();
-    bindAmountFormatting_();
-    bindDesktopEnterFlow_();
-    startHeaderClock_();
-    registerPwa_();
-
-    // Današnji datum u date inputima
-    var today = new Date().toISOString().split('T')[0];
-    ['d-date-from','d-date-to'].forEach(function(id) {
-      var el = document.getElementById(id); if (el) el.value = today;
-    });
-    document.querySelectorAll('[data-today]').forEach(function(el) { if (!el.value) el.value = today; });
-
-    // Datum u mobilnom headeru
-    var dateEl = document.getElementById('m-date');
-    if (dateEl) {
-      var now = new Date();
-      dateEl.textContent = now.getDate() + '.' + (now.getMonth()+1) + '.' + now.getFullYear() + '.';
-    }
-
-    if (isDesktop || isMobile) {
-      // FAZA 3s: mobilni prikaz je ranije preskakao login gate potpuno (pretpostavljao
-      // je da je sesija već uspostavljena preko desktop prijave na istom browseru) - sada
-      // oba prikaza prolaze kroz isti generički login/logout mehanizam.
-      initDesktopAppLogin_(function() {
-        callApi('apiGetUiBootstrap', [isDesktop], function(data) {
-          bootstrapShellAfterAppSession_(isDesktop, isMobile, data);
-        }, { quiet: true });
-      });
-      return;
-    }
-
-    // Bootstrap API call (fallback za slučaj da ni .d-shell ni .m-shell nisu prisutni)
-    callApi('apiGetUiBootstrap', [isDesktop], function(data) {
-      bootstrapShellAfterAppSession_(isDesktop, isMobile, data);
-    }, { quiet: true });
-  });
-
-</script>
+          '<button type="button" class="b
