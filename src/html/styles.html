@@ -3485,11 +3485,20 @@
     margin-top: 4px;
   }
 
+  /* FAZA 3w-8: "KPI menja velicinu kad se tekst prelama" - subtext (small) je
+     rastao u 2 reda za duze poruke (npr. stari placeholder za promet), sto je
+     povecavalo VISINU CELE kartice (grid default align-items:stretch onda
+     razvlaci i ostale 4 kartice u redu na tu istu visinu) - otud utisak da se
+     ceo KPI red "trza"/menja velicinu. Sad se dugi tekst skrati sa "..." umesto
+     da prelama red - kartice ostaju fiksne visine bez obzira na duzinu poruke. */
   .shift-kpi-card small {
     color: var(--color-text-muted);
     display: block;
     font-size: 12px;
     margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .shift-kpi-icon {
@@ -3520,6 +3529,16 @@
     box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
     min-width: 0;
     overflow: hidden;
+    /* FAZA 3w-8: .shifts-layout ima align-items:start (da dugme "Otvori smenu"
+       ne bi bilo razvuceno preko cele visine) - to znaci da grid STAVKE same po
+       sebi NE popunjavaju visinu svog reda po difoltu, vec se sablonski svode na
+       auto/sadrzaj-visinu, cak i kad je red (track) pun-visine. align-self:stretch
+       ovde EKSPLICITNO ipak razvlaci BAS ove dve kartice (listu i detalj panel)
+       na punu visinu reda - bez ovoga max-height:100% dole nema pouzdanu osnovu
+       za racunanje (moze da ispadne "auto"/neogranicen umesto stvarnog broja u
+       pikselima), sto je verovatno pravi razlog zasto se detalj panel i dalje
+       nije ogranicavao i dugmad su nastavila da skacu i posle FAZA 3w-7. */
+    align-self: stretch;
   }
 
   .shifts-list-panel {

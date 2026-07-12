@@ -2578,15 +2578,35 @@
   function refreshActiveShiftKpis_() {
     var shift = uiState.activeShift;
     if (!shift || !shift.shift_id) return;
-    var filters = withUiDefaults({
-      cashbox_id: shift.cashbox_id || SESSION.cashboxId,
-      shift_id: shift.shift_id,
-      limit: 500
-    });
+    var filters = withUiDefaults(shiftMovementsFilters_(shift));
     delete filters.currency;
     callApi('apiGetCashMovementsReport', [filters], function(result) {
       renderShiftPageKpis_(shift, result || []);
     }, { quiet: true });
+  }
+
+  // FAZA 3w-8: apiGetCashMovementsReport / /api/reports/cash-movements NEMA
+  // shift_id kolonu niti filter (cash_events tabela uopste ne cuva shift_id -
+  // vidi supabase/migrations) - prosledjivanje "shift_id" kao filtera je bilo
+  // NEMO (adapter ga cak i ne prosledjuje na server, vidi cloudflare-apps-
+  // script-adapter.js apiGetCashMovementsReport whitelist), pa je "Promet
+  // smene"/Tajmlajn/Pregled po valutama na Smeni ili ostajao na "0,00" i
+  // placeholder poruci, ili (kad bi shift_id slucajno negde provukao) tiho
+  // vracao POGRESNE, blagajno-siroke brojeve umesto brojeva ZA TU smenu.
+  // Ispravno resenje (isto sto Knjiga vec radi - vidi applyBookFiltersForShift_/
+  // loadKnjiga_): filtrirati po cashbox_id + date_from/date_to izvedenim iz
+  // opened_at/closed_at te smene (backend porede po danu, ne po minutu - ista
+  // granularnost kao Knjiga, pa je ovo "isto kao na pregledu Blagajnicke knjige"
+  // kako je i trazeno).
+  function shiftMovementsFilters_(shift) {
+    var opened = parseDateSafe_(shift.opened_at);
+    var closed = parseDateSafe_(shift.closed_at) || new Date();
+    return {
+      cashbox_id: shift.cashbox_id || SESSION.cashboxId,
+      date_from: opened ? toInputDate_(opened) : '',
+      date_to: closed ? toInputDate_(closed) : '',
+      limit: 500
+    };
   }
 
   function filterDesktopShifts_(shifts) {
@@ -2660,7 +2680,7 @@
       turnoverEl.textContent = (turnoverPrimary.value > 0 ? '+' : '') + formatAmount_(turnoverPrimary.value) + ' ' + turnoverPrimary.code;
       turnoverEl.className = shiftAmountClass_(turnoverPrimary.value);
     }
-    if (turnoverSub) turnoverSub.textContent = events && events.length ? 'Promet po učitanim stavkama smene' : 'Promet će biti prikazan kada API vrati stavke';
+    if (turnoverSub) turnoverSub.textContent = events && events.length ? 'Promet po stavkama smene' : 'Nema stavki u ovoj smeni';
     if (countsEl) countsEl.textContent = String(counts.length);
     if (countsSub) countsSub.textContent = counts.length ? 'Poslednji u ' + formatTimeShort_(counts[counts.length - 1].event_date || counts[counts.length - 1].created_at) : 'Nema urađenih preseka';
     if (closingEl) {
@@ -2803,11 +2823,7 @@
 
   function loadShiftEventsForDetail_(shift) {
     if (!shift || !shift.shift_id) return;
-    var filters = withUiDefaults({
-      cashbox_id: shift.cashbox_id || SESSION.cashboxId,
-      shift_id: shift.shift_id,
-      limit: 500
-    });
+    var filters = withUiDefaults(shiftMovementsFilters_(shift));
     delete filters.currency;
     callApi('apiGetCashMovementsReport', [filters], function(result) {
       var events = result || [];
