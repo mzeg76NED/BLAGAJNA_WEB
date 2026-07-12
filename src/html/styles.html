@@ -3879,7 +3879,12 @@
      Smeni. Ovde ostaju SAMO sticky-footer specificne osobine (pozicija/pozadina). */
   .shift-actions-grid {
     background: linear-gradient(145deg, rgba(10, 34, 58, 0.9), rgba(8, 25, 43, 0.94));
-    bottom: -14px;
+    /* FAZA 3w-5 fix: bio je "bottom: -14px" (negativna vrednost) - to gura
+       lepljivi element 14px ISPOD donje ivice scroll kontejnera, sto moze da
+       ga delimicno iseca ili ga spreci da se ispravno "zalepi" pri skrolovanju
+       (razlog "dugmad se pomeraju/nestaju" na Smeni). "bottom: 0" je ispravan,
+       standardan nacin da se element zalepi tacno uz donju ivicu kontejnera. */
+    bottom: 0;
     padding: 10px 0 14px;
     position: sticky;
   }
@@ -4970,10 +4975,26 @@
     margin: 4px 0 0;
   }
 
-  .po-head-actions,
-  .po-panel-actions {
+  .po-head-actions {
     display: flex;
     gap: 10px;
+  }
+
+  /* FAZA 3w-5: dugmad u akcionim trakama (Nalog za isplatu/Zahtevi/Smena/
+     Korisnici/Valute) su i dalje "skakala" (2 vs 3 po redu, razlicite visine)
+     jer je flexbox `flex-basis` (calc(50% - 5px), niza specificnost) uvek
+     imao prednost nad kasnijim `width:auto` (visa specificnost, ali RAZLICITO
+     svojstvo - flexbox po specifikaciji ignorise width kad flex-basis nije
+     auto) - dva razlicita mehanizma su se nadmetala nepredvidivo. CSS GRID
+     nema ovu dvosmislenost: `grid-template-columns: repeat(2, 1fr)` GARANTUJE
+     tacno 2 kolone jednake sirine, a grid podrazumevano razvlaci sve celije u
+     redu (`align-items:stretch`) na visinu NAJVISE celije u tom redu - ovo
+     resava i "razlicita visina dugmadi" bez potrebe za fiksnim max-height/
+     overflow:hidden koji je ranije mogao da odseca duzi tekst. */
+  .po-panel-actions {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .po-primary-btn,
@@ -4991,21 +5012,31 @@
     padding: 0 16px;
   }
 
-  /* KONSOLIDACIJA (FAZA 3w-2): OVO je JEDINI izgled za dugmad u akcionim trakama
-     (Nalog za isplatu, Zahtevi, Smena, Korisnici, Valute) - ista visina/padding/
-     font TACNO svuda, bez obzira na duzinu teksta. Ranije je duzi tekst (npr.
-     "Odobri i kreiraj nalog") prelamao se u 2 reda i pravio VISE dugme nego
-     susedno jednoredno dugme na istoj traci - "dugmad se pomeraju, nekad veca
-     nekad manja". Sad je nowrap: tekst NIKAD ne prelama red, min-height/
-     max-height je fiksna vrednost svuda, garantovano identicna; font je malo
-     manji i gap uzi bas u ovom kontekstu (gusto pakovane trake sa vise dugmadi)
-     da duzi natpisi staju u jedan red bez skraćivanja. */
+  /* KONSOLIDACIJA (FAZA 3w-2, prepravljeno FAZA 3w-5): izgled dugmadi u akcionim
+     trakama. Podeljeno u DVE grupe jer im kontejneri rade na razlicit nacin:
+     - Grid grupa (.po-panel-actions/.shift-actions-grid): kontejner je CSS Grid
+       (repeat(2,1fr)) koji vec garantuje 2 jednake kolone i automatski razvlaci
+       (align-items:stretch) sve dugmadi u redu na istu visinu - NEMA fiksnog
+       max-height/overflow:hidden (moze da odseca tekst), umesto toga min-height
+       + dozvoljeno prelamanje teksta u 2 reda ako ne stane (red se onda uveca,
+       ali SVA dugmad u tom redu i dalje ostaju medjusobno identicna).
+     - Flex header grupa (.po-head-actions/.new-order-titlebar/.cashbook-lock-note/
+       .shifts-page-head): ostaju flex sa width:auto/nowrap kao ranije (ova mesta
+       imaju samo 1-2 dugmeta pored naslova, ne "traku" koja se prelama). */
   .po-panel-actions .cash-count-action,
+  .shift-actions-grid .cash-count-action {
+    font-size: 12.5px;
+    gap: 6px;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+
   .po-head-actions .cash-count-action,
   .new-order-titlebar .cash-count-action,
   .cashbook-lock-note .cash-count-action,
-  .shifts-page-head .cash-count-action,
-  .shift-actions-grid .cash-count-action {
+  .shifts-page-head .cash-count-action {
     font-size: 12.5px;
     gap: 6px;
     justify-content: center;
@@ -5218,6 +5249,30 @@
     padding: 16px;
   }
 
+  /* FAZA 3w-5: Nalog za isplatu - isti "fiksni panel, skroluje samo sadrzaj"
+     obrazac kao Zahtevi (.payment-requests-page .po-detail-panel) i Korisnici
+     (.users-admin-page .po-detail-panel). Ovaj panel je RANIJE bio jedini bez
+     ove ispravke (imao je samo min-height, bez ogranicene visine/skrola), pa
+     se ceo .d-content skrolovao i dugmad (.po-panel-actions) su zavisila od
+     toga koliko "Tok naloga" stavki ima dati nalog - otud utisak "dugmad
+     skacu" pri prebacivanju izmedju naloga. */
+  .payment-orders-page .po-detail-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 260px);
+    overflow: hidden;
+  }
+
+  .payment-orders-page .po-order-detail-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .payment-orders-page .po-panel-actions {
+    flex-shrink: 0;
+  }
+
   .po-empty-detail,
   .po-empty-docs {
     color: var(--muted);
@@ -5340,18 +5395,8 @@
 
   .po-panel-actions {
     border-top: 1px solid rgba(120, 170, 220, .16);
-    /* FAZA 3w: Zahtevi detalj ima do 6 dugmadi (vs. 4 na Nalogu za isplatu) - dozvoli
-       prelom u drugi red umesto sabijanja/prelivanja u jednu usku traku. */
-    flex-wrap: wrap;
     margin-top: 18px;
     padding-top: 14px;
-  }
-
-  /* FAZA 3w-2: 2 dugmeta po redu (ne 3) - sire dugme = duzi natpisi ("Odobri i
-     kreiraj nalog") staju u jedan red bez prelamanja (vidi konsolidovano pravilo
-     iznad koje sad forsira nowrap+fiksnu visinu svuda). */
-  .po-panel-actions button {
-    flex: 1 1 calc(50% - 5px);
   }
 
   .po-panel-actions button:disabled {

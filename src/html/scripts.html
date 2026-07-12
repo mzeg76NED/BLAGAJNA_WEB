@@ -1516,17 +1516,30 @@
     // samo najave), pa bi podrazumevani Knjiga ekran za njih samo prikazao grešku 403.
     // Umesto toga ih vodimo pravo na njihov jedini radni ekran i sakrivamo svu ostalu
     // navigaciju (FAZA 3w: "sve ostale forme su zaključane", na oba ekrana).
-    if (uiState.currentUser && ['ASSISTANT_CASHIER', 'ANNOUNCER'].includes(uiState.currentUser.role)) {
-      safeStep_('restrictNavToNajave_', function() { restrictNavToNajave_(); });
+    // FAZA 3w-5: korisnik prijavljuje da na mobilnom ovo "ne radi konzistentno" -
+    // ponekad se pri prvom učitavanju uopšte ne prikaže Najave (ostane na
+    // podrazumevanom ekranu koji za ovu ulogu 403-uje), i tek posle nekoliko
+    // klikova po interfejsu se ispravi. Nije pronađen logički bag u samoj
+    // proveri uloge/privilegija (ponovo pregledano), ali je moguće da je u
+    // pitanju kratkotrajna vremenska neusklađenost pri prvom renderu (npr. DOM
+    // elementi mobilne fioke jos nisu spremni u tacnom trenutku kad ovaj korak
+    // prvi put prodje). Kao odbrambenu meru, ista provera/preusmeravanje se
+    // PONAVLJA jednom posle kratke pauze - ako je prvi prolaz vec ispravno
+    // odradio posao, ovo je bezopasno no-op ponavljanje iste akcije.
+    var applyAnnouncerRestriction_ = function() {
+      if (!(uiState.currentUser && ['ASSISTANT_CASHIER', 'ANNOUNCER'].includes(uiState.currentUser.role))) return;
+      restrictNavToNajave_();
       if (isDesktop) {
-        safeStep_('openDesktopSection_(najave)', function() { openDesktopSection_('najave'); });
-        safeStep_('loadDesktopAnnouncements_', loadDesktopAnnouncements_);
+        openDesktopSection_('najave');
+        loadDesktopAnnouncements_();
       }
       if (isMobile) {
-        safeStep_('openMobileSection_(najave)', function() { openMobileSection_('m-section-najave'); });
-        safeStep_('loadMobileNajave_', loadMobileNajave_);
+        openMobileSection_('m-section-najave');
+        loadMobileNajave_();
       }
-    }
+    };
+    safeStep_('applyAnnouncerRestriction_', applyAnnouncerRestriction_);
+    window.setTimeout(function() { safeStep_('applyAnnouncerRestriction_(retry)', applyAnnouncerRestriction_); }, 600);
     safeStep_('loadCashbookFilterOptions_', loadCashbookFilterOptions_);
     safeStep_('bindBalanceOverviewButtons_', bindBalanceOverviewButtons_);
     safeStep_('bindShiftWorkActions_', bindShiftWorkActions_);
@@ -8808,6 +8821,15 @@
     var sendLabel = pendingPaymentId ? 'Poslato blagajni' : 'Pošalji na isplatu';
     target.innerHTML =
       '<div class="po-detail-head"><h3>Detalji naloga</h3><span class="po-status ' + paymentOrderStatusClass_(order.status) + '">' + escapeHtml(paymentOrderStatusLabel_(order.status)) + '</span></div>' +
+      // FAZA 3w-5: sadrzaj izmedju zaglavlja i dugmadi (polja/iznos/tok naloga)
+      // sad je u SVOM skrolujucem omotacu (.po-order-detail-scroll), isto kao
+      // sto Zahtevi/Korisnici vec rade sa svojim tab-panelima - zaglavlje i
+      // .po-panel-actions ostaju VAN te skrol zone, pa dugmad vise ne menjaju
+      // poziciju u zavisnosti od toga koliko je "Tok naloga" stavki za dati
+      // nalog (to je bio stvarni uzrok "dugmad skacu gore-dole" na ovoj formi -
+      // panel ranije uopste nije imao ogranicenu visinu/skrol, pa se ceo D-CONTENT
+      // skrolovao i dugmad su bila na razlicitom mestu na ekranu za svaki nalog).
+      '<div class="po-order-detail-scroll">' +
       '<div class="po-detail-grid">' +
         renderPaymentOrderField_('Broj naloga', order.id) +
         renderPaymentOrderField_('Datum i vreme', formatDateTimeShort_(order.date)) +
@@ -8823,6 +8845,7 @@
       '<div class="po-detail-columns">' +
         '<div><h4>Tok naloga</h4><div id="d-order-timeline">' + renderPaymentOrderTimeline_(order) + '</div></div>' +
         '<div><h4>Povezani dokumenti</h4>' + renderPaymentOrderDocuments_(order) + '</div>' +
+      '</div>' +
       '</div>' +
       '<div class="po-panel-actions">' +
         '<button type="button" class="cash-count-action draft" id="d-order-edit" ' + (canEdit ? '' : 'disabled') + '><i class="ti ti-pencil" aria-hidden="true"></i> Edituj nacrt</button>' +
@@ -10732,6 +10755,20 @@
     }
     window.__blagajnaLiveRefreshTimer = window.setInterval(function() {
       if (document.hidden) return;
+      // FAZA 3w-5: odbrambeno ponovno zakljucavanje navigacije za ANNOUNCER/
+      // ASSISTANT_CASHIER na svakom "tick"-u - ako je iz bilo kog razloga
+      // pocetni redirekt/restrikcija promasila (vidi komentar u
+      // bootstrapShellAfterAppSession_), ovo je garantovana druga (i treca...)
+      // prilika da se ispravi, bez potrebe da korisnik rucno klika okolo.
+      if (uiState.currentUser && ['ASSISTANT_CASHIER', 'ANNOUNCER'].includes(uiState.currentUser.role)) {
+        restrictNavToNajave_();
+        if (isMobile && !document.getElementById('m-section-najave').classList.contains('active')) {
+          openMobileSection_('m-section-najave');
+          loadMobileNajave_();
+        }
+        if (isDesktop) refreshActiveShiftState_({ enforce: false, refreshKnjiga: false });
+        return;
+      }
       refreshActiveShiftState_({ enforce: false, refreshKnjiga: false });
       refreshBalance_();
       loadKnjiga_(true);
