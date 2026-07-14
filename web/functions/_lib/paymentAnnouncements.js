@@ -270,6 +270,15 @@ export async function returnAnnouncementForRevisionCore(env, announcementId, rea
 // FAZA 3w: without an explicit status AND without a specific created_by filter (e.g. the
 // Knjiga merge, or a supervisor's unscoped browse), DRAFT/RETURNED rows are hidden
 // entirely - per spec they "don't exist yet" for anyone but their author until sent.
+//
+// FAZA 3z: BUG FIX - gornje pravilo je slepo brisalo NACRTE (DRAFT) i za samog autora
+// kad god autor NIJE eksplicitno filtrirao created_by=ja (sto je podrazumevani slucaj i
+// na mobilnom - Najave ekran ne salje created_by - i na desktopu kad je "Svi korisnici"
+// izabran u filteru). Rezultat: "Najava je sacuvana kao nacrt, ali je nema na listi" -
+// tacno bag koji je korisnik prijavio i na mobilnom i na desktopu. Ownerova sopstvena
+// nacrt/vracena najava sada UVEK mora da se vidi, bez obzira na created_by filter -
+// koristi se PostgREST or=() da se to postigne bez gubljenja postojece logike (tudje
+// nacrte i dalje ne vidi niko osim autora).
 export async function listAnnouncementsCore(env, user, filters) {
   filters = filters || {};
   const cashboxId = scopeCashboxForAnnouncements(user, filters.cashbox_id);
@@ -280,7 +289,13 @@ export async function listAnnouncementsCore(env, user, filters) {
   if (filters.status) {
     path += '&status=' + encodeEq(filters.status);
   } else if (!filters.created_by) {
-    path += '&status=in.(OPEN,MATCHED,CANCELLED)';
+    const actorId = (user && (user.email || user.user_code)) || '';
+    if (actorId) {
+      path += '&or=(status.in.(OPEN,MATCHED,CANCELLED),and(created_by.eq.'
+        + encodeURIComponent(actorId) + ',status.in.(DRAFT,RETURNED)))';
+    } else {
+      path += '&status=in.(OPEN,MATCHED,CANCELLED)';
+    }
   }
   // NAPOMENA (bug fix): encodeEq() dodaje "eq." prefiks (za jednakost) - ovde treba
   // "gte."/"lte." prefiks, pa se koristi cist encodeURIComponent. encodeEq() ovde je
