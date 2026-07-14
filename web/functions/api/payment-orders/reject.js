@@ -6,7 +6,7 @@ function makeId(prefix) {
   return prefix + '-' + crypto.randomUUID();
 }
 
-async function insertAuditLog(env, order, updatedOrder, user, session) {
+async function insertAuditLog(env, action, entityType, entityId, oldValue, newValue, comment, user, session, cashboxId) {
   await supabaseRest(env, '/audit_log', {
     method: 'POST',
     headers: { prefer: 'return=minimal' },
@@ -18,16 +18,33 @@ async function insertAuditLog(env, order, updatedOrder, user, session) {
       user_code: user.user_code || '',
       role: user.role || '',
       google_session_email: session.google_session_email || '',
-      cashbox_id: order.cashbox_id || '',
+      cashbox_id: cashboxId || '',
       shift_id: session.shift_id || '',
-      action: 'REJECT',
-      entity_type: 'PAYMENT_ORDERS',
-      entity_id: order.order_id || '',
-      old_value: order,
-      new_value: updatedOrder,
-      comment: 'Payment order rejected by cashier.'
+      action,
+      entity_type: entityType,
+      entity_id: entityId,
+      old_value: oldValue || null,
+      new_value: newValue || {},
+      comment
     })
   });
+}
+
+// FAZA 3x: nalog poslat blagajniku na isplatu ima povezanu "pending ISPLATA" stavku u
+// cash_events (status SUBMITTED, event_type CASH_OUTFLOW, linked_order_id) - kreira je
+// send-to-cashier.js, i UPRAVO ta stavka se prikazuje u Knjizi kao "na čekanju". Ranije
+// je ovaj endpoint menjao SAMO payment_orders.status, ostavljajući tu cash_events stavku
+// zauvek u statusu SUBMITTED - trajno "visi" u Knjizi kao da čeka isplatu, a istovremeno
+// je neizvršiva (execute-pending.js zahteva da nalog bude WAITING_PAYMENT/PARTIALLY_PAID).
+// Ispravka: ako postoji takva pending stavka, ona se sada otkazuje (status CANCELLED -
+// isti status koji cash_events tabela već podržava, vidi cash-events/reverse.js) kao deo
+// iste akcije odbijanja, sa sopstvenim audit log zapisom.
+async function findPendingPayment(env, orderId) {
+  const rows = await supabaseRest(
+    env,
+    '/cash_events?select=*&linked_order_id=' + encodeEq(orderId) + '&status=eq.SUBMITTED&event_type=eq.CASH_OUTFLOW&limit=1'
+  );
+  return rows && rows.length ? rows[0] : null;
 }
 
 export async function onRequestPost(context) {
@@ -56,7 +73,37 @@ export async function onRequestPost(context) {
       return apiError('Samo nalog koji čeka isplatu može biti odbijen od blagajnika.', 409);
     }
 
+    const appUser = sessionResult.session.app_user || {};
+    const session = sessionResult.session || {};
     const now = new Date().toISOString();
+
+    // Otkaži povezanu pending ISPLATA stavku (ako postoji) PRE menjanja statusa naloga,
+    // da ne ostane siroče u Knjizi/redu čekanja ako nešto usput pukne.
+    const pendingPayment = await findPendingPayment(env, orderId);
+    if (pendingPayment) {
+      const cancelledRows = await supabaseRest(env, '/cash_events?event_id=' + encodeEq(pendingPayment.event_id), {
+        method: 'PATCH',
+        headers: { prefer: 'return=representation' },
+        body: JSON.stringify({
+          status: 'CANCELLED',
+          updated_at: now
+        })
+      });
+      const cancelledPayment = cancelledRows && cancelledRows.length ? cancelledRows[0] : { ...pendingPayment, status: 'CANCELLED' };
+      await insertAuditLog(
+        env,
+        'CANCEL',
+        'CASH_EVENTS',
+        pendingPayment.event_id,
+        pendingPayment,
+        cancelledPayment,
+        'Pending ISPLATA otkazana jer je blagajnik odbio nalog ' + orderId + ' pre isplate. Razlog odbijanja: ' + reason,
+        appUser,
+        session,
+        pendingPayment.cashbox_id || order.cashbox_id
+      );
+    }
+
     const updatedRows = await supabaseRest(env, '/payment_orders?order_id=' + encodeEq(orderId), {
       method: 'PATCH',
       headers: { prefer: 'return=representation' },
@@ -67,7 +114,18 @@ export async function onRequestPost(context) {
       })
     });
     const updatedOrder = updatedRows && updatedRows.length ? updatedRows[0] : { ...order, status: 'REJECTED_BY_CASHIER', cashier_rejection_reason: reason };
-    await insertAuditLog(env, order, updatedOrder, sessionResult.session.app_user || {}, sessionResult.session || {});
+    await insertAuditLog(
+      env,
+      'REJECT',
+      'PAYMENT_ORDERS',
+      order.order_id || '',
+      order,
+      updatedOrder,
+      'Payment order rejected by cashier.' + (pendingPayment ? ' Pending ISPLATA ' + pendingPayment.event_id + ' otkazana istovremeno.' : ''),
+      appUser,
+      session,
+      order.cashbox_id
+    );
 
     return apiOk(updatedOrder);
   } catch (error) {

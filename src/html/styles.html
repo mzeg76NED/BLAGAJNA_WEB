@@ -1020,9 +1020,113 @@
 
   .m-drawer-settings {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 0 10px;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 4px;
+  }
+
+  /* FAZA 3x: profesionalni "Settings screen" red - ikonica+naziv levo, kontrola
+     (select/chevron) desno, puna sirina, tanka linija ispod (osim poslednjeg).
+     Zamenjuje raniji oblak neuredno prelamajucih pilula (.m-chip). */
+  .m-settings-row {
+    align-items: center;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--color-border-light);
+    color: var(--color-text);
+    display: flex;
+    font-size: 13px;
+    font-weight: 600;
+    justify-content: space-between;
+    min-height: 46px;
+    padding: 4px 10px;
+    text-align: left;
+    width: 100%;
+  }
+
+  .m-settings-row:last-child { border-bottom: none; }
+
+  .m-settings-row-label {
+    align-items: center;
+    color: var(--color-text);
+    display: inline-flex;
+    gap: 10px;
+  }
+
+  .m-settings-row-label i {
+    color: var(--color-text-muted);
+    font-size: 17px;
+    width: 20px;
+    text-align: center;
+  }
+
+  .m-settings-control {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    max-width: 55%;
+    padding: 6px 8px;
+  }
+
+  .m-settings-row-action {
+    cursor: pointer;
+  }
+
+  .m-settings-row-action:hover { background: var(--color-bg); }
+
+  .m-settings-row-chevron {
+    color: var(--color-text-hint);
+    font-size: 16px;
+  }
+
+  .m-settings-row-danger {
+    color: var(--color-out);
+    cursor: pointer;
+  }
+
+  .m-settings-row-danger .m-settings-row-label i { color: var(--color-out); }
+
+  .m-settings-account {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .m-settings-account-avatar {
+    align-items: center;
+    background: var(--color-primary-bg);
+    border-radius: 999px;
+    color: var(--color-primary);
+    display: flex;
+    flex-shrink: 0;
+    font-size: 20px;
+    height: 38px;
+    justify-content: center;
+    width: 38px;
+  }
+
+  .m-settings-account-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .m-settings-account-info strong {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .m-settings-account-version {
+    color: var(--color-text-hint);
+    font-size: 10px;
   }
 
   .m-content {
@@ -1237,19 +1341,22 @@
     display: none;
   }
 
+  /* FAZA 3x: korisnik trazi da PLUS dugme bude vece i upadljivije, "isto kao na
+     Google Keep aplikaciji" - Keep-ov FAB je vizuelno dominantan krug (~56-64px)
+     sa debelom senkom, ne mala pilula. Povecano sa 54px na 64px + deblja senka. */
   .m-fab-btn {
     align-items: center;
     background: var(--color-primary);
     border: 3px solid var(--color-bg);
     border-radius: 999px;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, .32);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .38);
     color: #fff;
     display: flex;
-    font-size: 24px;
-    height: 54px;
+    font-size: 30px;
+    height: 64px;
     justify-content: center;
     transition: transform .15s ease;
-    width: 54px;
+    width: 64px;
   }
 
   .m-fab-btn.active {
@@ -4221,10 +4328,14 @@
     padding: calc(5px * var(--mobile-scale)) calc(10px * var(--mobile-scale));
   }
 
+  /* FAZA 3x: prethodna vrednost (38px) je pravila PLUS dugme mnogo manjim na
+     stvarnom telefonu nego u desktop pregledu (html.mobile-view override bije
+     baznu .m-fab-btn definiciju) - korisnik trazi Keep-oliki, upadljiv krug,
+     zato je i ovde povecano da odgovara baznoj velicini (64px). */
   html.mobile-view .m-fab-btn {
-    font-size: calc(18px * var(--mobile-scale));
-    height: calc(38px * var(--mobile-scale));
-    width: calc(38px * var(--mobile-scale));
+    font-size: calc(28px * var(--mobile-scale));
+    height: calc(60px * var(--mobile-scale));
+    width: calc(60px * var(--mobile-scale));
   }
 
   html.mobile-view .m-fab-menu-item {

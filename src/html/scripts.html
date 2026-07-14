@@ -2982,6 +2982,7 @@
       card.setAttribute('hidden', 'hidden');
       card.style.display = 'none';
     });
+    applyMobileShiftLock_();
     // Direct posting (Uplata/Isplata/Trezor) is allowed for ANY user while the
     // cashbox has an open shift - the shift is shared, not tied to whoever opened
     // it (mirrors the backend fix in cash-events/inflow.js, outflow.js,
@@ -2999,6 +3000,36 @@
     });
     renderShiftPageKpis_(shift, []);
     updateCountWorkflowVisibility_();
+  }
+
+  // FAZA 3x: korisnik je odlučio da otvaranje/zatvaranje smene na MOBILNOJ aplikaciji
+  // bude ograničeno samo na ADMIN rolu (za sve ostale role, čak i one koje po
+  // permisiona matrici imaju shifts:open/shifts:close - npr. CASHIER_SUPERVISOR -
+  // ova akcija ostaje dostupna samo sa desktopa). Ovo je namerno HARDKODOVANO
+  // ograničenje po platformi, ne prolazi kroz permission matricu (isti obrazac kao
+  // MANDATE_COUNT_ROLES u _lib/mandatoryCount.js) - primenjuje se SVAKI put kad se
+  // status smene ponovo iscrta, da ostane zaključano bez obzira na hasShift/refresh.
+  function applyMobileShiftLock_() {
+    var isMobileShell = Boolean(document.querySelector('.m-shell'));
+    if (!isMobileShell) return;
+    var isAdmin = Boolean(uiState.currentUser && uiState.currentUser.role === 'ADMIN');
+    if (isAdmin) return;
+    var openBtn = document.getElementById('m-shift-action-open');
+    if (openBtn) {
+      openBtn.hidden = true;
+      openBtn.disabled = true;
+      openBtn.title = 'Otvaranje smene sa mobilne aplikacije je dostupno samo administratoru.';
+    }
+    var openCard = document.querySelector('#m-section-smena .shift-open-action-card');
+    if (openCard) {
+      openCard.setAttribute('hidden', 'hidden');
+      openCard.style.display = 'none';
+    }
+    var closeBtn = document.querySelector('#m-shift-status [data-shift-status-close]');
+    if (closeBtn) {
+      closeBtn.disabled = true;
+      closeBtn.title = 'Zatvaranje smene sa mobilne aplikacije je dostupno samo administratoru.';
+    }
   }
 
   function openDesktopSection_(navKey) {
@@ -3251,9 +3282,25 @@
     }
   }
 
+  // FAZA 3x: korisnik je prijavio da se poruka "Prvo otvorite smenu..." pojavljuje
+  // "periodično" na mobilnom (svaki put kad se stranica ponovo učita - npr. mobilni
+  // browser često "reklamira"/ponovo učitava pozadinsku karticu - bootstrap tada prođe
+  // iznova i ova poruka bi se ponovo prikazala). Zahtev: NE prikazuj ovo proaktivno -
+  // reci korisniku SAMO kad pokuša akciju kojoj je smena potrebna (već postoji: npr.
+  // executePendingPaymentOrderOutflow_, updateMobileDirectActionsVisibility_ sakriva
+  // Uplata/Isplata/Trezor kad hasShift===false, itd.) - zato je proaktivni showMessage
+  // ovde potpuno uklonjen, ne samo utišan.
   function enforceShiftStartup_(isDesktop, isMobile) {
     if (uiState.activeShift && uiState.activeShift.shift_id) return;
-    showMessage('Prvo otvorite smenu. Direktne uplate, isplate i trezor nisu dostupni dok smena nije otvorena.', 'info');
+    // FAZA 3x: otvaranje/izmena smene na mobilnom je sada zaključana za sve role
+    // OSIM ADMIN (vidi applyMobileShiftLock_) - preusmeravanje na prazan "Smena" tab
+    // nema smisla za ne-admin mobilne korisnike (ne mogu ništa da urade tamo), pa se
+    // radi samo za desktop i za mobilni ADMIN.
+    var isMobileAdmin = isMobile && uiState.currentUser && uiState.currentUser.role === 'ADMIN';
+    if (isMobile && !isMobileAdmin) {
+      updateMobileDirectActionsVisibility_();
+      return;
+    }
     if (isMobile) {
       document.querySelectorAll('.m-section').forEach(function(section) {
         section.classList.toggle('active', section.id === 'm-section-smena');
@@ -5046,6 +5093,20 @@
     });
   }
 
+  // FAZA 3x: umesto da se oslanjamo ISKLJUČIVO na jednokratni setTimeout retry pri
+  // bootstrapu (koji je i dalje mogao da promaši ako je DOM/privilegije kasnile duže
+  // od 600ms), ovo je deljena funkcija koja PONOVO primenjuje sve privilegija-zavisne
+  // vidljivosti tacno u trenutku kada korisnik otvori hamburger fioku ili "+" FAB meni -
+  // to je i jedini trenutak kad korisnik zapravo GLEDA u te opcije, pa garantuje tacan
+  // prikaz bez obzira sta je izazvalo eventualno kasnjenje pri prvom ucitavanju.
+  function refreshPrivilegeGatedMobileUi_() {
+    bindAnnouncementButtons_();
+    updateMobileDirectActionsVisibility_();
+    if (uiState.currentUser && ['ASSISTANT_CASHIER', 'ANNOUNCER'].includes(uiState.currentUser.role)) {
+      restrictNavToNajave_();
+    }
+  }
+
   function bindAnnouncementButtons_() {
     var canCreate = canCreatePaymentAnnouncement_();
     var canView = canViewPaymentAnnouncements_();
@@ -6770,7 +6831,12 @@
     };
     fabBtn.addEventListener('click', function(event) {
       event.stopPropagation();
-      setOpen(fabMenu.hasAttribute('hidden'));
+      var willOpen = fabMenu.hasAttribute('hidden');
+      // FAZA 3x: osveži vidljivost opcija TAČNO pre otvaranja menija - garantuje
+      // ispravan prikaz (npr. Nova najava/Novi nalog) bez obzira na eventualno
+      // kašnjenje privilegija pri prvom učitavanju stranice.
+      if (willOpen) refreshPrivilegeGatedMobileUi_();
+      setOpen(willOpen);
     });
     // Zatvori meni posle klika na bilo koju opciju unutra (svaka pilula otvara
     // svoj dijalog/sekciju preko postojećih handlera - meni sam ne treba da ostane otvoren).
@@ -7431,7 +7497,12 @@
       overlay.style.display = open ? 'flex' : 'none';
       openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     };
-    openBtn.addEventListener('click', function() { setOpen(true); });
+    openBtn.addEventListener('click', function() {
+      // FAZA 3x: osveži vidljivost stavki fioke (npr. Najave) tačno pre otvaranja -
+      // vidi refreshPrivilegeGatedMobileUi_ napomenu kod FAB dugmeta.
+      refreshPrivilegeGatedMobileUi_();
+      setOpen(true);
+    });
     if (closeBtn) closeBtn.addEventListener('click', function() { setOpen(false); });
     overlay.addEventListener('click', function(e) { if (e.target === overlay) setOpen(false); });
     // Klik na sekciju u fioci (data-m-nav) zatvara fioku - sam prebacaj sekcije
@@ -7594,6 +7665,9 @@
           showMessage('Nalog je odbijen.', 'success');
           close();
           loadMobileNalozi_();
+          // FAZA 3x: odbijanje sada otkazuje i povezanu pending ISPLATA stavku u
+          // cash_events - osveži Knjigu odmah da nestane iz "na čekanju" prikaza.
+          loadKnjiga_(true);
         });
       });
     });
@@ -9050,6 +9124,9 @@
         callApi('apiRejectPaymentOrderByCashier', [order.id, reason], function() {
           showDesktopMessage_('Nalog je odbijen.', 'success');
           loadDesktopNalozi_();
+          // FAZA 3x: odbijanje sada otkazuje i povezanu pending ISPLATA stavku u
+          // cash_events - osveži Knjigu odmah da nestane iz "na čekanju" prikaza.
+          loadKnjiga_(true);
         });
       });
     });

@@ -109,32 +109,42 @@
           </nav>
           <div class="m-drawer-divider"></div>
           <div class="m-drawer-label">Podešavanja</div>
+          <!-- FAZA 3x: prethodni izgled (oblačić-pilule promenljive širine, u redovima
+               koji nepredvidivo prelamaju) je delovao neuredno/"dečije". Zamenjeno
+               čistom vertikalnom listom redova (isti obrazac kao iOS/Android Settings
+               i kao .m-drawer-nav iznad) - ikonica + naziv levo, kontrola desno,
+               puna širina, tanka linija između redova. Isti ID-jevi/atributi su
+               zadržani, JS binding se ne menja. -->
           <div class="m-drawer-settings">
-            <span class="m-chip">
-              <i class="ti ti-building-bank" aria-hidden="true"></i>
-              <select data-session-cashbox-select aria-label="Blagajna"></select>
-            </span>
-            <span class="m-chip">
-              <i class="ti ti-coins" aria-hidden="true"></i>
-              <select data-session-currency-select aria-label="Valuta"></select>
-            </span>
-            <button class="m-chip theme-toggle" data-theme-toggle type="button" aria-label="Promeni temu">
-              <i class="ti ti-moon" aria-hidden="true"></i> Tema
+            <label class="m-settings-row" for="m-drawer-cashbox-select">
+              <span class="m-settings-row-label"><i class="ti ti-building-bank" aria-hidden="true"></i> Blagajna</span>
+              <select class="m-settings-control" id="m-drawer-cashbox-select" data-session-cashbox-select aria-label="Blagajna"></select>
+            </label>
+            <label class="m-settings-row" for="m-drawer-currency-select">
+              <span class="m-settings-row-label"><i class="ti ti-coins" aria-hidden="true"></i> Valuta</span>
+              <select class="m-settings-control" id="m-drawer-currency-select" data-session-currency-select aria-label="Valuta"></select>
+            </label>
+            <button class="m-settings-row m-settings-row-action" data-theme-toggle type="button" aria-label="Promeni temu">
+              <span class="m-settings-row-label"><i class="ti ti-moon" aria-hidden="true"></i> Tema</span>
+              <i class="ti ti-chevron-right m-settings-row-chevron" aria-hidden="true"></i>
             </button>
-            <button class="m-chip" id="m-all-balances-btn" type="button">
-              <i class="ti ti-coins" aria-hidden="true"></i>
-              Sve valute
+            <button class="m-settings-row m-settings-row-action" id="m-all-balances-btn" type="button">
+              <span class="m-settings-row-label"><i class="ti ti-coins" aria-hidden="true"></i> Sve valute</span>
+              <i class="ti ti-chevron-right m-settings-row-chevron" aria-hidden="true"></i>
             </button>
-            <span class="m-chip m-chip-account" id="app-user-chip" hidden>
-              <i class="ti ti-user-circle" aria-hidden="true"></i>
-              <strong id="app-user-label">—</strong>
-            </span>
+            <div class="m-drawer-divider"></div>
+            <div class="m-settings-account" id="app-user-chip" hidden>
+              <span class="m-settings-account-avatar"><i class="ti ti-user-circle" aria-hidden="true"></i></span>
+              <span class="m-settings-account-info">
+                <strong id="app-user-label">—</strong>
+                <span class="m-settings-account-version" data-app-version>verzija...</span>
+              </span>
+            </div>
             <!-- FAZA 3w: "Promeni korisnika" uklonjeno - postoji Odjava, logicno je
                  da se promena korisnika radi kroz odjavu pa novu prijavu. -->
-            <button class="m-chip" id="app-logout-btn" type="button" hidden>
-              <i class="ti ti-logout" aria-hidden="true"></i> Odjava
+            <button class="m-settings-row m-settings-row-danger" id="app-logout-btn" type="button" hidden>
+              <span class="m-settings-row-label"><i class="ti ti-logout" aria-hidden="true"></i> Odjava</span>
             </button>
-            <span class="m-chip m-chip-version" data-app-version>verzija...</span>
           </div>
         </div>
       </div>
