@@ -449,3 +449,62 @@ export async function cancelAnnouncementCore(env, announcementId, reason, actor,
   await insertAuditLog(env, 'CANCEL', announcementId, announcement, updated, 'PAYMENT_ANNOUNCEMENT_CANCELLED', actor, session, announcement.cashbox_id);
   return updated;
 }
+
+// Korisnikov zahtev (2026-07-14): "za najave mi je potrebna opcija da se vide svi
+// detalji, statusi, ko je menjao i kada, isto kao i na nalogu za isplatu, potpuno isti
+// prikaz." - mirroring getPaymentOrderTimelineCore u _lib/paymentOrders.js. Za razliku
+// od naloga (koji mora da ukrsti audit_log komentare i cash_events da bi rekonstruisao
+// tok), najava vec ima SVAKU prelaznu tacku kao svoju kolonu (sent_by/at, returned_by/at,
+// matched_by/at, cancelled_by/at) - pouzdaniji izvor od parsiranja teksta komentara, pa se
+// koriste direktno. audit_log (entity_type=PAYMENT_ANNOUNCEMENTS) se dodatno ukljucuje
+// da pokrije IZMENE (UPDATE akcija iz updateAnnouncementCore) koje inace nemaju svoju
+// kolonu - to je "ko je menjao i kada" deo koji korisnik eksplicitno trazi.
+export async function getAnnouncementTimelineCore(env, announcementId) {
+  const announcement = await findAnnouncement(env, announcementId);
+  if (!announcement) throw new BusinessError('Najava nije pronađena: ' + announcementId, 404);
+
+  const events = [];
+  events.push({
+    label: 'Najava kreirana (nacrt)',
+    at: announcement.created_at,
+    by: announcement.created_by,
+    tone: ''
+  });
+
+  const auditRows = await supabaseRest(
+    env,
+    '/audit_log?select=timestamp,user,action,comment&entity_type=eq.PAYMENT_ANNOUNCEMENTS&entity_id=' + encodeEq(announcementId) + '&order=timestamp.asc'
+  );
+  (auditRows || []).forEach((log) => {
+    if (log.action === 'UPDATE') {
+      events.push({ label: 'Najava izmenjena', at: log.timestamp, by: log.user, tone: '' });
+    }
+  });
+
+  if (announcement.sent_at) {
+    events.push({ label: 'Poslato u blagajnu', at: announcement.sent_at, by: announcement.sent_by, tone: 'warning' });
+  }
+  if (announcement.returned_at) {
+    events.push({
+      label: 'Vraćeno na doradu' + (announcement.return_reason ? ' - ' + announcement.return_reason : ''),
+      at: announcement.returned_at,
+      by: announcement.returned_by,
+      tone: 'danger'
+    });
+  }
+  if (announcement.matched_at) {
+    const diff = Number(announcement.difference || 0);
+    const diffLabel = Math.abs(diff) > 0.000001 ? (diff > 0 ? ' - VIŠAK ' : ' - MANJAK ') + Math.abs(diff) + ' ' + (announcement.currency || '') : '';
+    events.push({ label: 'Uparena sa uplatom' + diffLabel, at: announcement.matched_at, by: announcement.matched_by, tone: 'success' });
+  }
+  if (announcement.cancelled_at) {
+    events.push({
+      label: 'Otkazana' + (announcement.cancel_reason ? ' - ' + announcement.cancel_reason : ''),
+      at: announcement.cancelled_at,
+      by: announcement.cancelled_by,
+      tone: 'danger'
+    });
+  }
+
+  return events.sort((left, right) => new Date(left.at || 0) - new Date(right.at || 0));
+}

@@ -5729,6 +5729,18 @@
   // FAZA 3w: dugmad zavise od statusa (DRAFT/RETURNED su editabilni i saljivi;
   // OPEN moze da se upari ILI vrati na doradu; MATCHED ima dugme za detalje
   // uparivanja; Otkazivanje je moguce u bilo kom stanju pre uparivanja).
+  // Korisnikov zahtev: puna istorija (status/ko/kada) na najavi, isti prikaz kao na
+  // nalogu za isplatu (vidi loadPaymentOrderTimeline_/renderPaymentOrderTimelineItems_ -
+  // ta render funkcija je generička, ne zavisi od tipa entiteta, pa se ponovo koristi).
+  function loadAnnouncementTimeline_(announcementId, overlay) {
+    if (!announcementId) return;
+    callApi('apiGetPaymentAnnouncementTimeline', [announcementId], function(events) {
+      var target = overlay && overlay.querySelector ? overlay.querySelector('#announcement-detail-timeline') : null;
+      if (!target) return;
+      target.innerHTML = renderPaymentOrderTimelineItems_(events || []);
+    }, { quiet: true });
+  }
+
   function openAnnouncementDetail_(a) {
     var currentEmail = (uiState.currentUser && uiState.currentUser.email) || '';
     var isOwner = Boolean(currentEmail) && a.created_by === currentEmail;
@@ -5771,6 +5783,8 @@
       '<div class="app-dialog" role="dialog" aria-modal="true">' +
         '<div class="po-detail-head"><h3>Najava uplate' + (a.ref_no != null ? ' #' + a.ref_no : '') + '</h3><span class="po-status ' + announcementStatusClass_(a.status) + '">' + escapeHtml(statusLabel) + '</span></div>' +
         '<div class="po-detail-grid">' + rows.map(function(r) { return renderPaymentOrderField_(r[0], r[1]); }).join('') + '</div>' +
+        '<h4>Istorija <span>(status, ko i kada)</span></h4>' +
+        '<div id="announcement-detail-timeline"><div class="po-empty-docs">Učitavanje istorije…</div></div>' +
         '<div class="m-detail-actions po-panel-actions">' +
           (canEditOrSend ? '<button type="button" class="cash-count-action draft" id="announcement-edit-btn"><i class="ti ti-edit" aria-hidden="true"></i> Izmeni</button>' : '') +
           (canEditOrSend ? '<button type="button" class="cash-count-action save" id="announcement-send-btn"><i class="ti ti-send" aria-hidden="true"></i> Pošalji u blagajnu</button>' : '') +
@@ -5785,6 +5799,7 @@
         '</div>' +
       '</div>';
     document.body.appendChild(overlay);
+    loadAnnouncementTimeline_(a.announcement_id, overlay);
     var close = function() { overlay.remove(); };
     overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
     var closeBtn = overlay.querySelector('#announcement-detail-close');

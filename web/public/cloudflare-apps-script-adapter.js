@@ -80,7 +80,7 @@
       // NAPOMENA: ovaj string se vidi u headeru (desktop) i hamburger fioci (mobilni) -
       // korisnik ga koristi da vizuelno potvrdi da gleda najnoviji deploy (a ne stari
       // keširan build). BUMP-ovati ovaj broj uz svaku FAZA izmenu koja dira frontend.
-      appVersion: 'cloudflare-migration-0.20.0',
+      appVersion: 'cloudflare-migration-0.21.0',
       environment: 'Cloudflare/Supabase migracija',
       currencies: currencies.map(function (row) { return row.currency_code; }),
       currencyDetails: currencies,
@@ -625,6 +625,10 @@
     },
     apiGetPaymentOrderTimeline: async function (orderId, sessionId) {
       var response = await apiFetch('/api/payment-orders/timeline?order_id=' + encodeURIComponent(orderId || ''), { sessionId: sessionId });
+      return response.events || [];
+    },
+    apiGetPaymentAnnouncementTimeline: async function (announcementId, sessionId) {
+      var response = await apiFetch('/api/payment-announcements/timeline?announcement_id=' + encodeURIComponent(announcementId || ''), { sessionId: sessionId });
       return response.events || [];
     },
     apiRepairPaymentOrdersCashboxFromRequest: async function (sessionId) {
