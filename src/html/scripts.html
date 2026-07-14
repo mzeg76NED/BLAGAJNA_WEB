@@ -1472,9 +1472,21 @@
       btn.classList.toggle('active', btn.getAttribute('data-d-nav') === 'knjiga');
       btn.hidden = false;
     });
-    ['m-detail-overlay', 'm-shift-detail-overlay', 'm-drawer-overlay', 'm-fab-menu', 'm-fab-backdrop'].forEach(function(id) {
+    ['m-detail-overlay', 'm-shift-detail-overlay', 'm-drawer-overlay'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.style.display = 'none';
+    });
+    // BUGFIX: m-fab-menu/m-fab-backdrop se NIGDE drugde ne kontrolišu preko
+    // style.display - bindMobileFab_ ih otvara/zatvara isključivo preko "hidden"
+    // atributa (fabMenu.removeAttribute('hidden') / backdrop.hidden = false). Ako bi
+    // se ovde upisao inline style.display:none, taj inline stil bi TRAJNO nadjačao
+    // kasnije removeAttribute('hidden') pozive - meni bi ostao nevidljiv za SVE role
+    // posle SVAKE odjave, jer se atribut uklanja ali stil ostaje. Ovo je tačno
+    // prouzrokovalo bag "FAB dugme nema nijednu opciju" prijavljen posle uvođenja
+    // ove funkcije - koristi se isti mehanizam (hidden atribut) kao i svuda drugde.
+    ['m-fab-menu', 'm-fab-backdrop'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.hidden = true;
     });
     uiState.currentUser = null;
     uiState.activeShift = null;
@@ -5768,7 +5780,9 @@
           '<button type="button" class="cash-count-action draft" id="announcement-docs-btn"><i class="ti ti-paperclip" aria-hidden="true"></i> Dokumenti</button>' +
           (canCancel ? '<button type="button" class="cash-count-action cancel" id="announcement-cancel-btn"><i class="ti ti-circle-x" aria-hidden="true"></i> Otkaži najavu</button>' : '') +
         '</div>' +
-        '<button type="button" class="btn-ghost btn-full" id="announcement-detail-close">Zatvori</button>' +
+        '<div class="m-detail-actions announcement-detail-close-row">' +
+          '<button type="button" class="cash-count-action warn" id="announcement-detail-close"><i class="ti ti-x" aria-hidden="true"></i> Zatvori</button>' +
+        '</div>' +
       '</div>';
     document.body.appendChild(overlay);
     var close = function() { overlay.remove(); };
@@ -6270,6 +6284,24 @@
     return (LAST_KNJIGA_EVENTS || []).some(function(e) { return e.reversal_of_event_id === eventId; });
   }
 
+  // PRAVILO (korisnikov zahtev, 2026-07-14): STORNO je dozvoljen SAMO dok je smena u
+  // kojoj je stavka nastala i dalje aktivna - čim se ta smena zatvori, ništa iz nje se
+  // više ne može stornirati. Frontend proxy za backend proveru u cash-events/reverse.js
+  // (koja tačno određuje pripadajuću smenu preko cashbox_id+event_date): ovde se
+  // koristi TRENUTNO aktivna smena (uiState.activeShift) - ako ne postoji, ili je za
+  // drugu blagajnu, ili je stavka nastala PRE nego što je ta smena otvorena, dugme se
+  // zaključava unapred (backend je konačna provera, ovo je samo da se ne prikazuje
+  // dugme kao aktivno kad će sigurno dobiti 409).
+  function isEventReversibleByShiftState_(ev) {
+    var shift = uiState.activeShift;
+    if (!shift || shift.status && shift.status !== 'OPEN') return false;
+    if (shift.cashbox_id && ev.cashbox_id && shift.cashbox_id !== ev.cashbox_id) return false;
+    var eventTime = new Date(ev.event_date || ev.created_at || 0).getTime();
+    var openedTime = new Date(shift.opened_at || 0).getTime();
+    if (isNaN(eventTime) || isNaN(openedTime)) return true;
+    return eventTime >= openedTime;
+  }
+
   // Resolves an internal hash event_id (e.g. "CEV-a1b2...") to its human-readable
   // ref_no, using whatever's currently loaded in the Knjiga. Falls back to the raw
   // id if the referenced event isn't in the loaded window (e.g. outside the current
@@ -6533,9 +6565,13 @@
       });
     }
     if (stornoBtn) {
-      var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !isEventAlreadyReversed_(ev.event_id);
+      var shiftOk = isEventReversibleByShiftState_(ev);
+      var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !isEventAlreadyReversed_(ev.event_id)
+        && currentUserHasPrivilege_('cash_events:reverse') && shiftOk;
       stornoBtn.disabled = !canReverse;
-      stornoBtn.title = canReverse ? '' : 'Ova stavka je već storno ili storno događaj.';
+      stornoBtn.title = !shiftOk && !isCount && ev.event_type !== 'REVERSAL' && !isEventAlreadyReversed_(ev.event_id)
+        ? 'Smena u kojoj je stavka nastala je zatvorena - storno je moguć samo u aktivnoj smeni.'
+        : (canReverse ? '' : 'Ova stavka je već storno ili storno događaj.');
       stornoBtn.addEventListener('click', function() {
         if (!canReverse) return;
         appPrompt_({
@@ -6660,8 +6696,12 @@
       // FAZA 3y: mobilni Storno je do sada proveravao SAMO poslovnu logiku
       // (tip/status stavke), bez provere privilegije cash_events:reverse - desktop
       // detalj (d-detail-storno) vec ima ovu proveru. Uskladjeno, isto ponasanje.
-      var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !ev.optimistic_id && !isEventAlreadyReversed_(ev.event_id) && currentUserHasPrivilege_('cash_events:reverse');
+      var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !ev.optimistic_id && !isEventAlreadyReversed_(ev.event_id)
+        && currentUserHasPrivilege_('cash_events:reverse') && isEventReversibleByShiftState_(ev);
       stornoBtn.disabled = !canReverse;
+      stornoBtn.title = canReverse ? '' : (!isEventReversibleByShiftState_(ev) && !isCount && ev.event_type !== 'REVERSAL' && !isEventAlreadyReversed_(ev.event_id)
+        ? 'Smena u kojoj je stavka nastala je zatvorena - storno je moguć samo u aktivnoj smeni.'
+        : '');
       stornoBtn.onclick = function() {
         if (!canReverse) return;
         appPrompt_({

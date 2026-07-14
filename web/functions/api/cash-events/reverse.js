@@ -53,6 +53,33 @@ async function getCashboxBalance(env, cashboxId, currency) {
   return rows && rows.length ? Number(rows[0].balance || 0) : 0;
 }
 
+// PRAVILO (2026-07-14, korisnikov zahtev): STORNO je dozvoljen SAMO dok je smena u
+// kojoj je stavka nastala i dalje AKTIVNA (status OPEN). Čim se ta smena zatvori, ništa
+// iz nje se više ne može stornirati - bez izuzetka po roli (ovo je STROŽIJE i odvojeno
+// od postojeće LOCKED_REVERSAL_ROLES provere ispod, koja se odnosi na Zaključenje dana,
+// ne na smenu - obe provere moraju proći).
+// cash_events NEMA shift_id kolonu (šema ne povezuje transakcije direktno sa smenom),
+// pa se pripadajuća smena određuje po cashbox_id + event_date koji upada u
+// [opened_at, closed_at] opseg smene (smene se ne preklapaju po blagajni - vidi
+// shifts_one_open_per_cashbox_idx). Ako se, iz bilo kog razloga, nijedna smena ne
+// pronađe (npr. stariji podaci od pre uvođenja smena), storno se NE blokira ovom
+// proverom - to je namerno "fail open" da se ne pokvari postojeći tok za takve retke
+// slučajeve; blokira se samo kad se smena PRONAĐE i nije OPEN.
+async function findShiftForEvent(env, cashboxId, eventDate) {
+  if (!cashboxId || !eventDate) return null;
+  const rows = await supabaseRest(
+    env,
+    '/shifts?select=shift_id,status,opened_at,closed_at&cashbox_id=' + encodeEq(cashboxId) +
+      '&opened_at=lte.' + encodeURIComponent(eventDate) +
+      '&order=opened_at.desc&limit=5'
+  );
+  if (!rows || !rows.length) return null;
+  const match = rows.find(function(s) {
+    return !s.closed_at || new Date(s.closed_at).getTime() >= new Date(eventDate).getTime();
+  });
+  return match || null;
+}
+
 async function insertAuditLog(env, action, entityType, entityId, oldValue, newValue, comment, user, session, cashboxId) {
   await supabaseRest(env, '/audit_log', {
     method: 'POST',
@@ -112,6 +139,11 @@ export async function onRequestPost(context) {
     const appUser = sessionResult.session.app_user || {};
     if (originalBefore.status === 'LOCKED' && !LOCKED_REVERSAL_ROLES.includes(appUser.role) && appUser.role !== 'ADMIN') {
       return apiError('Storno zaključane stavke može da radi samo Admin ili Finansije.', 403);
+    }
+
+    const eventShift = await findShiftForEvent(env, originalBefore.cashbox_id, originalBefore.event_date || originalBefore.created_at);
+    if (eventShift && eventShift.status !== 'OPEN') {
+      return apiError('Smena u kojoj je stavka proknjižena je zatvorena - storno je moguć samo dok je ta smena aktivna.', 409);
     }
 
     const previousBalance = await getCashboxBalance(env, originalBefore.cashbox_id, originalBefore.currency);

@@ -4776,6 +4776,19 @@
     border-color: #ef4444;
   }
 
+  /* "Zatvori" na pregledu najave (korisnikov zahtev, 2026-07-14) - žuto, vizuelno
+     odvojeno (razmak) od ostalih akcija iznad, na desktopu i mobilnom (deljeni
+     markup - vidi #announcement-detail-close u openAnnouncementDetail_). */
+  .cash-count-action.warn {
+    background: linear-gradient(180deg, #f0c04a, #d99a00);
+    border-color: #f0c85d;
+    color: #241a00;
+  }
+
+  .announcement-detail-close-row {
+    margin-top: 16px;
+  }
+
   /* FAZA 3y: KRITIČNO - .cash-count-action ranije NIJE imalo NIKAKAV globalni
      :disabled stil (samo .po-panel-actions button:disabled na desktopu, koje
      .m-detail-actions - mobilni dijalozi detalja naloga/najave/smene - uopšte
