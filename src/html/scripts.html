@@ -1496,6 +1496,16 @@
     }
     uiState.activeShift = data.activeShift || null;
     uiState.canPostDirectCashEvents = data.canPostDirectCashEvents === true;
+    // FAZA 3y: korisnik je prijavio da posle Odjava -> prijava DRUGOG korisnika (BEZ
+    // reload-a stranice), stara restrikcija navigacije ostane na snazi (npr. ANNOUNCER
+    // sakrije Knjigu/Naloge/Smenu/Presek/Zakljucak preko restrictNavToNajave_, a kada se
+    // zatim prijavi DIREKTOR u ISTOJ kartici, ti tabovi ostaju sakriveni jer restrictNavToNajave_
+    // SAMO sakriva, nigde ne postoji suprotna "vrati sve nazad" funkcija). Ispravka:
+    // pre bilo kakvog re-primenjivanja privilegija za NOVOG korisnika, prvo vrati svu
+    // navigaciju u vidljivo/neutralno stanje - safeStep_ koraci ispod (bindAnnouncementButtons_,
+    // applyAnnouncerRestriction_, updateMobileDirectActionsVisibility_ itd.) ce zatim
+    // ISPRAVNO ponovo sakriti tacno ono sto NOVI korisnik stvarno nema pravo da vidi.
+    safeStep_('resetRoleBasedNavRestrictions_', resetRoleBasedNavRestrictions_);
     safeStep_('initializeSession', initializeSession);
     if (isMobile) {
       safeStep_('renderSheetCurrencyButtons_', renderSheetCurrencyButtons_);
@@ -2574,6 +2584,12 @@
         target.querySelectorAll('[data-shift-index]').forEach(function(item) { item.classList.remove('selected'); });
         row.classList.add('selected');
         renderShiftDetail_(record);
+        // FAZA 3y: na mobilnom (m-shifts-list) klik na red mora i da OTVORI modalni
+        // overlay - renderShiftDetail_ samo puni sadrzaj, ne kontrolise vidljivost.
+        if (targetId === 'm-shifts-list') {
+          var shiftOverlay = document.getElementById('m-shift-detail-overlay');
+          if (shiftOverlay) shiftOverlay.style.display = 'flex';
+        }
       });
     });
     renderShiftDetail_(shifts[0]);
@@ -2854,7 +2870,11 @@
   }
 
   function renderShiftDetail_(shift) {
-    var target = document.getElementById('d-shift-detail-body');
+    // FAZA 3y: na mobilnom ne postoji staticni desni panel kao na desktopu - detalji
+    // smene se prikazuju u modalnom overlay-u (#m-shift-detail-overlay), otvorenom
+    // eksplicitno iz klik-handlera u renderShiftTable_. Ako ni jedan kontejner ne
+    // postoji (npr. mobilni ekran uopste nije jos otvoren), ovo je bezopasan no-op.
+    var target = document.getElementById('d-shift-detail-body') || document.getElementById('m-shift-detail-body');
     if (!target) return;
     if (!shift || !shift.shift_id) {
       target.innerHTML = '<div class="empty-state">Izaberite smenu iz tabele.</div>';
@@ -3151,9 +3171,14 @@
         ? 'Smenu je otvorio ' + shortUserLabel_(uiState.activeShift.opened_by || '') + '.'
         : 'Nema otvorene smene. Otvorite smenu da biste mogli da knjižite direktne uplate, isplate i predaju u trezor.';
     }
-    if (!canPost) {
-      showMessage(permissionText ? permissionText.textContent : 'Direktne uplate i predaju u trezor je moguće knjižiti tek kada je smena otvorena.', 'info');
-    }
+    // FAZA 3y: OVO je bio pravi izvor "periodične poruke" koju je korisnik prijavio -
+    // applyDirectCashPermission_ se poziva na SVAKI 15s "tick" iz startLiveRefresh_
+    // (preko refreshActiveShiftState_), pa je ovaj showMessage iskakao iznova i iznova
+    // dok god nema aktivne smene. Prethodna ispravka (enforceShiftStartup_) je uklonila
+    // JEDNOKRATNU poruku pri bootstrapu, ali nije pogodila OVU, stvarno periodičnu.
+    // Inline #d-direct-permission-card/#d-direct-permission-text (postavljeno gore)
+    // već tiho prikazuje isti tekst kao deo stranice - to je dovoljno, toast nije
+    // potreban i uklonjen je u potpunosti.
     updateDesktopDirectActionsVisibility_();
     updateMobileDirectActionsVisibility_();
     loadPendingPaymentOrderOutflows_(true);
@@ -3353,6 +3378,14 @@
   }
 
   function bindShiftWorkActions_() {
+    // FAZA 3y: zatvaranje mobilnog modala za detalje smene (vidi renderShiftDetail_/
+    // renderShiftTable_ - #m-shift-detail-overlay se otvara klikom na red u Istoriji smena).
+    var shiftDetailOverlay = document.getElementById('m-shift-detail-overlay');
+    if (shiftDetailOverlay) {
+      var shiftDetailCloseBtn = document.getElementById('m-shift-detail-close');
+      if (shiftDetailCloseBtn) shiftDetailCloseBtn.addEventListener('click', function() { shiftDetailOverlay.style.display = 'none'; });
+      shiftDetailOverlay.addEventListener('click', function(e) { if (e.target === shiftDetailOverlay) shiftDetailOverlay.style.display = 'none'; });
+    }
     [
       ['d-shift-action-open', function() { openShiftOpeningDialog_('desktop'); }],
       ['d-shift-action-in', function() { openDesktopDirectAction_('d-btn-uplata'); }],
@@ -4544,6 +4577,11 @@
     if (!docs || !docs.length) {
       return '<div class="empty-state" style="padding:8px 0">Nema prikačenih dokumenata.</div>';
     }
+    // FAZA 3y: brisanje priloga se do sada oslanjalo ISKLJUČIVO na backend 403
+    // (documents:cancel) - dugme za brisanje je bilo vidljivo svima, pa je korisnik
+    // bez privilegije dobijao grešku tek posle klika. Sada se dugme uopšte ne
+    // prikazuje bez privilegije.
+    var canDelete = currentUserHasPrivilege_('documents:cancel');
     window.__docActions_ = window.__docActions_ || {};
     return docs.map(function(d, index) {
       var key = 'doc-' + index + '-' + Date.now();
@@ -4554,7 +4592,7 @@
           '<a class="doc-row-name" href="' + escapeHtml(d.file_url || '#') + '" target="_blank" rel="noopener" download="' + escapeHtml(d.file_name || '') + '">' + escapeHtml(d.file_name || 'Dokument') + '</a>' +
           '<div class="doc-row-meta">' + escapeHtml(shortUserLabel_(d.uploaded_by || '—')) + ' · ' + escapeHtml(formatDateTimeShort_(d.created_at)) + '</div>' +
         '</div>' +
-        '<button type="button" class="doc-row-delete" title="Obriši prilog" onclick="window.__docActions_[\'' + key + '\']()"><i class="ti ti-trash" aria-hidden="true"></i></button>' +
+        (canDelete ? '<button type="button" class="doc-row-delete" title="Obriši prilog" onclick="window.__docActions_[\'' + key + '\']()"><i class="ti ti-trash" aria-hidden="true"></i></button>' : '') +
       '</div>';
     }).join('');
   }
@@ -4574,6 +4612,10 @@
 
   function openDocumentsDialog_(entityType, entityId, entityLabel) {
     if (!entityId) return;
+    // FAZA 3y: forma za prikačivanje se ranije uvek prikazivala, oslanjajući se na
+    // backend 403 (documents:attach) - sada se ceo upload deo forme sakriva bez
+    // privilegije, korisnik i dalje može da pregleda/skine postojeće priloge.
+    var canAttach = currentUserHasPrivilege_('documents:attach');
     var overlay = document.createElement('div');
     overlay.className = 'app-dialog-overlay';
     overlay.innerHTML =
@@ -4581,11 +4623,11 @@
         '<h3>Dokumenti' + (entityLabel ? ' — ' + escapeHtml(entityLabel) : '') + '</h3>' +
         '<div id="documents-dialog-list"><div class="empty-state" style="padding:8px 0">Učitavanje...</div></div>' +
         '<form id="documents-dialog-form" class="form-grid" style="margin-top:12px">' +
-          '<label>Prikači novi fajl <input type="file" name="file" required></label>' +
-          '<label>Napomena <input type="text" name="note" placeholder="opciono"></label>' +
+          (canAttach ? '<label>Prikači novi fajl <input type="file" name="file" required></label>' +
+          '<label>Napomena <input type="text" name="note" placeholder="opciono"></label>' : '') +
           '<div class="m-detail-actions">' +
             '<button type="button" class="cash-count-action cancel" id="documents-dialog-close">Zatvori (ESC)</button>' +
-            '<button type="submit" class="cash-count-action save" id="documents-dialog-upload">Prikači (F5)</button>' +
+            (canAttach ? '<button type="submit" class="cash-count-action save" id="documents-dialog-upload">Prikači (F5)</button>' : '') +
           '</div>' +
         '</form>' +
       '</div>';
@@ -5073,6 +5115,23 @@
   // FAZA 3w: ANNOUNCER/ASSISTANT_CASHIER - "sve ostale forme su zaključane", ovo
   // sakriva SVU navigaciju osim Najava na oba ekrana (desktop sidebar + mobilna
   // hamburger fioka), ne samo pocetni ekran po logovanju (kao ranije).
+  // FAZA 3y: suprotna operacija od restrictNavToNajave_ - vraca svu navigaciju/FAB
+  // dugmad u vidljivo stanje. Namerno NE dira m-nav-najave (o njegovoj vidljivosti
+  // uvek odlucuje bindAnnouncementButtons_ na osnovu STVARNE privilegije novog
+  // korisnika, ne treba da "trepne" vidljivo pa se odmah opet sakrije).
+  function resetRoleBasedNavRestrictions_() {
+    document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
+      btn.hidden = false;
+    });
+    document.querySelectorAll('[data-m-nav]').forEach(function(btn) {
+      if (btn.id !== 'm-nav-najave') btn.hidden = false;
+    });
+    ['m-fab-new-order', 'm-fab-new-count', 'm-fab-mandatory-count', 'm-btn-uplata', 'm-btn-isplata', 'm-btn-trezor'].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.hidden = false;
+    });
+  }
+
   function restrictNavToNajave_() {
     document.querySelectorAll('[data-d-nav]').forEach(function(btn) {
       if (btn.getAttribute('data-d-nav') !== 'najave') btn.hidden = true;
@@ -5517,6 +5576,17 @@
     var isEdit = Boolean(existing);
     var cashboxes = uiState.config.cashboxes || [{ cashbox_id: SESSION.cashboxId || 'CB_MAIN', name: SESSION.cashboxName || 'Glavna blagajna' }];
     var currencies = uiState.config.currencies || [SESSION.currency || 'RSD'];
+    // FAZA 3y: ANNOUNCER/ASSISTANT_CASHIER/CASHIER su "cashbox-bound" role na backendu
+    // (scopeCashboxForAnnouncements u _lib/paymentAnnouncements.js) - najava kreirana
+    // pod BILO KOJIM drugim cashbox_id-jem (npr. onim trenutno izabranim u hamburger
+    // fioci, koji ne mora biti isti kao njihova default_cashbox_id) je bila zauvek
+    // nevidljiva na listi jer list.js forsira default_cashbox_id u upitu. Zato ovde
+    // zaključavamo selektor blagajne na NJIHOVU podrazumevanu blagajnu, umesto da se
+    // oslanjamo na SESSION.cashboxId koji korisnik moze proizvoljno da promeni.
+    var boundRoles = ['CASHIER', 'ANNOUNCER', 'ASSISTANT_CASHIER'];
+    var currentRole = uiState.currentUser && uiState.currentUser.role;
+    var boundCashboxId = uiState.currentUser && uiState.currentUser.default_cashbox_id;
+    var isCashboxBound = !isEdit && boundRoles.indexOf(currentRole) !== -1 && Boolean(boundCashboxId);
     var overlay = document.createElement('div');
     overlay.className = 'app-dialog-overlay';
     overlay.innerHTML =
@@ -5524,8 +5594,8 @@
         '<h3>' + (isEdit ? 'Izmena najave uplate' : 'Najava uplate') + '</h3>' +
         '<p style="color:var(--color-text-muted);font-size:12px;margin-top:-6px">Najava se prvo čuva kao NACRT - vidljiva samo vama. Blagajna je vidi i može da je upari tek kada je pošaljete dugmetom "Pošalji u blagajnu".</p>' +
         '<form id="announcement-form" class="form-grid">' +
-          '<label>Blagajna <select name="cashbox_id"' + (isEdit ? ' disabled' : '') + '>' + cashboxes.map(function(item) {
-            var selected = isEdit ? item.cashbox_id === existing.cashbox_id : item.cashbox_id === SESSION.cashboxId;
+          '<label>Blagajna <select name="cashbox_id"' + (isEdit || isCashboxBound ? ' disabled' : '') + '>' + cashboxes.map(function(item) {
+            var selected = isEdit ? item.cashbox_id === existing.cashbox_id : (isCashboxBound ? item.cashbox_id === boundCashboxId : item.cashbox_id === SESSION.cashboxId);
             return '<option value="' + escapeHtml(item.cashbox_id) + '"' + (selected ? ' selected' : '') + '>' + escapeHtml(item.name || item.cashbox_id) + '</option>';
           }).join('') + '</select></label>' +
           '<label>Valuta <select name="currency">' + currencies.map(function(code) {
@@ -5538,8 +5608,8 @@
           '<label>Osnov <input name="purpose" type="text" value="' + escapeHtml(isEdit ? (existing.purpose || '') : '') + '"></label>' +
           '<label>Napomena <textarea name="note">' + escapeHtml(isEdit ? (existing.note || '') : '') + '</textarea></label>' +
           '<div class="m-detail-actions">' +
-            '<button type="button" class="btn-ghost" id="announcement-form-cancel">Otkaži</button>' +
-            '<button type="submit" class="btn-primary" id="announcement-form-save">' + (isEdit ? 'Sačuvaj izmene' : 'Sačuvaj kao nacrt') + '</button>' +
+            '<button type="button" class="cash-count-action cancel" id="announcement-form-cancel"><i class="ti ti-x" aria-hidden="true"></i> Otkaži</button>' +
+            '<button type="submit" class="cash-count-action draft" id="announcement-form-save"><i class="ti ti-device-floppy" aria-hidden="true"></i> ' + (isEdit ? 'Sačuvaj izmene' : 'Sačuvaj kao nacrt') + '</button>' +
           '</div>' +
         '</form>' +
       '</div>';
@@ -6543,7 +6613,10 @@
       printBtn.onclick = function() { if (!isCount) printCashSheetForEvent_(ev); };
     }
     if (stornoBtn) {
-      var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !ev.optimistic_id && !isEventAlreadyReversed_(ev.event_id);
+      // FAZA 3y: mobilni Storno je do sada proveravao SAMO poslovnu logiku
+      // (tip/status stavke), bez provere privilegije cash_events:reverse - desktop
+      // detalj (d-detail-storno) vec ima ovu proveru. Uskladjeno, isto ponasanje.
+      var canReverse = !isCount && ev.event_type !== 'REVERSAL' && !ev.optimistic_id && !isEventAlreadyReversed_(ev.event_id) && currentUserHasPrivilege_('cash_events:reverse');
       stornoBtn.disabled = !canReverse;
       stornoBtn.onclick = function() {
         if (!canReverse) return;
@@ -7728,9 +7801,9 @@
           '<label>Rok za isplatu <input name="due_date" type="date"></label>' +
           '<label>Napomena <textarea name="description"></textarea></label>' +
           '<div class="m-detail-actions">' +
-            '<button type="button" class="btn-ghost" id="m-new-order-cancel">Otkaži</button>' +
-            '<button type="submit" class="btn-primary" id="m-new-order-save">' + (existingOrder ? 'Sačuvaj izmene' : 'Sačuvaj nacrt') + '</button>' +
-            '<button type="button" class="btn-primary" id="m-new-order-issue">Sačuvaj i izdaj</button>' +
+            '<button type="button" class="cash-count-action cancel" id="m-new-order-cancel"><i class="ti ti-x" aria-hidden="true"></i> Otkaži</button>' +
+            '<button type="submit" class="cash-count-action draft" id="m-new-order-save"><i class="ti ti-device-floppy" aria-hidden="true"></i> ' + (existingOrder ? 'Sačuvaj izmene' : 'Sačuvaj nacrt') + '</button>' +
+            '<button type="button" class="cash-count-action save" id="m-new-order-issue"><i class="ti ti-send" aria-hidden="true"></i> Sačuvaj i izdaj</button>' +
           '</div>' +
         '</form>' +
       '</div>';
@@ -10052,11 +10125,16 @@
     target.className = '';
     var limit = getPaymentRequestLimit_(req.currency);
     var inLimit = req.amount <= limit;
-    var canEdit = req.status === 'DRAFT';
-    var canSubmit = req.status === 'DRAFT';
-    var canCreateOrder = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER','APPROVED'].indexOf(req.status) !== -1 && !req.linkedPaymentOrderId && req.status !== 'PAID';
-    var canReject = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1;
-    var canReturn = canReject;
+    // FAZA 3y: ove kontrole su ranije proveravale SAMO status zahteva, ne i stvarnu
+    // privilegiju korisnika - dugmad (Edituj/Pošalji/Kreiraj nalog/Odbij/Vrati na
+    // dopunu) su bila vidljiva i "aktivna" svakome, oslanjajući se da backend vrati
+    // 403 posle klika. Sada se prvo proverava privilegija (isto ime kao odgovarajući
+    // endpoint u web/functions/api/payment-requests/*.js), pa tek onda status.
+    var canEdit = req.status === 'DRAFT' && currentUserHasPrivilege_('payment_requests:create');
+    var canSubmit = req.status === 'DRAFT' && currentUserHasPrivilege_('payment_requests:create');
+    var canCreateOrder = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER','APPROVED'].indexOf(req.status) !== -1 && !req.linkedPaymentOrderId && req.status !== 'PAID' && currentUserHasPrivilege_('payment_requests:approve');
+    var canReject = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1 && currentUserHasPrivilege_('payment_requests:reject');
+    var canReturn = ['SUBMITTED','CASHIER_REVIEW','IN_REVIEW','ESCALATED_TO_ORDER'].indexOf(req.status) !== -1 && currentUserHasPrivilege_('payment_requests:return_for_correction');
     var isPaid = req.status === 'PAID';
     var createOrderLabel = inLimit ? 'Kreiraj nalog' : 'Odobri i kreiraj nalog';
     target.innerHTML =

@@ -38,7 +38,7 @@ export function scopeCashboxForAnnouncements(user, requestedCashboxId) {
   const boundRoles = ['CASHIER', 'ANNOUNCER', 'ASSISTANT_CASHIER'];
   if (user && boundRoles.includes(user.role) && user.default_cashbox_id) {
     if (requestedCashboxId && requestedCashboxId !== user.default_cashbox_id) {
-      throw new BusinessError('Možete videti najave samo za svoju podrazumevanu blagajnu.', 403);
+      throw new BusinessError('Najave su ograničene na vašu podrazumevanu blagajnu.', 403);
     }
     return user.default_cashbox_id;
   }
@@ -92,7 +92,17 @@ async function insertAuditLog(env, action, entityId, oldValue, newValue, comment
 // data: { cashbox_id, currency, announced_amount, partner_name, driver_name, purpose, note }
 export async function createAnnouncementCore(env, data, actor, session) {
   data = data || {};
-  const cashboxId = String(data.cashbox_id || session.cashbox_id || '').trim();
+  // FAZA 3y: KRITIČAN bag - list.js/scopeCashboxForAnnouncements FORSIRA da ANNOUNCER/
+  // ASSISTANT_CASHIER/CASHIER vide najave SAMO za svoju default_cashbox_id, ali OVA
+  // funkcija (create) do sada nije primenjivala isto pravilo - prihvatala je BILO KOJI
+  // cashbox_id poslat sa forme (npr. ono sto je trenutno izabrano u hamburger fioci,
+  // sto NIJE nužno isto sto i user.default_cashbox_id). Rezultat: najava kreirana pod
+  // "pogrešnim" cashbox_id-jem je zauvek nevidljiva na listi (list.js je nikad ne vraca
+  // jer forsira drugi cashbox_id u upitu) - to je root cause za prijavljeni bag "najava
+  // se ne vidi nigde". Ispravka: ista scopeCashboxForAnnouncements provera i ovde, da
+  // create i list UVEK budu usaglašeni za cashbox-bound role.
+  const scopedCashboxId = scopeCashboxForAnnouncements(actor, String(data.cashbox_id || '').trim() || undefined);
+  const cashboxId = String(scopedCashboxId || data.cashbox_id || session.cashbox_id || '').trim();
   const currency = String(data.currency || '').trim();
   const announcedAmount = safeNumber(data.announced_amount);
   const partnerName = String(data.partner_name || '').trim();

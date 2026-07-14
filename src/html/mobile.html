@@ -161,16 +161,10 @@
         </section>
 
         <!-- NALOZI -->
+        <!-- FAZA 3y: uklonjena dugmad Osveži/Novi nalog - besmislena (osvežavanje je
+             automatsko kao i na Knjizi, a Novi nalog već postoji u "+" FAB meniju). -->
         <section id="m-section-nalozi" class="m-section" data-section>
           <h2>Nalozi za isplatu</h2>
-          <div class="m-section-actions">
-            <button id="m-load-nalozi-btn" type="button">
-              <i class="ti ti-refresh" aria-hidden="true"></i> Osveži
-            </button>
-            <button id="m-new-order-btn" type="button" class="btn-primary">
-              <i class="ti ti-plus" aria-hidden="true"></i> Novi nalog
-            </button>
-          </div>
           <div id="m-nalozi-list"></div>
         </section>
 
@@ -420,6 +414,23 @@
             <i class="ti ti-rotate-clockwise" aria-hidden="true"></i> Storno
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- FAZA 3y: klik na red u Istoriji smena na mobilnom ranije nije radio ništa -
+         renderShiftDetail_ pisao je SAMO u #d-shift-detail-body (desktop-only id),
+         mobile.html uopšte nije imao odgovarajući kontejner. Isti modalni obrazac
+         kao #m-detail-overlay iznad. -->
+    <div id="m-shift-detail-overlay" class="m-detail-overlay" style="display:none" role="dialog" aria-modal="true">
+      <div class="m-detail-sheet">
+        <div class="sheet-handle"></div>
+        <div class="card-head">
+          <h3 style="flex:1">Detalji smene</h3>
+          <button class="btn-ghost small" id="m-shift-detail-close" type="button" aria-label="Zatvori">
+            <i class="ti ti-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div id="m-shift-detail-body"></div>
       </div>
     </div>
 

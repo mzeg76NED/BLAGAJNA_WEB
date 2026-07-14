@@ -4776,6 +4776,21 @@
     border-color: #ef4444;
   }
 
+  /* FAZA 3y: KRITIČNO - .cash-count-action ranije NIJE imalo NIKAKAV globalni
+     :disabled stil (samo .po-panel-actions button:disabled na desktopu, koje
+     .m-detail-actions - mobilni dijalozi detalja naloga/najave/smene - uopšte
+     ne pokriva). Rezultat: disabled dugme na mobilnom (npr. Odobri/Odbij/Pošalji
+     na isplatu za već ISPLAĆEN nalog) je izgledalo IDENTIČNO punoj, klikabilnoj
+     boji - korisnik ga vizuelno nije doživljavao kao "zaključano" iako klik
+     funkcionalno nije prolazio (native disabled). Ovo je globalno pravilo,
+     pokriva SVE kontejnere (desktop i mobilni) bez obzira na wrapper klasu. */
+  .cash-count-action:disabled,
+  .cash-count-action[disabled] {
+    cursor: not-allowed;
+    filter: grayscale(45%);
+    opacity: .4;
+  }
+
   /* Compact variant used for mobile order-detail / new-order action rows
      (m-order-detail, m-new-order-form) - the default 60px full-bleed style
      is desktop-scaled and too tall for stacked mobile action lists. */
